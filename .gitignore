@@ -1,12 +1,8 @@
-# Byte-compiled / optimized / DLL files
+# ─── Python ──────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -14,7 +10,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -25,7 +20,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# ─── Virtual Environments ────────────────────────
 .env
 .venv
 env/
@@ -34,12 +29,24 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE files
+# ─── Flutter / Dart ──────────────────────────────
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.pub-cache/
+app/.pub/
+app/build/
+app/.metadata
+app/*.iml
+**/ephemeral/
+**/.plugin_symlinks/
+
+# ─── IDE ─────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS files
+# ─── OS ──────────────────────────────────────────
 .DS_Store
 Thumbs.db

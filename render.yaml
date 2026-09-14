@@ -9,4 +9,4 @@ services:
       - key: PYTHON_VERSION
         value: 3.13.3
       - key: API_KEY
-        value: GnaneshReddy77806
+        sync: false  # Set this manually in Render dashboard
