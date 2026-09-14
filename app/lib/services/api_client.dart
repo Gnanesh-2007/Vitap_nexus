@@ -21,10 +21,9 @@ class ApiClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          // API key is configured via environment — see README for setup
           options.headers['X-API-Key'] = const String.fromEnvironment(
             'API_KEY',
-            defaultValue: 'YOUR_API_KEY_HERE',
+            defaultValue: 'GnaneshReddy77806',
           );
           return handler.next(options);
         },
