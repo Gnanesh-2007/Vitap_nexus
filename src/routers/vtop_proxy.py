@@ -1,239 +1,551 @@
-import uuid
-from typing import Dict
-from fastapi import APIRouter, Request, Response, HTTPException, status
+from typing import Optional
+
+import re
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
+
 from fastapi.responses import RedirectResponse
+
 from pydantic import BaseModel
+
 from vitap_vtop_client.client import VtopClient
-from vitap_vtop_client.exceptions import VitapVtopClientError
-from src.utils.handle_client_exception import handle_client_exception
+from vitap_vtop_client.exceptions import (
+    VitapVtopClientError,
+)
+
+from src.routers.auth import (
+    get_vtop_client_from_header,
+    get_client_for_session,
+)
+
+from src.utils.handle_client_exception import (
+    handle_client_exception,
+)
+
+
+# ============================================================
+# ROUTER
+# ============================================================
 
 router = APIRouter(
     prefix="/vtop_proxy",
     tags=["vtop_proxy"],
 )
 
+
+# ============================================================
+# VTOP BASE
+# ============================================================
+
 VTOP_BASE = "https://vtop.vitap.ac.in"
 
-# In-memory store of authenticated VTOP httpx clients by session ID
-_active_clients: Dict[str, any] = {}  # session_id -> httpx.AsyncClient
+
+# ============================================================
+# REQUEST MODEL
+# ============================================================
 
 class StartSessionRequest(BaseModel):
     registration_number: str
     password: str
 
 
-def _rewrite_html(html: str, proxy_base: str) -> str:
-    """
-    Rewrite all VTOP absolute paths in HTML/JS/CSS to go through our proxy.
-    Handles href, src, action, url(), location.href, fetch(), etc.
-    """
-    import re
+# ============================================================
+# HTML REWRITE
+# ============================================================
 
-    # Strip headers that block iframe embedding
-    # (already stripped at response level, but also injected as meta just in case)
+def _rewrite_html(
+    html: str,
+    proxy_base: str,
+) -> str:
+    """
+    Rewrite VTOP URLs so they continue going through our proxy.
+    """
 
-    # 1. Inject <base> tag so relative URLs route through proxy automatically
-    base_tag = f'<base href="{proxy_base}">'
-    if '<head>' in html:
-        html = html.replace('<head>', f'<head>{base_tag}', 1)
-    elif '<HEAD>' in html:
-        html = html.replace('<HEAD>', f'<HEAD>{base_tag}', 1)
+    # --------------------------------------------------------
+    # 1. Inject base tag
+    # --------------------------------------------------------
+
+    base_tag = (
+        f'<base href="{proxy_base}">'
+    )
+
+    if "<head>" in html:
+        html = html.replace(
+            "<head>",
+            f"<head>{base_tag}",
+            1,
+        )
+
+    elif "<HEAD>" in html:
+        html = html.replace(
+            "<HEAD>",
+            f"<HEAD>{base_tag}",
+            1,
+        )
+
     else:
         html = base_tag + html
 
-    # 2. Rewrite all quoted absolute /vtop/ references
-    # Covers: href="/vtop/...", src="/vtop/...", action="/vtop/..."
+    # --------------------------------------------------------
+    # 2. href/src/action
+    # --------------------------------------------------------
+
     html = re.sub(
         r'(href|src|action)=(["\'])/vtop/',
-        lambda m: f'{m.group(1)}={m.group(2)}{proxy_base}',
+        lambda match:
+            f'{match.group(1)}='
+            f'{match.group(2)}'
+            f'{proxy_base}',
         html,
     )
 
-    # 3. Rewrite full VTOP base URL references
-    # Covers: href="https://vtop.vitap.ac.in/vtop/..."
-    html = html.replace(f'"{VTOP_BASE}/vtop/', f'"{proxy_base}')
-    html = html.replace(f"'{VTOP_BASE}/vtop/", f"'{proxy_base}")
+    # --------------------------------------------------------
+    # 3. Absolute VTOP URLs
+    # --------------------------------------------------------
 
-    # 4. Rewrite JavaScript string literals and fetch/XHR calls
-    # Covers: '/vtop/...', "/vtop/...", url: '/vtop/...'
+    html = html.replace(
+        f'"{VTOP_BASE}/vtop/',
+        f'"{proxy_base}',
+    )
+
+    html = html.replace(
+        f"'{VTOP_BASE}/vtop/",
+        f"'{proxy_base}",
+    )
+
+    # --------------------------------------------------------
+    # 4. JavaScript strings
+    # --------------------------------------------------------
+
     html = re.sub(
         r"(['\"])/vtop/",
-        lambda m: f"{m.group(1)}{proxy_base}",
+        lambda match:
+            f"{match.group(1)}"
+            f"{proxy_base}",
         html,
     )
 
-    # 5. Rewrite JavaScript location assignments
-    # Covers: window.location = "/vtop/...", location.href = "/vtop/..."
+    # --------------------------------------------------------
+    # 5. location.href / location
+    # --------------------------------------------------------
+
     html = re.sub(
         r'(location(?:\.href)?\s*=\s*["\'])/vtop/',
-        lambda m: f'{m.group(1)}{proxy_base}',
+        lambda match:
+            f"{match.group(1)}"
+            f"{proxy_base}",
         html,
     )
 
-    # 6. Rewrite CSS url() calls that reference /vtop/ paths
+    # --------------------------------------------------------
+    # 6. CSS url()
+    # --------------------------------------------------------
+
     html = re.sub(
         r'url\(["\']?/vtop/',
-        lambda m: f'url({proxy_base}',
+        lambda match:
+            f"url({proxy_base}",
         html,
     )
 
     return html
 
 
-@router.post("/start_session")
-async def start_proxy_session(request: StartSessionRequest):
-    """
-    Logs into VTOP with student credentials and returns a session ID.
-    The Flutter WebView loads /vtop_proxy/session/{id}/content to get the live dashboard.
-    """
-    try:
-        vtop = VtopClient(
-            registration_number=request.registration_number,
-            password=request.password,
-        )
-        await vtop.login()
-        session_id = str(uuid.uuid4())
-        # Store the underlying httpx client (already has session cookies)
-        _active_clients[session_id] = vtop._client
+# ============================================================
+# START PROXY SESSION
+# ============================================================
 
-        return {
-            "session_id": session_id,
-            "portal_path": f"/vtop_proxy/session/{session_id}/content",
-        }
-    except VitapVtopClientError as e:
-        handle_client_exception(e)
-    except Exception as e:
+@router.post(
+    "/start_session"
+)
+async def start_proxy_session(
+    request: StartSessionRequest,
+    request_obj: Request,
+    client: VtopClient = Depends(
+        get_vtop_client_from_header
+    ),
+):
+    """
+    Starts a Direct VTOP proxy using the EXISTING
+    authenticated VtopClient.
+
+    IMPORTANT:
+
+    This endpoint does NOT do:
+
+        VtopClient(...)
+        await client.login()
+
+    Therefore it does NOT create another VTOP login
+    or another OTP request.
+    """
+
+    # --------------------------------------------------------
+    # Get existing session ID from header.
+    # --------------------------------------------------------
+
+    session_id = request_obj.headers.get(
+        "X-VTOP-Session-ID"
+    )
+
+    if not session_id:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create VTOP session: {e}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "Missing VTOP session. "
+                "Please login again."
+            ),
         )
 
+    # --------------------------------------------------------
+    # The dependency has already verified that this session
+    # exists and returned the SAME VtopClient.
+    #
+    # `client` is intentionally unused here because the
+    # dependency itself validates the session.
+    # --------------------------------------------------------
+
+    _ = client
+
+    return {
+        "session_id": session_id,
+        "portal_path": (
+            f"/vtop_proxy/session/"
+            f"{session_id}/content"
+        ),
+    }
+
+
+# ============================================================
+# VTOP REVERSE PROXY
+# ============================================================
 
 @router.api_route(
     "/session/{session_id}/{path:path}",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+    ],
 )
-async def proxy_vtop(session_id: str, path: str, request: Request):
+async def proxy_vtop(
+    session_id: str,
+    path: str,
+    request: Request,
+):
     """
-    Reverse-proxy for all VTOP requests under an authenticated session.
-    Strips X-Frame-Options and CSP so VTOP renders inside an iframe/WebView.
-    Rewrites all internal /vtop/ links to go back through this proxy.
-    """
-    http_client = _active_clients.get(session_id)
-    if not http_client:
-        raise HTTPException(status_code=404, detail="Session not found or expired. Please re-open Direct VTOP.")
+    Reverse proxy for an authenticated VTOP session.
 
-    # Build upstream URL
+    The VtopClient is retrieved from auth.py's session store.
+
+    A NEW VtopClient is NEVER created here.
+    """
+
+    # ========================================================
+    # GET EXISTING SESSION
+    # ========================================================
+
+    client = await get_client_for_session(
+        session_id
+    )
+
+    # --------------------------------------------------------
+    # Get the underlying httpx AsyncClient.
+    #
+    # This client already contains the VTOP authentication
+    # cookies from /auth/login and /auth/verify_otp.
+    # --------------------------------------------------------
+
+    http_client = client._client
+
+    if http_client is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "VTOP client session is no longer "
+                "available. Please login again."
+            ),
+        )
+
+    # ========================================================
+    # BUILD TARGET URL
+    # ========================================================
+
     clean_path = path.lstrip("/")
-    # If path already starts with 'vtop/' don't double it
-    if clean_path.startswith("vtop/") or clean_path == "vtop":
-        target_url = f"{VTOP_BASE}/{clean_path}"
-    else:
-        target_url = f"{VTOP_BASE}/vtop/{clean_path}"
 
-    query_params = dict(request.query_params)
+    if (
+        clean_path.startswith("vtop/")
+        or clean_path == "vtop"
+    ):
+        target_url = (
+            f"{VTOP_BASE}/"
+            f"{clean_path}"
+        )
+
+    else:
+        target_url = (
+            f"{VTOP_BASE}/vtop/"
+            f"{clean_path}"
+        )
+
+    # ========================================================
+    # REQUEST DATA
+    # ========================================================
+
+    query_params = dict(
+        request.query_params
+    )
+
     method = request.method
+
     body = await request.body()
 
-    # Safe forwarded headers
-    skip_headers = {"host", "content-length", "connection", "transfer-encoding"}
-    forward_headers = {
-        k: v for k, v in request.headers.items()
-        if k.lower() not in skip_headers
+    # ========================================================
+    # FORWARD HEADERS
+    # ========================================================
+
+    skip_headers = {
+        "host",
+        "content-length",
+        "connection",
+        "transfer-encoding",
     }
-    forward_headers["Referer"] = f"{VTOP_BASE}/vtop/content"
+
+    forward_headers = {
+        key: value
+        for key, value in request.headers.items()
+        if key.lower()
+        not in skip_headers
+    }
+
+    # --------------------------------------------------------
+    # VTOP headers
+    # --------------------------------------------------------
+
+    forward_headers["Referer"] = (
+        f"{VTOP_BASE}/vtop/content"
+    )
+
     forward_headers["Origin"] = VTOP_BASE
+
+    # ========================================================
+    # REQUEST UPSTREAM VTOP
+    # ========================================================
 
     try:
         upstream = await http_client.request(
             method=method,
             url=target_url,
-            params=query_params if query_params else None,
-            content=body if body else None,
+            params=(
+                query_params
+                if query_params
+                else None
+            ),
+            content=(
+                body
+                if body
+                else None
+            ),
             headers=forward_headers,
             timeout=30.0,
-            follow_redirects=False,   # handle redirects ourselves so we can rewrite them
+            follow_redirects=False,
         )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"VTOP proxy upstream error: {e}")
 
-    # Handle redirects — rewrite Location to go through our proxy
-    if upstream.status_code in (301, 302, 303, 307, 308):
-        location = upstream.headers.get("location", "")
-        # If VTOP redirects to its own pages, route through proxy
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "VTOP proxy upstream error: "
+                f"{e}"
+            ),
+        )
+
+    # ========================================================
+    # REDIRECTS
+    # ========================================================
+
+    if upstream.status_code in (
+        301,
+        302,
+        303,
+        307,
+        308,
+    ):
+        location = upstream.headers.get(
+            "location",
+            "",
+        )
+
+        # ----------------------------------------------------
+        # /vtop/...
+        # ----------------------------------------------------
+
         if location.startswith("/vtop/"):
-            proxied_location = f"/vtop_proxy/session/{session_id}/{location.lstrip('/')}"
-        elif location.startswith(VTOP_BASE + "/vtop/"):
-            proxied_location = f"/vtop_proxy/session/{session_id}/" + location[len(VTOP_BASE) + 1:].lstrip("/")
+            proxied_location = (
+                f"/vtop_proxy/session/"
+                f"{session_id}/"
+                f"{location.lstrip('/')}"
+            )
+
+        # ----------------------------------------------------
+        # Absolute VTOP URL
+        # ----------------------------------------------------
+
+        elif location.startswith(
+            f"{VTOP_BASE}/vtop/"
+        ):
+            proxied_location = (
+                f"/vtop_proxy/session/"
+                f"{session_id}/"
+                f"{location[len(VTOP_BASE) + 1:].lstrip('/')}"
+            )
+
         else:
             proxied_location = location
-        return RedirectResponse(url=proxied_location, status_code=upstream.status_code)
 
-    content_type = upstream.headers.get("content-type", "")
+        return RedirectResponse(
+            url=proxied_location,
+            status_code=upstream.status_code,
+        )
 
-    # Strip headers that block embedding + compression that we can't pass through as-is
-    blocked = {
+    # ========================================================
+    # RESPONSE HEADERS
+    # ========================================================
+
+    content_type = (
+        upstream.headers.get(
+            "content-type",
+            "",
+        )
+    )
+
+    blocked_headers = {
         "x-frame-options",
         "content-security-policy",
-        "content-encoding",  # we return decoded body
-        "content-length",    # recalculated
+        "content-encoding",
+        "content-length",
         "server",
         "transfer-encoding",
         "connection",
     }
-    resp_headers = {
-        k: v for k, v in upstream.headers.items()
-        if k.lower() not in blocked
+
+    response_headers = {
+        key: value
+        for key, value in upstream.headers.items()
+        if key.lower()
+        not in blocked_headers
     }
 
-    proxy_base = f"/vtop_proxy/session/{session_id}/"
+    # ========================================================
+    # PROXY BASE
+    # ========================================================
 
-    # HTML: full rewrite
+    proxy_base = (
+        f"/vtop_proxy/session/"
+        f"{session_id}/"
+    )
+
+    # ========================================================
+    # HTML
+    # ========================================================
+
     if "text/html" in content_type:
         html = upstream.text
-        html = _rewrite_html(html, proxy_base)
-        return Response(
-            content=html.encode("utf-8"),
-            status_code=upstream.status_code,
-            media_type="text/html; charset=utf-8",
-            headers=resp_headers,
+
+        html = _rewrite_html(
+            html,
+            proxy_base,
         )
 
-    # JavaScript: rewrite /vtop/ string literals so XHR/fetch calls go through proxy
-    if "javascript" in content_type or "application/json" in content_type:
-        import re
+        return Response(
+            content=html.encode(
+                "utf-8"
+            ),
+            status_code=upstream.status_code,
+            media_type=(
+                "text/html; charset=utf-8"
+            ),
+            headers=response_headers,
+        )
+
+    # ========================================================
+    # JAVASCRIPT / JSON
+    # ========================================================
+
+    if (
+        "javascript" in content_type
+        or "application/json"
+        in content_type
+    ):
         js = upstream.text
-        # Rewrite '/vtop/...' and "/vtop/..." string literals
+
         js = re.sub(
             r"(['\"])/vtop/",
-            lambda m: f"{m.group(1)}{proxy_base}",
+            lambda match:
+                f"{match.group(1)}"
+                f"{proxy_base}",
             js,
         )
-        js = js.replace(f'"{VTOP_BASE}/vtop/', f'"{proxy_base}')
-        js = js.replace(f"'{VTOP_BASE}/vtop/", f"'{proxy_base}")
-        return Response(
-            content=js.encode("utf-8"),
-            status_code=upstream.status_code,
-            media_type=content_type,
-            headers=resp_headers,
+
+        js = js.replace(
+            f'"{VTOP_BASE}/vtop/',
+            f'"{proxy_base}',
         )
 
-    # CSS: rewrite url(/vtop/...)
+        js = js.replace(
+            f"'{VTOP_BASE}/vtop/",
+            f"'{proxy_base}",
+        )
+
+        return Response(
+            content=js.encode(
+                "utf-8"
+            ),
+            status_code=upstream.status_code,
+            media_type=content_type,
+            headers=response_headers,
+        )
+
+    # ========================================================
+    # CSS
+    # ========================================================
+
     if "text/css" in content_type:
-        import re
         css = upstream.text
-        css = re.sub(r"url\(['\"]?/vtop/", lambda m: f"url({proxy_base}", css)
-        return Response(
-            content=css.encode("utf-8"),
-            status_code=upstream.status_code,
-            media_type=content_type,
-            headers=resp_headers,
+
+        css = re.sub(
+            r'url\(["\']?/vtop/',
+            lambda match:
+                f"url({proxy_base}",
+            css,
         )
 
-    # Binary/other (images, fonts, woff, etc.) — pass raw
+        return Response(
+            content=css.encode(
+                "utf-8"
+            ),
+            status_code=upstream.status_code,
+            media_type=content_type,
+            headers=response_headers,
+        )
+
+    # ========================================================
+    # BINARY / OTHER
+    # ========================================================
+
     return Response(
         content=upstream.content,
         status_code=upstream.status_code,
         media_type=content_type,
-        headers=resp_headers,
+        headers=response_headers,
     )

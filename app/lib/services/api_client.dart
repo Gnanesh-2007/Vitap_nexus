@@ -1,47 +1,334 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
+class _CachedResponse {
+  final dynamic data;
+  final int? statusCode;
+  final Headers? headers;
+  final DateTime createdAt;
+
+  const _CachedResponse({
+    required this.data,
+    required this.statusCode,
+    required this.headers,
+    required this.createdAt,
+  });
+}
 
 class ApiClient {
   late final Dio dio;
 
   // Live Render backend
-  static String get defaultBaseUrl => 'https://vitap-nexus-api.onrender.com';
+  static String get defaultBaseUrl =>
+      'https://vitap-nexus-api.onrender.com';
+
+  // ============================================================
+  // VTOP SESSION
+  // ============================================================
+
+  String? _vtopSessionId;
+
+  String? get vtopSessionId => _vtopSessionId;
+
+  // ============================================================
+  // IN-MEMORY RESPONSE CACHE
+  // ============================================================
+
+  // VTOP is slow compared with a normal API. Keep read-only
+  // responses in memory so revisiting a screen does not hit VTOP
+  // again. Cache is session-scoped and automatically cleared on
+  // login/logout/session changes.
+
+  static const Duration _cacheTtl = Duration(minutes: 5);
+
+  final Map<String, _CachedResponse> _responseCache = {};
+
+  static const Set<String> _cacheablePaths = {
+    '/student/semesters',
+    '/student/all_data',
+    '/student/profile',
+    '/student/attendance',
+    '/student/timetable',
+    '/student/marks',
+    '/student/grade_history',
+    '/student/mentor',
+    '/student/biometric',
+    '/student/general_outing_requests',
+    '/student/weekend_outing_requests',
+    '/student/pending_payments',
+    '/student/payment_receipts',
+    '/student/course_page_courses',
+    '/student/course_page_slots',
+    '/student/course_detail',
+    '/student/digital_assignments',
+    '/student/course_assignments',
+    '/student/exam_schedule',
+  };
+
+  bool _isCacheable(String path) => _cacheablePaths.contains(path);
+
+  String _cacheKey(RequestOptions options) {
+    String body = '';
+    final data = options.data;
+
+    if (data != null) {
+      try {
+        body = jsonEncode(data);
+      } catch (_) {
+        body = data.toString();
+      }
+    }
+
+    return '${_vtopSessionId ?? 'no-session'}|${options.path}|$body';
+  }
+
+  void clearDataCache() {
+    _responseCache.clear();
+    debugPrint('VTOP data cache cleared');
+  }
+
+  /// Invalidate only one endpoint's cached responses.
+  /// This is used by pull-to-refresh so refreshing the dashboard does not
+  /// throw away cached Mentor/Payments/Courses/etc. data.
+  void invalidateCacheForPath(String path) {
+    final keysToRemove = _responseCache.keys
+        .where((key) => key.contains('|$path|'))
+        .toList();
+
+    for (final key in keysToRemove) {
+      _responseCache.remove(key);
+    }
+
+    debugPrint('VTOP cache invalidated → $path');
+  }
+
+  // ============================================================
+  // WARM-UP
+  // ============================================================
+
+  // Warm the most commonly opened screens in the background.
+  // This is deliberately fire-and-forget so dashboard navigation
+  // is never blocked by prefetching.
+
+  void warmUpCommonScreens({
+    required String username,
+    required String password,
+    required String semSubId,
+  }) {
+    if (_vtopSessionId == null || _vtopSessionId!.isEmpty) return;
+
+    unawaited(
+      _warmUpCommonScreens(
+        username: username,
+        password: password,
+        semSubId: semSubId,
+      ),
+    );
+  }
+
+  Future<void> _warmUpCommonScreens({
+    required String username,
+    required String password,
+    required String semSubId,
+  }) async {
+    debugPrint('VTOP warm-up started');
+
+    // These are read-only requests. Failures are intentionally
+    // ignored because warm-up must never break the app.
+    await Future.wait<void>([
+      fetchMentor(
+        username: username,
+        password: password,
+      ).then((_) {}, onError: (_) {}),
+
+      fetchPendingPayments(
+        username: username,
+        password: password,
+      ).then((_) {}, onError: (_) {}),
+
+      fetchPaymentReceipts(
+        username: username,
+        password: password,
+      ).then((_) {}, onError: (_) {}),
+
+      fetchCoursePageCourses(
+        username: username,
+        password: password,
+        semSubId: semSubId,
+      ).then((_) {}, onError: (_) {}),
+
+      fetchDigitalAssignments(
+        username: username,
+        password: password,
+        semSubId: semSubId,
+      ).then((_) {}, onError: (_) {}),
+    ]);
+
+    debugPrint('VTOP warm-up finished');
+  }
+
+  // ============================================================
+  // VTOP SESSION ID
+  // ============================================================
+
+  /// Called after /auth/login returns a session_id.
+  void setVtopSessionId(String sessionId) {
+    if (_vtopSessionId != sessionId) {
+      clearDataCache();
+    }
+
+    _vtopSessionId = sessionId;
+
+    debugPrint(
+      'VTOP session set: '
+      '${sessionId.length >= 8 ? sessionId.substring(0, 8) : sessionId}...',
+    );
+  }
+
+  /// Clears the current VTOP session.
+  void clearVtopSessionId() {
+    _vtopSessionId = null;
+    clearDataCache();
+    debugPrint('VTOP session cleared');
+  }
+
+  // ============================================================
+  // CONSTRUCTOR
+  // ============================================================
 
   ApiClient({String? baseUrl}) {
-    dio = Dio(BaseOptions(
-      baseUrl: baseUrl ?? defaultBaseUrl,
-      connectTimeout: const Duration(seconds: 45),
-      receiveTimeout: const Duration(seconds: 45),
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    ));
+    dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl ?? defaultBaseUrl,
+        connectTimeout: const Duration(seconds: 45),
+        receiveTimeout: const Duration(seconds: 45),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      ),
+    );
 
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
+          // ----------------------------------------------------
+          // API KEY
+          // ----------------------------------------------------
+
           options.headers['X-API-Key'] = const String.fromEnvironment(
             'API_KEY',
             defaultValue: 'GnaneshReddy77806',
           );
+
+          // ----------------------------------------------------
+          // VTOP SESSION ID
+          // ----------------------------------------------------
+
+          final isStudentRequest =
+              options.path.startsWith('/student/');
+
+          final isProxyStartRequest =
+              options.path == '/vtop_proxy/start_session';
+
+          if (isStudentRequest || isProxyStartRequest) {
+            if (_vtopSessionId != null &&
+                _vtopSessionId!.isNotEmpty) {
+              options.headers['X-VTOP-Session-ID'] =
+                  _vtopSessionId;
+            } else {
+              debugPrint(
+                'WARNING: No VTOP session for ${options.path}',
+              );
+            }
+          }
+
+          // ----------------------------------------------------
+          // INSTANT CACHE HIT
+          // ----------------------------------------------------
+
+          if (options.method.toUpperCase() == 'POST' &&
+              _isCacheable(options.path)) {
+            final key = _cacheKey(options);
+            final cached = _responseCache[key];
+
+            if (cached != null) {
+              if (DateTime.now().difference(cached.createdAt) <=
+                  _cacheTtl) {
+                debugPrint(
+                  'CACHE HIT → ${options.path}',
+                );
+
+                return handler.resolve(
+                  Response<dynamic>(
+                    requestOptions: options,
+                    data: cached.data,
+                    statusCode: cached.statusCode,
+                    headers: cached.headers,
+                  ),
+                );
+              }
+
+              _responseCache.remove(key);
+            }
+          }
+
           return handler.next(options);
         },
+
+        onResponse: (response, handler) {
+          final options = response.requestOptions;
+
+          if (options.method.toUpperCase() == 'POST' &&
+              _isCacheable(options.path) &&
+              response.statusCode != null &&
+              response.statusCode! >= 200 &&
+              response.statusCode! < 300) {
+            final key = _cacheKey(options);
+
+            _responseCache[key] = _CachedResponse(
+              data: response.data,
+              statusCode: response.statusCode,
+              headers: response.headers,
+              createdAt: DateTime.now(),
+            );
+
+            debugPrint(
+              'CACHE STORE → ${options.path}',
+            );
+          }
+
+          return handler.next(response);
+        },
+
         onError: (DioException e, handler) {
-          debugPrint('API Error [${e.response?.statusCode}]: ${e.response?.data}');
+          debugPrint(
+            'API Error [${e.response?.statusCode}]: '
+            '${e.response?.data}',
+          );
+
           return handler.next(e);
         },
       ),
     );
   }
 
-  // ─── Auth / OTP-aware Login ───────────────────────────────────────────────
+  // ============================================================
+  // AUTH / OTP
+  // ============================================================
 
-  /// Step 1: Initiate login.
-  /// Returns Map with:
-  ///   - session_id (String)
-  ///   - otp_required (bool) — true means VTOP sent an OTP email
-  ///   - message (String)
+  /// Step 1:
+  /// Initiates VTOP login.
+  ///
+  /// Returns:
+  /// {
+  ///   session_id: "...",
+  ///   otp_required: true/false,
+  ///   message: "..."
+  /// }
   Future<Map<String, dynamic>> initiateLogin({
     required String username,
     required String password,
@@ -54,14 +341,29 @@ class ApiClient {
           'password': password,
         },
       );
-      return response.data as Map<String, dynamic>;
+
+      final data = response.data as Map<String, dynamic>;
+
+      // Store session immediately.
+      final sessionId = data['session_id']?.toString();
+
+      if (sessionId != null && sessionId.isNotEmpty) {
+        setVtopSessionId(sessionId);
+      }
+
+      return data;
     } on DioException catch (e) {
-      final detail = e.response?.data?['detail'] ?? e.message ?? 'Login failed.';
+      final detail =
+          e.response?.data?['detail'] ??
+          e.message ??
+          'Login failed.';
+
       throw Exception(detail);
     }
   }
 
-  /// Step 2 (only when otp_required): Submit OTP to complete login.
+  /// Step 2:
+  /// Verify OTP using the SAME backend session.
   Future<Map<String, dynamic>> verifyLoginOtp({
     required String sessionId,
     required String otp,
@@ -74,26 +376,59 @@ class ApiClient {
           'otp': otp,
         },
       );
-      return response.data as Map<String, dynamic>;
+
+      final data = response.data as Map<String, dynamic>;
+
+      // Make sure the verified session is still stored.
+      final returnedSessionId =
+          data['session_id']?.toString();
+
+      if (returnedSessionId != null &&
+          returnedSessionId.isNotEmpty) {
+        setVtopSessionId(returnedSessionId);
+      } else {
+        // Keep the session we already had.
+        setVtopSessionId(sessionId);
+      }
+
+      return data;
     } on DioException catch (e) {
-      final detail = e.response?.data?['detail'] ?? e.message ?? 'OTP verification failed.';
+      final detail =
+          e.response?.data?['detail'] ??
+          e.message ??
+          'OTP verification failed.';
+
       throw Exception(detail);
     }
   }
 
-  /// Ask VTOP to resend the login OTP for an existing session.
+  /// Resend OTP for the current login session.
   Future<void> resendLoginOtp(String sessionId) async {
     try {
-      await dio.post('/auth/resend_otp', data: {'session_id': sessionId});
+      await dio.post(
+        '/auth/resend_otp',
+        data: {
+          'session_id': sessionId,
+        },
+      );
     } on DioException catch (e) {
-      final detail = e.response?.data?['detail'] ?? e.message ?? 'Failed to resend OTP.';
+      final detail =
+          e.response?.data?['detail'] ??
+          e.message ??
+          'Failed to resend OTP.';
+
       throw Exception(detail);
     }
   }
 
-  // ─── Semesters ────────────────────────────────────────────────────────────
+  // ============================================================
+  // SEMESTERS
+  // ============================================================
 
-  Future<Map<String, dynamic>> fetchSemesters(String username, String password) async {
+  Future<Map<String, dynamic>> fetchSemesters(
+    String username,
+    String password,
+  ) async {
     final response = await dio.post(
       '/student/semesters',
       data: {
@@ -101,10 +436,13 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
-  // ─── All Data ─────────────────────────────────────────────────────────────
+  // ============================================================
+  // ALL DATA
+  // ============================================================
 
   Future<Map<String, dynamic>> fetchAllData({
     required String username,
@@ -119,12 +457,29 @@ class ApiClient {
         'sem_sub_id': semSubId,
       },
     );
-    return response.data as Map<String, dynamic>;
+
+    final data = response.data as Map<String, dynamic>;
+
+    // Start feature prefetching only after dashboard data has
+    // arrived. This keeps dashboard startup responsive while
+    // making the next screens ready in the background.
+    warmUpCommonScreens(
+      username: username,
+      password: password,
+      semSubId: semSubId,
+    );
+
+    return data;
   }
 
-  // ─── Profile ──────────────────────────────────────────────────────────────
+  // ============================================================
+  // PROFILE
+  // ============================================================
 
-  Future<Map<String, dynamic>> fetchProfile(String username, String password) async {
+  Future<Map<String, dynamic>> fetchProfile(
+    String username,
+    String password,
+  ) async {
     final response = await dio.post(
       '/student/profile',
       data: {
@@ -132,10 +487,13 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
-  // ─── Attendance ───────────────────────────────────────────────────────────
+  // ============================================================
+  // ATTENDANCE
+  // ============================================================
 
   Future<List<dynamic>> fetchAttendance({
     required String username,
@@ -150,10 +508,13 @@ class ApiClient {
         'sem_sub_id': semSubId,
       },
     );
+
     return response.data as List<dynamic>;
   }
 
-  // ─── Timetable ────────────────────────────────────────────────────────────
+  // ============================================================
+  // TIMETABLE
+  // ============================================================
 
   Future<Map<String, dynamic>> fetchTimetable({
     required String username,
@@ -168,10 +529,34 @@ class ApiClient {
         'sem_sub_id': semSubId,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
-  // ─── Marks ────────────────────────────────────────────────────────────────
+  // ============================================================
+  // EXAM SCHEDULE
+  // ============================================================
+
+  Future<Map<String, dynamic>> fetchExamSchedule({
+    required String username,
+    required String password,
+    required String semSubId,
+  }) async {
+    final response = await dio.post(
+      '/student/exam_schedule',
+      data: {
+        'registration_number': username,
+        'password': password,
+        'sem_sub_id': semSubId,
+      },
+    );
+
+    return response.data as Map<String, dynamic>;
+  }
+
+  // ============================================================
+  // MARKS
+  // ============================================================
 
   Future<List<dynamic>> fetchMarks({
     required String username,
@@ -186,16 +571,24 @@ class ApiClient {
         'sem_sub_id': semSubId,
       },
     );
-    // marks response is a dict with course lists — normalise to flat list
+
     final data = response.data;
-    if (data is List) return data;
+
+    if (data is List) {
+      return data;
+    }
+
     if (data is Map && data.containsKey('marks')) {
       return data['marks'] as List<dynamic>? ?? [];
     }
+
     return [];
   }
 
-  // ─── Grade History / CGPA ────────────────────────────────────────────────
+  // ============================================================
+  // GRADE HISTORY
+  // ============================================================
+
   Future<Map<String, dynamic>> fetchGradeHistory({
     required String username,
     required String password,
@@ -207,10 +600,14 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
-  // ─── Mentor ───────────────────────────────────────────────────────────────
+  // ============================================================
+  // MENTOR
+  // ============================================================
+
   Future<Map<String, dynamic>> fetchMentor({
     required String username,
     required String password,
@@ -222,10 +619,14 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
-  // ─── Biometric ────────────────────────────────────────────────────────────
+  // ============================================================
+  // BIOMETRIC
+  // ============================================================
+
   Future<List<dynamic>> fetchBiometric({
     required String username,
     required String password,
@@ -239,10 +640,14 @@ class ApiClient {
         'date': date,
       },
     );
+
     return response.data as List<dynamic>;
   }
 
-  // ─── Outings ──────────────────────────────────────────────────────────────
+  // ============================================================
+  // OUTINGS
+  // ============================================================
+
   Future<Map<String, dynamic>> fetchGeneralOutings({
     required String username,
     required String password,
@@ -254,6 +659,7 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
@@ -268,6 +674,7 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
@@ -294,7 +701,14 @@ class ApiClient {
         'in_time': inTime,
       },
     );
-    return response.data['message']?.toString() ?? 'Outing applied successfully.';
+
+    final message =
+        response.data['message']?.toString() ??
+        'Outing applied successfully.';
+
+    clearDataCache();
+
+    return message;
   }
 
   Future<String> submitWeekendOuting({
@@ -318,7 +732,14 @@ class ApiClient {
         'contact_number': contactNumber,
       },
     );
-    return response.data['message']?.toString() ?? 'Weekend outing applied successfully.';
+
+    final message =
+        response.data['message']?.toString() ??
+        'Weekend outing applied successfully.';
+
+    clearDataCache();
+
+    return message;
   }
 
   Future<String> deleteGeneralOuting({
@@ -334,7 +755,14 @@ class ApiClient {
         'appl_id': leaveId,
       },
     );
-    return response.data['message']?.toString() ?? 'Outing deleted.';
+
+    final message =
+        response.data['message']?.toString() ??
+        'Outing deleted.';
+
+    clearDataCache();
+
+    return message;
   }
 
   Future<String> deleteWeekendOuting({
@@ -350,10 +778,20 @@ class ApiClient {
         'appl_id': bookingId,
       },
     );
-    return response.data['message']?.toString() ?? 'Outing deleted.';
+
+    final message =
+        response.data['message']?.toString() ??
+        'Weekend outing deleted.';
+
+    clearDataCache();
+
+    return message;
   }
 
-  // ─── Payments ─────────────────────────────────────────────────────────────
+  // ============================================================
+  // PAYMENTS
+  // ============================================================
+
   Future<List<dynamic>> fetchPendingPayments({
     required String username,
     required String password,
@@ -365,6 +803,7 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as List<dynamic>;
   }
 
@@ -379,10 +818,14 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as List<dynamic>;
   }
 
-  // ─── Real Course Page & Materials ──────────────────────────────────────────
+  // ============================================================
+  // COURSE PAGE
+  // ============================================================
+
   Future<Map<String, dynamic>> fetchCoursePageCourses({
     required String username,
     required String password,
@@ -396,6 +839,7 @@ class ApiClient {
         'sem_sub_id': semSubId,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
@@ -414,6 +858,7 @@ class ApiClient {
         'class_id': classId,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
@@ -434,6 +879,7 @@ class ApiClient {
         'class_id': classId,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
@@ -449,8 +895,11 @@ class ApiClient {
         'password': password,
         'download_path': downloadPath,
       },
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(
+        responseType: ResponseType.bytes,
+      ),
     );
+
     return response.data as List<int>;
   }
 
@@ -469,10 +918,14 @@ class ApiClient {
         'application_number': applicationNumber,
       },
     );
+
     return response.data.toString();
   }
 
-  // ─── Session Cookies for In-App VTOP WebView ───────────────────────────────
+  // ============================================================
+  // SESSION COOKIES
+  // ============================================================
+
   Future<Map<String, dynamic>> fetchSessionCookies({
     required String username,
     required String password,
@@ -484,10 +937,14 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
-  // ─── Direct VTOP Live Proxy Session ─────────────────────────────────────────
+  // ============================================================
+  // VTOP PROXY
+  // ============================================================
+
   Future<Map<String, dynamic>> startProxySession({
     required String username,
     required String password,
@@ -499,10 +956,14 @@ class ApiClient {
         'password': password,
       },
     );
+
     return response.data as Map<String, dynamic>;
   }
 
-  // ─── Digital Assignments ─────────────────────────────────────────────────────
+  // ============================================================
+  // DIGITAL ASSIGNMENTS
+  // ============================================================
+
   Future<List<dynamic>> fetchDigitalAssignments({
     required String username,
     required String password,
@@ -516,8 +977,13 @@ class ApiClient {
         'sem_sub_id': semSubId,
       },
     );
+
     return response.data as List<dynamic>;
   }
+
+  // ============================================================
+  // COURSE ASSIGNMENTS
+  // ============================================================
 
   Future<List<dynamic>> fetchCourseAssignments({
     required String username,
@@ -532,8 +998,13 @@ class ApiClient {
         'class_id': classId,
       },
     );
+
     return response.data as List<dynamic>;
   }
+
+  // ============================================================
+  // DOWNLOAD ASSIGNMENT FILE
+  // ============================================================
 
   Future<List<int>> downloadAssignmentFile({
     required String username,
@@ -547,11 +1018,17 @@ class ApiClient {
         'password': password,
         'download_url': downloadUrl,
       },
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(
+        responseType: ResponseType.bytes,
+      ),
     );
+
     return response.data ?? [];
   }
 }
 
-final apiService = ApiClient();
+// ============================================================
+// GLOBAL API SERVICE
+// ============================================================
 
+final apiService = ApiClient();
