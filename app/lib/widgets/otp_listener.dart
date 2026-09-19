@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/vtop_providers.dart';
 import '../screens/main_nav_screen.dart';
 
 class OtpListener extends ConsumerStatefulWidget {
@@ -111,6 +112,31 @@ class _OtpListenerState extends ConsumerState<OtpListener> {
                   TextButton(
                     onPressed: isVerifying
                         ? null
+                        : () {
+                            ref.read(authProvider.notifier).cancelOtp();
+                            Navigator.of(context).pop();
+                          },
+                    child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+                  ),
+                  TextButton(
+                    onPressed: isVerifying
+                        ? null
+                        : () async {
+                            final ok = await ref.read(authProvider.notifier).resendOtp();
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ok ? 'OTP resent successfully.' : 'Failed to resend OTP.',
+                                ),
+                              ),
+                            );
+                          },
+                    child: const Text('Resend OTP'),
+                  ),
+                  ElevatedButton(
+                    onPressed: isVerifying
+                        ? null
                         : () async {
                             final otp = controller.text.trim();
 
@@ -202,7 +228,7 @@ class _OtpListenerState extends ConsumerState<OtpListener> {
 
       // IMPORTANT:
       // Wait until the dialog route has completely finished popping
-      // before navigating to the dashboard.
+      // before refreshing data / navigating.
       if (verified && mounted) {
         await Future<void>.delayed(
           const Duration(milliseconds: 150),
@@ -210,11 +236,14 @@ class _OtpListenerState extends ConsumerState<OtpListener> {
 
         if (!mounted) return;
 
+        // Auto-sync all student data with the freshly authenticated VTOP session!
+        ref.read(dashboardProvider.notifier).syncAll();
+
         final currentNavigator = widget.navigatorKey.currentState;
 
-        if (currentNavigator != null) {
+        if (currentNavigator != null && !currentNavigator.canPop()) {
           debugPrint(
-            'OTP LISTENER → Opening dashboard.',
+            'OTP LISTENER → Opening dashboard from root.',
           );
 
           currentNavigator.pushReplacement(
@@ -224,7 +253,7 @@ class _OtpListenerState extends ConsumerState<OtpListener> {
           );
         } else {
           debugPrint(
-            'OTP LISTENER → Navigator unavailable after OTP verification.',
+            'OTP LISTENER → Session verified. Remaining on active screen.',
           );
         }
       }

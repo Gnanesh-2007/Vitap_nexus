@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mesh_ambient_background.dart';
 
@@ -24,12 +25,48 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
     _fetchMentor();
   }
 
-  void _fetchMentor() {
+  void _fetchMentor({bool forceRefresh = false}) {
+    _mentorFuture = _getMentorData(forceRefresh: forceRefresh);
+  }
+
+  Future<Map<String, dynamic>> _getMentorData({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final mem = StorageService.getMemoryCache('mentor');
+      if (mem is Map && mem.isNotEmpty) {
+        return Map<String, dynamic>.from(mem);
+      }
+      final disk = await StorageService.getCache('mentor');
+      if (disk is Map && disk.isNotEmpty) {
+        return Map<String, dynamic>.from(disk);
+      }
+    }
+
     final auth = ref.read(authProvider);
-    _mentorFuture = apiService.fetchMentor(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-    );
+    try {
+      final fresh = await apiService.fetchMentor(
+        username: auth.username ?? '',
+        password: auth.password ?? '',
+      );
+      if (fresh.isNotEmpty) {
+        await StorageService.setCache('mentor', fresh);
+        return fresh;
+      }
+    } catch (e) {
+      debugPrint('MentorScreen: Network fetch failed ($e). Checking offline cache...');
+      final fallback = StorageService.getMemoryCache('mentor') ??
+          await StorageService.getCache('mentor');
+      if (fallback is Map && fallback.isNotEmpty) {
+        return Map<String, dynamic>.from(fallback);
+      }
+      rethrow;
+    }
+
+    final fallback = StorageService.getMemoryCache('mentor') ??
+        await StorageService.getCache('mentor');
+    if (fallback is Map && fallback.isNotEmpty) {
+      return Map<String, dynamic>.from(fallback);
+    }
+    return {};
   }
 
   Future<void> _launchEmail(String email) async {
@@ -73,7 +110,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => setState(() => _fetchMentor()),
+            onPressed: () => setState(() => _fetchMentor(forceRefresh: true)),
           ),
         ],
       ),
@@ -99,7 +136,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                       Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
-                        onPressed: () => setState(() => _fetchMentor()),
+                        onPressed: () => setState(() => _fetchMentor(forceRefresh: true)),
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Try Again'),
                       ),

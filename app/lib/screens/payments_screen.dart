@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mesh_ambient_background.dart';
 
@@ -26,16 +27,89 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> with SingleTick
     _loadPayments();
   }
 
-  void _loadPayments() {
+  void _loadPayments({bool forceRefresh = false}) {
+    _pendingPaymentsFuture = _getPendingPayments(forceRefresh: forceRefresh);
+    _receiptsFuture = _getReceipts(forceRefresh: forceRefresh);
+  }
+
+  Future<List<dynamic>> _getPendingPayments({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final mem = StorageService.getMemoryCache('payments');
+      if (mem is List && mem.isNotEmpty) {
+        return List<dynamic>.from(mem);
+      }
+      final disk = await StorageService.getCache('payments');
+      if (disk is List && disk.isNotEmpty) {
+        return List<dynamic>.from(disk);
+      }
+    }
+
     final auth = ref.read(authProvider);
-    _pendingPaymentsFuture = apiService.fetchPendingPayments(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-    );
-    _receiptsFuture = apiService.fetchPaymentReceipts(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-    );
+    try {
+      final fresh = await apiService.fetchPendingPayments(
+        username: auth.username ?? '',
+        password: auth.password ?? '',
+      );
+      if (fresh.isNotEmpty) {
+        await StorageService.setCache('payments', fresh);
+        return fresh;
+      }
+    } catch (e) {
+      debugPrint('PaymentsScreen: Pending payments fetch failed ($e). Checking cache...');
+      final fallback = StorageService.getMemoryCache('payments') ??
+          await StorageService.getCache('payments');
+      if (fallback is List && fallback.isNotEmpty) {
+        return List<dynamic>.from(fallback);
+      }
+      rethrow;
+    }
+
+    final fallback = StorageService.getMemoryCache('payments') ??
+        await StorageService.getCache('payments');
+    if (fallback is List && fallback.isNotEmpty) {
+      return List<dynamic>.from(fallback);
+    }
+    return [];
+  }
+
+  Future<List<dynamic>> _getReceipts({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final mem = StorageService.getMemoryCache('receipts');
+      if (mem is List && mem.isNotEmpty) {
+        return List<dynamic>.from(mem);
+      }
+      final disk = await StorageService.getCache('receipts');
+      if (disk is List && disk.isNotEmpty) {
+        return List<dynamic>.from(disk);
+      }
+    }
+
+    final auth = ref.read(authProvider);
+    try {
+      final fresh = await apiService.fetchPaymentReceipts(
+        username: auth.username ?? '',
+        password: auth.password ?? '',
+      );
+      if (fresh.isNotEmpty) {
+        await StorageService.setCache('receipts', fresh);
+        return fresh;
+      }
+    } catch (e) {
+      debugPrint('PaymentsScreen: Receipts fetch failed ($e). Checking cache...');
+      final fallback = StorageService.getMemoryCache('receipts') ??
+          await StorageService.getCache('receipts');
+      if (fallback is List && fallback.isNotEmpty) {
+        return List<dynamic>.from(fallback);
+      }
+      rethrow;
+    }
+
+    final fallback = StorageService.getMemoryCache('receipts') ??
+        await StorageService.getCache('receipts');
+    if (fallback is List && fallback.isNotEmpty) {
+      return List<dynamic>.from(fallback);
+    }
+    return [];
   }
 
   @override
@@ -56,6 +130,12 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> with SingleTick
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => setState(() => _loadPayments(forceRefresh: true)),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: const Color(0xFF14B8A6),

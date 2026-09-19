@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mesh_ambient_background.dart';
 
@@ -29,19 +30,56 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     _loadAssignments();
   }
 
-  void _loadAssignments() {
-    final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
-    final semId = auth.activeSemesterId ?? '';
-
+  void _loadAssignments({bool forceRefresh = false}) {
     setState(() {
-      _assignmentsFuture = apiService.fetchDigitalAssignments(
+      _assignmentsFuture = _getAssignmentsData(forceRefresh: forceRefresh);
+    });
+  }
+
+  Future<List<dynamic>> _getAssignmentsData({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final mem = StorageService.getMemoryCache('assignments');
+      if (mem is List && mem.isNotEmpty) {
+        return List<dynamic>.from(mem);
+      }
+      final disk = await StorageService.getCache('assignments');
+      if (disk is List && disk.isNotEmpty) {
+        return List<dynamic>.from(disk);
+      }
+    }
+
+    final auth = ref.read(authProvider);
+    final creds = await StorageService.getCredentials();
+    final username = auth.username ?? creds['username'] ?? '';
+    final password = auth.password ?? creds['password'] ?? '';
+    final semId = auth.activeSemesterId ?? creds['semesterId'] ?? '';
+
+    try {
+      final fresh = await apiService.fetchDigitalAssignments(
         username: username,
         password: password,
         semSubId: semId,
       );
-    });
+      if (fresh.isNotEmpty) {
+        await StorageService.setCache('assignments', fresh);
+        return fresh;
+      }
+    } catch (e) {
+      debugPrint('AssignmentsScreen: Network fetch failed ($e). Checking offline cache...');
+      final fallback = StorageService.getMemoryCache('assignments') ??
+          await StorageService.getCache('assignments');
+      if (fallback is List && fallback.isNotEmpty) {
+        return List<dynamic>.from(fallback);
+      }
+      rethrow;
+    }
+
+    final fallback = StorageService.getMemoryCache('assignments') ??
+        await StorageService.getCache('assignments');
+    if (fallback is List && fallback.isNotEmpty) {
+      return List<dynamic>.from(fallback);
+    }
+    return [];
   }
 
   Future<void> _fetchDetailsForCourse(String classId) async {
@@ -200,7 +238,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
-                        onPressed: _loadAssignments,
+                        onPressed: () => _loadAssignments(forceRefresh: true),
                         icon: const Icon(Icons.refresh_rounded, size: 18),
                         label: const Text('Retry'),
                         style: ElevatedButton.styleFrom(

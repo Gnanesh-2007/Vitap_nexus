@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mesh_ambient_background.dart';
 
@@ -25,12 +26,53 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     _fetchGrades();
   }
 
-  void _fetchGrades() {
+  void _fetchGrades({bool forceRefresh = false}) {
+    _gradesFuture = _getGradesData(forceRefresh: forceRefresh);
+  }
+
+  Future<Map<String, dynamic>> _getGradesData({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      if (widget.initialData != null && widget.initialData!.isNotEmpty) {
+        return widget.initialData!;
+      }
+      final mem = StorageService.getMemoryCache('grades');
+      if (mem is Map && mem.isNotEmpty) {
+        return Map<String, dynamic>.from(mem);
+      }
+      final disk = await StorageService.getCache('grades');
+      if (disk is Map && disk.isNotEmpty) {
+        return Map<String, dynamic>.from(disk);
+      }
+    }
+
     final auth = ref.read(authProvider);
-    _gradesFuture = apiService.fetchGradeHistory(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-    );
+    try {
+      final fresh = await apiService.fetchGradeHistory(
+        username: auth.username ?? '',
+        password: auth.password ?? '',
+      );
+      if (fresh.isNotEmpty) {
+        await StorageService.setCache('grades', fresh);
+        return fresh;
+      }
+    } catch (e) {
+      debugPrint('GradesScreen: Network fetch failed ($e). Checking offline cache...');
+      final fallback = widget.initialData ??
+          StorageService.getMemoryCache('grades') ??
+          await StorageService.getCache('grades');
+      if (fallback is Map && fallback.isNotEmpty) {
+        return Map<String, dynamic>.from(fallback);
+      }
+      rethrow;
+    }
+
+    final fallback = widget.initialData ??
+        StorageService.getMemoryCache('grades') ??
+        await StorageService.getCache('grades');
+    if (fallback is Map && fallback.isNotEmpty) {
+      return Map<String, dynamic>.from(fallback);
+    }
+    return {};
   }
 
   Color _getGradeColor(String grade) {
@@ -76,7 +118,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
               setState(() {
-                _fetchGrades();
+                _fetchGrades(forceRefresh: true);
               });
             },
           ),
@@ -111,7 +153,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
-                        onPressed: () => setState(() => _fetchGrades()),
+                        onPressed: () => setState(() => _fetchGrades(forceRefresh: true)),
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Try Again'),
                       ),

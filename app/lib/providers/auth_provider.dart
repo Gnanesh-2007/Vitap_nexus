@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/api_client.dart';
@@ -118,7 +119,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
             isLoading: true,
           ),
         ) {
+    ApiClient.onOtpRequired = (sessionId) {
+      requireOtp(sessionId);
+    };
     checkSavedAuth();
+  }
+
+  void requireOtp(String sessionId) {
+    debugPrint('AuthNotifier: Received OTP required signal for session $sessionId');
+    state = state.copyWith(
+      otpRequired: true,
+      pendingSessionId: sessionId,
+      sessionId: sessionId,
+      isLoading: false,
+    );
   }
 
   // ============================================================
@@ -555,6 +569,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       return false;
     }
+  }
+
+  void cancelOtp() {
+    state = state.copyWith(
+      otpRequired: false,
+      clearPendingSession: true,
+      clearError: true,
+    );
   }
 
 

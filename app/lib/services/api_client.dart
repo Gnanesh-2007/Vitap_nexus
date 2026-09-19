@@ -27,12 +27,64 @@ class ApiClient {
       'https://vitap-nexus-api.onrender.com';
 
   // ============================================================
-  // VTOP SESSION
+  // VTOP SESSION & OTP LISTENER
   // ============================================================
+
+  /// Global callback invoked whenever VTOP requires an OTP to complete authentication or session renewal.
+  static void Function(String sessionId)? onOtpRequired;
+
+  // Concurrency guard for session renewal
+  static Future<bool>? _activeRenewal;
 
   String? _vtopSessionId;
 
   String? get vtopSessionId => _vtopSessionId;
+
+  Future<bool> _renewSession(String username, String password) async {
+    final existing = _activeRenewal;
+    if (existing != null) {
+      return existing;
+    }
+
+    final future = _performSessionRenewal(username, password);
+    _activeRenewal = future;
+    future.whenComplete(() {
+      _activeRenewal = null;
+    });
+    return future;
+  }
+
+  Future<bool> _performSessionRenewal(String username, String password) async {
+    try {
+      debugPrint('API Interceptor: 401 detected. Initiating session renewal...');
+      final loginRes = await dio.post(
+        '/auth/login',
+        data: {
+          'registration_number': username,
+          'password': password,
+        },
+      );
+
+      final newSessionId = loginRes.data['session_id']?.toString();
+      final bool otpRequired = loginRes.data['otp_required'] == true;
+
+      if (newSessionId != null && newSessionId.isNotEmpty) {
+        setVtopSessionId(newSessionId);
+
+        if (otpRequired) {
+          debugPrint('API Interceptor: OTP required for renewed session ($newSessionId). Notifying UI via onOtpRequired...');
+          onOtpRequired?.call(newSessionId);
+          return false;
+        }
+
+        debugPrint('API Interceptor: Session renewed seamlessly without OTP ($newSessionId).');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('API Interceptor: Session renewal error: $e');
+    }
+    return false;
+  }
 
   // ============================================================
   // IN-MEMORY RESPONSE CACHE
@@ -296,7 +348,8 @@ class ApiClient {
           // ----------------------------------------------------
           // AUTO-RECOVERY ON 401 (Session Expired / Render Cold Restart)
           // ----------------------------------------------------
-          if (e.response?.statusCode == 401) {
+          final path = e.requestOptions.path;
+          if (e.response?.statusCode == 401 && path != '/auth/login' && path != '/auth/verify_otp') {
             String? username;
             String? password;
 
@@ -314,23 +367,11 @@ class ApiClient {
 
             if (username != null && password != null && username.isNotEmpty && password.isNotEmpty) {
               try {
-                debugPrint('API Interceptor: 401 detected on ${e.requestOptions.path}. Auto-renewing session...');
-                final loginRes = await dio.post(
-                  '/auth/login',
-                  data: {
-                    'registration_number': username,
-                    'password': password,
-                  },
-                );
-
-                final newSessionId = loginRes.data['session_id']?.toString();
-                if (newSessionId != null && newSessionId.isNotEmpty) {
-                  setVtopSessionId(newSessionId);
-                  debugPrint('API Interceptor: Session renewed ($newSessionId). Retrying request...');
-
+                final renewed = await _renewSession(username, password);
+                if (renewed && _vtopSessionId != null) {
+                  debugPrint('API Interceptor: Retrying request with renewed session: $path');
                   final retryOptions = e.requestOptions;
-                  retryOptions.headers['X-VTOP-Session-ID'] = newSessionId;
-
+                  retryOptions.headers['X-VTOP-Session-ID'] = _vtopSessionId;
                   final response = await dio.fetch(retryOptions);
                   return handler.resolve(response);
                 }

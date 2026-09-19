@@ -168,8 +168,21 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
           password: auth.password!,
         );
         final sid = loginRes['session_id']?.toString();
+        final bool otpReq = loginRes['otp_required'] == true;
         if (sid != null && sid.isNotEmpty) {
           apiService.setVtopSessionId(sid);
+          if (otpReq) {
+            debugPrint('DashboardViewModel: OTP required during sync! Invoking onOtpRequired...');
+            ApiClient.onOtpRequired?.call(sid);
+            state = VtopDataState(
+              data: state.data,
+              isLoading: false,
+              isSyncing: false,
+              error: 'Please verify OTP to sync your data',
+              lastSynced: state.lastSynced,
+            );
+            return;
+          }
         }
       }
 

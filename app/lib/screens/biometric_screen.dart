@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mesh_ambient_background.dart';
 
@@ -25,14 +26,50 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
     _fetchBiometric();
   }
 
-  void _fetchBiometric() {
+  void _fetchBiometric({bool forceRefresh = false}) {
+    _biometricFuture = _getBiometricData(forceRefresh: forceRefresh);
+  }
+
+  Future<List<dynamic>> _getBiometricData({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final mem = StorageService.getMemoryCache('biometric');
+      if (mem is List && mem.isNotEmpty) {
+        return List<dynamic>.from(mem);
+      }
+      final disk = await StorageService.getCache('biometric');
+      if (disk is List && disk.isNotEmpty) {
+        return List<dynamic>.from(disk);
+      }
+    }
+
     final auth = ref.read(authProvider);
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    _biometricFuture = apiService.fetchBiometric(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-      date: dateStr,
-    );
+    try {
+      final fresh = await apiService.fetchBiometric(
+        username: auth.username ?? '',
+        password: auth.password ?? '',
+        date: dateStr,
+      );
+      if (fresh.isNotEmpty) {
+        await StorageService.setCache('biometric', fresh);
+        return fresh;
+      }
+    } catch (e) {
+      debugPrint('BiometricScreen: Network fetch failed ($e). Checking offline cache...');
+      final fallback = StorageService.getMemoryCache('biometric') ??
+          await StorageService.getCache('biometric');
+      if (fallback is List && fallback.isNotEmpty) {
+        return List<dynamic>.from(fallback);
+      }
+      rethrow;
+    }
+
+    final fallback = StorageService.getMemoryCache('biometric') ??
+        await StorageService.getCache('biometric');
+    if (fallback is List && fallback.isNotEmpty) {
+      return List<dynamic>.from(fallback);
+    }
+    return [];
   }
 
   @override
@@ -47,6 +84,12 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => setState(() => _fetchBiometric(forceRefresh: true)),
+          ),
+        ],
       ),
       body: MeshAmbientBackground(
         child: Column(

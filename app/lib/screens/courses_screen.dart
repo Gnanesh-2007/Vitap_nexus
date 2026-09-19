@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mesh_ambient_background.dart';
 
@@ -33,14 +34,51 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     _loadCourses();
   }
 
-  void _loadCourses() {
+  void _loadCourses({bool forceRefresh = false}) {
+    _coursesFuture = _getCoursesData(forceRefresh: forceRefresh);
+  }
+
+  Future<Map<String, dynamic>> _getCoursesData({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final mem = StorageService.getMemoryCache('courses');
+      if (mem is Map && mem.isNotEmpty) {
+        return Map<String, dynamic>.from(mem);
+      }
+      final disk = await StorageService.getCache('courses');
+      if (disk is Map && disk.isNotEmpty) {
+        return Map<String, dynamic>.from(disk);
+      }
+    }
+
     final auth = ref.read(authProvider);
-    final semId = auth.activeSemesterId ?? '';
-    _coursesFuture = apiService.fetchCoursePageCourses(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-      semSubId: semId,
-    );
+    final creds = await StorageService.getCredentials();
+    final semId = auth.activeSemesterId ?? creds['semesterId'] ?? '';
+    try {
+      final fresh = await apiService.fetchCoursePageCourses(
+        username: auth.username ?? creds['username'] ?? '',
+        password: auth.password ?? creds['password'] ?? '',
+        semSubId: semId,
+      );
+      if (fresh.isNotEmpty) {
+        await StorageService.setCache('courses', fresh);
+        return fresh;
+      }
+    } catch (e) {
+      debugPrint('CoursesScreen: Courses fetch failed ($e). Checking offline cache...');
+      final fallback = StorageService.getMemoryCache('courses') ??
+          await StorageService.getCache('courses');
+      if (fallback is Map && fallback.isNotEmpty) {
+        return Map<String, dynamic>.from(fallback);
+      }
+      rethrow;
+    }
+
+    final fallback = StorageService.getMemoryCache('courses') ??
+        await StorageService.getCache('courses');
+    if (fallback is Map && fallback.isNotEmpty) {
+      return Map<String, dynamic>.from(fallback);
+    }
+    return {};
   }
 
   Future<void> _selectCourse(Map<String, dynamic> course) async {
@@ -237,7 +275,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                   Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
-                    onPressed: () => setState(() => _loadCourses()),
+                    onPressed: () => setState(() => _loadCourses(forceRefresh: true)),
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Try Again'),
                   ),
