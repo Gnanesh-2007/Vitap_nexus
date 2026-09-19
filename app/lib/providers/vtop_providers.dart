@@ -68,45 +68,47 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
   final Ref _ref;
 
   DashboardNotifier(this._ref) : super(const VtopDataState(isLoading: true)) {
-    _initFromCacheAndSync();
+    _initFromCache();
   }
 
-  Future<void> _initFromCacheAndSync() async {
+  Future<void> _initFromCache() async {
     // ── STEP 1: INSTANT MEMORY CACHE (0 ms) ─────────────────────────────────
     final memData = StorageService.getMemoryCache('all_data');
     final memTs = StorageService.getMemoryTimestamp('all_data');
 
-    if (memData is Map<String, dynamic>) {
+    if (memData is Map<String, dynamic> && memData.isNotEmpty) {
       state = VtopDataState(
         data: memData,
         isLoading: false,
-        isSyncing: true,
+        isSyncing: false,
         lastSynced: memTs,
       );
-      debugPrint('DashboardViewModel: Rendered instantly from memory cache in 0ms');
-    } else {
-      // ── STEP 2: FAST DISK CACHE (< 10 ms) ─────────────────────────────────
-      final diskData = await StorageService.getCache('all_data');
-      final diskTs = await StorageService.getLastSynced('all_data');
-
-      if (diskData is Map<String, dynamic>) {
-        state = VtopDataState(
-          data: diskData,
-          isLoading: false,
-          isSyncing: true,
-          lastSynced: diskTs,
-        );
-        debugPrint('DashboardViewModel: Rendered from disk cache in <10ms');
-      }
+      debugPrint('DashboardViewModel: Loaded from memory cache in 0ms (no auto-sync on reopen)');
+      return;
     }
 
-    // ── STEP 3: SILENT BACKGROUND SYNC ──────────────────────────────────────
-    await sync(silent: state.hasData);
+    // ── STEP 2: FAST DISK CACHE (< 10 ms) ─────────────────────────────────
+    final diskData = await StorageService.getCache('all_data');
+    final diskTs = await StorageService.getLastSynced('all_data');
+
+    if (diskData is Map<String, dynamic> && diskData.isNotEmpty) {
+      state = VtopDataState(
+        data: diskData,
+        isLoading: false,
+        isSyncing: false,
+        lastSynced: diskTs,
+      );
+      debugPrint('DashboardViewModel: Loaded from disk cache in <10ms (no auto-sync on reopen)');
+      return;
+    }
+
+    // ── STEP 3: ONLY IF NEVER CACHED BEFORE (FIRST LOGIN), SYNC INITIAL DATA
+    await syncAll();
   }
 
-  Future<void> refresh() => sync(silent: false);
+  Future<void> refresh() => syncAll();
 
-  Future<void> sync({bool silent = true}) async {
+  Future<void> syncAll() async {
     final auth = _ref.read(authProvider);
     if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
       if (!state.hasData) {
@@ -115,21 +117,17 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
       return;
     }
 
-    if (!silent && !state.hasData) {
-      state = VtopDataState(isLoading: true, isSyncing: true);
-    } else {
-      state = VtopDataState(
-        data: state.data,
-        isLoading: false,
-        isSyncing: true,
-        lastSynced: state.lastSynced,
-      );
-    }
+    state = VtopDataState(
+      data: state.data,
+      isLoading: !state.hasData,
+      isSyncing: true,
+      lastSynced: state.lastSynced,
+    );
 
     try {
       // 1. Ensure VTOP session is established
       if (apiService.vtopSessionId == null) {
-        debugPrint('DashboardViewModel: No VTOP session, initiating login...');
+        debugPrint('DashboardViewModel: Establishing VTOP session...');
         final loginRes = await apiService.initiateLogin(
           username: auth.username!,
           password: auth.password!,
@@ -152,17 +150,20 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
       } catch (allDataErr) {
         debugPrint('DashboardViewModel: fetchAllData failed ($allDataErr), falling back to individual endpoints...');
         
-        // Graceful parallel fallback: fetch profile, timetable, and attendance individually!
         final results = await Future.wait([
           apiService.fetchProfile(auth.username!, auth.password!).catchError((e) => <String, dynamic>{}),
           apiService.fetchTimetable(username: auth.username!, password: auth.password!, semSubId: semId).catchError((e) => <String, dynamic>{}),
           apiService.fetchAttendance(username: auth.username!, password: auth.password!, semSubId: semId).catchError((e) => <dynamic>[]),
+          apiService.fetchMarks(username: auth.username!, password: auth.password!, semSubId: semId).catchError((e) => <dynamic>[]),
+          apiService.fetchGradeHistory(username: auth.username!, password: auth.password!).catchError((e) => <String, dynamic>{}),
         ]);
 
         fresh = {
           'profile': results[0] as Map<String, dynamic>,
           'timetable': results[1] as Map<String, dynamic>,
           'attendance': results[2] as List<dynamic>,
+          'marks': results[3] as List<dynamic>,
+          'grade_history': results[4] as Map<String, dynamic>,
         };
       }
 
@@ -178,21 +179,22 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
         lastSynced: now,
       );
 
-      // Refresh child FutureProviders so screens update smoothly
+      // Refresh child FutureProviders so screens update with new synced data
       _ref.invalidate(attendanceProvider);
       _ref.invalidate(timetableProvider);
       _ref.invalidate(marksProvider);
       _ref.invalidate(profileProvider);
       _ref.invalidate(gradesProvider);
+      _ref.invalidate(examScheduleProvider);
 
-      debugPrint('DashboardViewModel: Background sync complete and all sub-caches updated');
+      debugPrint('DashboardViewModel: Full sync complete and all sub-caches updated at $now');
     } catch (e) {
-      debugPrint('DashboardViewModel: Sync error (falling back to cache): $e');
+      debugPrint('DashboardViewModel: Sync error (retaining local data): $e');
       state = VtopDataState(
         data: state.data,
         isSyncing: false,
         isLoading: false,
-        error: state.hasData ? null : 'Could not fetch data from VTOP.',
+        error: state.hasData ? null : 'Could not sync data from VTOP.',
         lastSynced: state.lastSynced,
       );
     }

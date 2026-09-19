@@ -192,8 +192,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         clearError: true,
       );
 
-      // Silently renew VTOP session in the background
-      _renewSessionSilently(username, password, semesterId, semesterName);
+      // Local session is restored 100% offline without any network calls.
+      // Network sync will only happen when the user taps 'Sync Now' or pulls to refresh.
     } catch (e) {
       state = state.copyWith(
         isAuthenticated: false,
@@ -202,49 +202,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
     }
   }
-
-  void _renewSessionSilently(
-    String username,
-    String password,
-    String? semesterId,
-    String? semesterName,
-  ) {
-    unawaited(() async {
-      try {
-        final result = await apiService.initiateLogin(
-          username: username,
-          password: password,
-        );
-        final sessionId = result['session_id']?.toString();
-        final otpRequired = result['otp_required'] == true;
-        if (sessionId != null && sessionId.isNotEmpty) {
-          apiService.setVtopSessionId(sessionId);
-          if (otpRequired) {
-            state = state.copyWith(
-              otpRequired: true,
-              sessionId: sessionId,
-              pendingSessionId: sessionId,
-            );
-          } else {
-            state = state.copyWith(
-              sessionId: sessionId,
-              otpRequired: false,
-            );
-            // Refresh semester list silently
-            _refreshSemesters(
-              username: username,
-              password: password,
-              preferredSemesterId: semesterId,
-              preferredSemesterName: semesterName,
-            );
-          }
-        }
-      } catch (e) {
-        debugPrint('Silent session renewal background error: $e');
-      }
-    }());
-  }
-
 
   // ============================================================
   // LOGIN

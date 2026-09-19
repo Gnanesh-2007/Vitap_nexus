@@ -3,8 +3,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/vtop_providers.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/vtop_helpers.dart';
+import '../widgets/last_synced_badge.dart';
 import '../widgets/mesh_ambient_background.dart';
 
 class MarksScreen extends ConsumerStatefulWidget {
@@ -54,7 +56,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh_rounded, size: 20),
-              onPressed: () => ref.refresh(marksProvider),
+              onPressed: () => ref.refresh(marksProvider.future),
               tooltip: 'Refresh Marks',
             ),
           ],
@@ -98,7 +100,16 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
         ),
       ),
       body: MeshAmbientBackground(
-        child: marksAsync.when(
+        child: Column(
+          children: [
+            LastSyncedBadge(
+              lastSynced: StorageService.getMemoryTimestamp('marks'),
+              isRefreshing: marksAsync.isLoading,
+              onRefresh: () => ref.refresh(marksProvider.future),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            ),
+            Expanded(
+              child: marksAsync.when(
           data: (marksList) {
             if (marksList.isEmpty) {
               return Center(
@@ -189,7 +200,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
-                    onPressed: () => ref.refresh(marksProvider),
+                    onPressed: () => ref.refresh(marksProvider.future),
                     icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: const Text('Try Again'),
                     style: ElevatedButton.styleFrom(
@@ -203,6 +214,9 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
               ),
             ),
           ),
+        ),
+            ),
+          ],
         ),
       ),
     );

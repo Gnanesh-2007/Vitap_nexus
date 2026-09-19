@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../providers/vtop_providers.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/vtop_helpers.dart';
+import '../widgets/last_synced_badge.dart';
 import '../widgets/mesh_ambient_background.dart';
 
 class TimetableScreen extends ConsumerStatefulWidget {
@@ -136,7 +138,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
             ),
             child: IconButton(
               icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.white),
-              onPressed: () => ref.refresh(timetableProvider),
+              onPressed: () => ref.refresh(timetableProvider.future),
             ),
           ),
         ],
@@ -144,6 +146,12 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
       body: MeshAmbientBackground(
         child: Column(
           children: [
+            LastSyncedBadge(
+              lastSynced: StorageService.getMemoryTimestamp('timetable'),
+              isRefreshing: timetableAsync.isLoading,
+              onRefresh: () => ref.refresh(timetableProvider.future),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            ),
             // Single-Line Tab Bar (Fits all 7 days without scrolling)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

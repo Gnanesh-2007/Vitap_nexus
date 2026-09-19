@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 
-/// A sleek, non-intrusive badge showing the last-synced time with a quick refresh button.
+/// A sleek, non-intrusive badge showing the last-synced time with an explicit "Sync Now" button.
 class LastSyncedBadge extends StatefulWidget {
   final DateTime? lastSynced;
   final VoidCallback? onRefresh;
@@ -58,7 +58,7 @@ class _LastSyncedBadgeState extends State<LastSyncedBadge>
   @override
   Widget build(BuildContext context) {
     final formattedTime = widget.isRefreshing
-        ? 'Syncing with VTOP...'
+        ? 'Syncing all data with VTOP...'
         : 'Last synced: ${StorageService.formatLastSynced(widget.lastSynced)}';
 
     return Padding(
@@ -67,14 +67,14 @@ class _LastSyncedBadgeState extends State<LastSyncedBadge>
         onTap: widget.isRefreshing ? null : widget.onRefresh,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF131722).withValues(alpha: 0.85),
+            color: const Color(0xFF121622).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: widget.isRefreshing
-                  ? AppTheme.cyanAccent.withValues(alpha: 0.4)
-                  : const Color(0xFF2A2F3D),
+                  ? AppTheme.cyanAccent.withValues(alpha: 0.5)
+                  : const Color(0xFF262C3A),
               width: 0.8,
             ),
           ),
@@ -85,17 +85,17 @@ class _LastSyncedBadgeState extends State<LastSyncedBadge>
                 turns: _spinController,
                 child: Icon(
                   widget.isRefreshing ? Icons.sync : Icons.cloud_done_rounded,
-                  size: 13,
+                  size: 14,
                   color: widget.isRefreshing
                       ? AppTheme.cyanAccent
                       : (widget.lastSynced != null ? const Color(0xFF10B981) : const Color(0xFF94A3B8)),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
                 formattedTime,
                 style: GoogleFonts.inter(
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w500,
                   color: widget.isRefreshing
                       ? AppTheme.cyanAccent
@@ -104,11 +104,36 @@ class _LastSyncedBadgeState extends State<LastSyncedBadge>
                 ),
               ),
               if (widget.onRefresh != null && !widget.isRefreshing) ...[
-                const SizedBox(width: 6),
-                const Icon(
-                  Icons.refresh_rounded,
-                  size: 12,
-                  color: Color(0xFF64748B),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.35),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.sync,
+                        size: 12,
+                        color: AppTheme.cyanAccent,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Sync Now',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.cyanAccent,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ],
