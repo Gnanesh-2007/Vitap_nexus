@@ -222,13 +222,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
             }
           },
         ),
-        actions: [
-          if (_selectedCourse == null)
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: () => setState(() => _loadCourses()),
-            ),
-        ],
+        actions: const [],
       ),
       body: MeshAmbientBackground(
         child: _selectedCourse == null ? _buildCoursesList() : _buildCourseDetailView(),
@@ -254,119 +248,144 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   }
 
   Widget _buildCoursesList() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _coursesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildCoursesSkeleton();
-        }
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _loadCourses(forceRefresh: true));
+        await _coursesFuture;
+      },
+      color: AppTheme.primary,
+      backgroundColor: AppTheme.surface,
+      child: FutureBuilder<Map<String, dynamic>>(
+        future: _coursesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildCoursesSkeleton();
+          }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 48),
-                  const SizedBox(height: 12),
-                  Text('Failed to load courses', style: GoogleFonts.outfit(fontSize: 18, color: Colors.white)),
-                  const SizedBox(height: 8),
-                  Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () => setState(() => _loadCourses(forceRefresh: true)),
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Try Again'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final data = snapshot.data ?? {};
-        final courses = (data['courses'] as List<dynamic>?) ?? [];
-
-        if (courses.isEmpty) {
-          return Center(
-            child: Text('No registered courses found on Course Page.', style: GoogleFonts.inter(color: Colors.white60)),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(18),
-          itemCount: courses.length,
-          itemBuilder: (context, index) {
-            final c = courses[index];
-            final code = c['course_code'] ?? '';
-            final title = c['course_title'] ?? c['label'] ?? 'Course';
-            final type = c['course_type'] ?? '';
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.cardBorder),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => _selectCourse(c),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.menu_book_rounded, color: AppTheme.primaryAccent, size: 22),
+          if (snapshot.hasError) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 48),
+                          const SizedBox(height: 12),
+                          Text('Failed to load courses', style: GoogleFonts.outfit(fontSize: 18, color: Colors.white)),
+                          const SizedBox(height: 8),
+                          Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () => setState(() => _loadCourses(forceRefresh: true)),
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Try Again'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (code.isNotEmpty)
-                              Text(
-                                code,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primaryAccent,
-                                ),
-                              ),
-                            const SizedBox(height: 2),
-                            Text(
-                              title,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                            if (type.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(type, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Color(0xFF64748B)),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            )
-                .animate(delay: (30 * index).ms)
-                .fadeIn(duration: 350.ms)
-                .slideY(begin: 0.05, end: 0);
-          },
-        );
-      },
+              ],
+            );
+          }
+
+          final data = snapshot.data ?? {};
+          final courses = (data['courses'] as List<dynamic>?) ?? [];
+
+          if (courses.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: Center(
+                    child: Text('No registered courses found on Course Page.', style: GoogleFonts.inter(color: Colors.white60)),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(18),
+            itemCount: courses.length,
+            itemBuilder: (context, index) {
+              final c = courses[index];
+              final code = c['course_code'] ?? '';
+              final title = c['course_title'] ?? c['label'] ?? 'Course';
+              final type = c['course_type'] ?? '';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.cardBorder),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => _selectCourse(c),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.menu_book_rounded, color: AppTheme.primaryAccent, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (code.isNotEmpty)
+                                Text(
+                                  code,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primaryAccent,
+                                  ),
+                                ),
+                              const SizedBox(height: 2),
+                              Text(
+                                title,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              if (type.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(type, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Color(0xFF64748B)),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+                  .animate(delay: (30 * index).ms)
+                  .fadeIn(duration: 350.ms)
+                  .slideY(begin: 0.05, end: 0);
+            },
+          );
+        },
+      ),
     );
   }
 

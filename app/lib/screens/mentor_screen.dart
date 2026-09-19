@@ -107,44 +107,54 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => setState(() => _fetchMentor(forceRefresh: true)),
-          ),
-        ],
+        actions: const [],
       ),
       body: MeshAmbientBackground(
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _mentorFuture,
-          builder: (context, snapshot) {
+        child: RefreshIndicator(
+          onRefresh: () async {
+            setState(() => _fetchMentor(forceRefresh: true));
+            await _mentorFuture;
+          },
+          color: AppTheme.primary,
+          backgroundColor: AppTheme.surface,
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: _mentorFuture,
+            builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildSkeletonMentor();
             }
 
             if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 48),
-                      const SizedBox(height: 12),
-                      Text('Failed to load mentor details', style: GoogleFonts.outfit(fontSize: 18, color: Colors.white)),
-                      const SizedBox(height: 8),
-                      Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () => setState(() => _fetchMentor(forceRefresh: true)),
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Try Again'),
+                return ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.7,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 48),
+                              const SizedBox(height: 12),
+                              Text('Failed to load mentor details', style: GoogleFonts.outfit(fontSize: 18, color: Colors.white)),
+                              const SizedBox(height: 8),
+                              Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () => setState(() => _fetchMentor(forceRefresh: true)),
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Try Again'),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              );
-            }
+                    ),
+                  ],
+                );
+              }
 
             final mentor = snapshot.data ?? {};
             final name = mentor['faculty_name'] ?? mentor['name'] ?? 'Faculty Mentor';
@@ -155,6 +165,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
             final school = mentor['school'] ?? mentor['faculty_department'] ?? 'School of Computer Science & Engineering';
 
             return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(20),
               children: [
                 // Mentor Profile Header Card
@@ -253,7 +264,8 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
           },
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildSkeletonMentor() {

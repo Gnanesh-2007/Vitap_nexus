@@ -236,6 +236,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> with SingleTicker
     return RefreshIndicator(
       onRefresh: () async => setState(() => _loadOutings()),
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(18),
         children: [
           Text('General Outings', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),

@@ -53,13 +53,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
             'Marks & Assessments',
             style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 20),
-              onPressed: () => ref.refresh(marksProvider.future),
-              tooltip: 'Refresh Marks',
-            ),
-          ],
+          actions: const [],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(42),
             child: Container(
@@ -241,10 +235,23 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
 
   Widget _buildMarksList(List<dynamic> list, {required bool isLabTab}) {
     if (list.isEmpty) {
-      return Center(
-        child: Text(
-          isLabTab ? 'No lab assessments found.' : 'No theory assessments found.',
-          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)),
+      return RefreshIndicator(
+        onRefresh: () async => ref.refresh(marksProvider.future),
+        color: AppTheme.cyanAccent,
+        backgroundColor: AppTheme.surface,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.5,
+              child: Center(
+                child: Text(
+                  isLabTab ? 'No lab assessments found.' : 'No theory assessments found.',
+                  style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -254,6 +261,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
       color: AppTheme.cyanAccent,
       backgroundColor: AppTheme.surface,
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         itemCount: list.length,
         itemBuilder: (context, index) {

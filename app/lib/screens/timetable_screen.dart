@@ -128,20 +128,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
             color: Colors.white,
           ),
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 20, color: Colors.white),
-              onPressed: () => ref.refresh(timetableProvider.future),
-            ),
-          ),
-        ],
+        actions: const [],
       ),
       body: MeshAmbientBackground(
         child: Column(
@@ -232,43 +219,56 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                       final daySchedule = VtopHelpers.sortTimetableList(rawSchedule);
 
                       if (daySchedule.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                        return RefreshIndicator(
+                          color: AppTheme.cyanAccent,
+                          backgroundColor: AppTheme.surface,
+                          onRefresh: () async => ref.refresh(timetableProvider.future),
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(28),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.03),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.08)),
-                                ),
-                                child: const Icon(
-                                  Icons.wb_sunny_rounded,
-                                  size: 48,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              Text(
-                                'No Classes Scheduled',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Enjoy your free day on $selectedDay!',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: const Color(0xFF94A3B8),
+                              SizedBox(
+                                height: MediaQuery.of(context).size.height * 0.5,
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(28),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.03),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                              color: Colors.white.withValues(alpha: 0.08)),
+                                        ),
+                                        child: const Icon(
+                                          Icons.wb_sunny_rounded,
+                                          size: 48,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        'No Classes Scheduled',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Enjoy your free day on $selectedDay!',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          color: const Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    ],
+                                  ).animate().fadeIn(duration: 300.ms),
                                 ),
                               ),
                             ],
-                          ).animate().fadeIn(duration: 300.ms),
+                          ),
                         );
                       }
 
@@ -277,6 +277,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                         backgroundColor: AppTheme.surface,
                         onRefresh: () async => ref.refresh(timetableProvider.future),
                         child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                           itemCount: daySchedule.length + 1,
                           itemBuilder: (context, index) {

@@ -84,12 +84,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => setState(() => _fetchBiometric(forceRefresh: true)),
-          ),
-        ],
+        actions: const [],
       ),
       body: MeshAmbientBackground(
         child: Column(
@@ -134,39 +129,63 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
             ),
 
             Expanded(
-              child: FutureBuilder<List<dynamic>>(
-                future: _biometricFuture,
-                builder: (context, snapshot) {
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  setState(() => _fetchBiometric(forceRefresh: true));
+                  await _biometricFuture;
+                },
+                color: AppTheme.primary,
+                backgroundColor: AppTheme.surface,
+                child: FutureBuilder<List<dynamic>>(
+                  future: _biometricFuture,
+                  builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return _buildSkeletonLogs();
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text('Failed to load biometric punches: ${snapshot.error}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white60)),
-                      ),
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text('Failed to load biometric punches: ${snapshot.error}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white60)),
+                            ),
+                          ),
+                        ),
+                      ],
                     );
                   }
 
                   final logs = snapshot.data ?? [];
                   if (logs.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.fingerprint_rounded, size: 54, color: Color(0xFF64748B)),
-                          const SizedBox(height: 12),
-                          Text('No Biometric Punches Recorded', style: GoogleFonts.outfit(fontSize: 16, color: Colors.white)),
-                          const SizedBox(height: 4),
-                          Text('No activity recorded for ${DateFormat('dd MMM yyyy').format(_selectedDate)}', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
-                        ],
-                      ),
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.fingerprint_rounded, size: 54, color: Color(0xFF64748B)),
+                                const SizedBox(height: 12),
+                                Text('No Biometric Punches Recorded', style: GoogleFonts.outfit(fontSize: 16, color: Colors.white)),
+                                const SizedBox(height: 4),
+                                Text('No activity recorded for ${DateFormat('dd MMM yyyy').format(_selectedDate)}', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     );
                   }
 
                   return ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(18),
                     itemCount: logs.length,
                     itemBuilder: (context, index) {
@@ -235,6 +254,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                 },
               ),
             ),
+          ),
           ],
         ),
       ),

@@ -20,6 +20,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _showAcademicStats = false;
+  bool _isSyncing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -53,24 +54,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             letterSpacing: 0.5,
           ),
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.surface.withValues(alpha: 0.6),
-              shape: BoxShape.circle,
-              border: Border.all(color: AppTheme.cardBorder),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: AppTheme.cyanAccent, size: 20),
-              tooltip: 'Sync Data',
-              onPressed: () {
-                ref.invalidate(profileProvider);
-                ref.invalidate(allDataProvider);
-              },
-            ),
-          ),
-        ],
+        actions: const [],
       ),
       body: MeshAmbientBackground(
         child: profileAsync.when(
@@ -303,6 +287,86 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ).animate(delay: 140.ms).fadeIn(duration: 350.ms).slideY(begin: 0.05, end: 0),
                   const SizedBox(height: 28),
                 ],
+
+                // ─── Sync Now Action ──────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSyncing
+                        ? null
+                        : () async {
+                            setState(() => _isSyncing = true);
+                            try {
+                              await ref.read(dashboardProvider.notifier).syncAll();
+                              ref.invalidate(profileProvider);
+                              ref.invalidate(allDataProvider);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'All data synced successfully!',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                  ),
+                                  backgroundColor: const Color(0xFF10B981),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Sync failed: ${e.toString()}',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                  ),
+                                  backgroundColor: AppTheme.error,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            } finally {
+                              if (mounted) setState(() => _isSyncing = false);
+                            }
+                          },
+                    icon: _isSyncing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.sync_rounded, size: 22),
+                    label: Text(
+                      _isSyncing ? 'Syncing All Data...' : 'Sync Now',
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: AppTheme.primary.withValues(alpha: 0.6),
+                      disabledForegroundColor: Colors.white70,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 4,
+                      shadowColor: AppTheme.primary.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ).animate(delay: 180.ms).fadeIn(duration: 350.ms),
+                const SizedBox(height: 12),
 
                 // ─── Logout Action ────────────────────────────────────────
                 SizedBox(

@@ -125,11 +125,6 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
             icon: const Icon(Icons.calculate_outlined, color: _accentSoft, size: 22),
             onPressed: () => _showCalculatorSheet(context),
           ),
-          IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: _textSecondary, size: 22),
-            onPressed: () => ref.refresh(attendanceProvider.future),
-          ),
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(

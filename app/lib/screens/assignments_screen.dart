@@ -184,13 +184,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, size: 22),
-            onPressed: _loadAssignments,
-            tooltip: 'Refresh Assignments',
-          ),
-        ],
+        actions: const [],
         bottom: _isDownloading
             ? const PreferredSize(
                 preferredSize: Size.fromHeight(3),
@@ -211,45 +205,58 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
             }
 
             if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: AppTheme.error.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
+              return RefreshIndicator(
+                onRefresh: () async => _loadAssignments(forceRefresh: true),
+                color: AppTheme.cyanAccent,
+                backgroundColor: AppTheme.surface,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.7,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.error.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.error),
+                              ),
+                              const SizedBox(height: 18),
+                              Text(
+                                'Failed to Load Assignments',
+                                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                snapshot.error.toString(),
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(fontSize: 12, color: Colors.white54, height: 1.4),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: () => _loadAssignments(forceRefresh: true),
+                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                label: const Text('Retry'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: const Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.error),
                       ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Failed to Load Assignments',
-                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        snapshot.error.toString(),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(fontSize: 12, color: Colors.white54, height: 1.4),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () => _loadAssignments(forceRefresh: true),
-                        icon: const Icon(Icons.refresh_rounded, size: 18),
-                        label: const Text('Retry'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             }
@@ -257,41 +264,54 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
             final courses = snapshot.data ?? [];
 
             if (courses.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.primary.withValues(alpha: 0.2),
-                              AppTheme.cyanAccent.withValues(alpha: 0.05),
+              return RefreshIndicator(
+                onRefresh: () async => _loadAssignments(forceRefresh: true),
+                color: AppTheme.cyanAccent,
+                backgroundColor: AppTheme.surface,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.6,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      AppTheme.primary.withValues(alpha: 0.2),
+                                      AppTheme.cyanAccent.withValues(alpha: 0.05),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                                ),
+                                child: const Icon(Icons.assignment_turned_in_rounded, size: 48, color: AppTheme.cyanAccent),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'No Assignments Found',
+                                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No digital assignments have been posted for the active semester yet.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8), height: 1.4),
+                              ),
                             ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
                           ),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
                         ),
-                        child: const Icon(Icons.assignment_turned_in_rounded, size: 48, color: AppTheme.cyanAccent),
                       ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'No Assignments Found',
-                        style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No digital assignments have been posted for the active semester yet.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8), height: 1.4),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             }
@@ -331,6 +351,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
               color: AppTheme.cyanAccent,
               backgroundColor: AppTheme.surface,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 children: [
                   // 1. STATS METRICS GRID

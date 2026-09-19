@@ -130,12 +130,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> with SingleTick
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => setState(() => _loadPayments(forceRefresh: true)),
-          ),
-        ],
+        actions: const [],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: const Color(0xFF14B8A6),
@@ -177,65 +172,82 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> with SingleTick
   }
 
   Widget _buildPendingTab() {
-    return FutureBuilder<List<dynamic>>(
-      future: _pendingPaymentsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildSkeletonPayments();
-        }
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _loadPayments(forceRefresh: true));
+        await _pendingPaymentsFuture;
+      },
+      color: const Color(0xFF14B8A6),
+      backgroundColor: AppTheme.surface,
+      child: FutureBuilder<List<dynamic>>(
+        future: _pendingPaymentsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildSkeletonPayments();
+          }
 
-        final payments = snapshot.data ?? [];
-        if (payments.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          final payments = snapshot.data ?? [];
+          if (payments.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                const Icon(Icons.check_circle_outline_rounded, size: 54, color: Color(0xFF10B981)),
-                const SizedBox(height: 12),
-                Text('No Pending Dues! 🎉', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                const SizedBox(height: 4),
-                Text('All university tuition and hostel fees are cleared.', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(18),
-          itemCount: payments.length,
-          itemBuilder: (context, index) {
-            final p = payments[index];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.cardBorder),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: Center(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(p['fee_description'] ?? 'Fee Description', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                        const Icon(Icons.check_circle_outline_rounded, size: 54, color: Color(0xFF10B981)),
+                        const SizedBox(height: 12),
+                        Text('No Pending Dues! 🎉', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                         const SizedBox(height: 4),
-                        Text('Due Date: ${p['due_date'] ?? 'Immediate'}', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                        Text('All university tuition and hostel fees are cleared.', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
                       ],
                     ),
                   ),
-                  Text('₹${p['amount'] ?? '0'}', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.error)),
-                ],
-              ),
-            )
-                .animate(delay: (30 * index).ms)
-                .fadeIn(duration: 350.ms)
-                .slideY(begin: 0.05, end: 0);
-          },
-        );
-      },
+                ),
+              ],
+            );
+          }
+
+          return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(18),
+            itemCount: payments.length,
+            itemBuilder: (context, index) {
+              final p = payments[index];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.cardBorder),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(p['fee_description'] ?? 'Fee Description', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                          const SizedBox(height: 4),
+                          Text('Due Date: ${p['due_date'] ?? 'Immediate'}', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                        ],
+                      ),
+                    ),
+                    Text('₹${p['amount'] ?? '0'}', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.error)),
+                  ],
+                ),
+              )
+                  .animate(delay: (30 * index).ms)
+                  .fadeIn(duration: 350.ms)
+                  .slideY(begin: 0.05, end: 0);
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -271,77 +283,94 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> with SingleTick
   }
 
   Widget _buildReceiptsTab() {
-    return FutureBuilder<List<dynamic>>(
-      future: _receiptsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildSkeletonPayments();
-        }
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _loadPayments(forceRefresh: true));
+        await _receiptsFuture;
+      },
+      color: const Color(0xFF14B8A6),
+      backgroundColor: AppTheme.surface,
+      child: FutureBuilder<List<dynamic>>(
+        future: _receiptsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildSkeletonPayments();
+          }
 
-        final receipts = snapshot.data ?? [];
-        if (receipts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          final receipts = snapshot.data ?? [];
+          if (receipts.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                const Icon(Icons.receipt_rounded, size: 54, color: Color(0xFF64748B)),
-                const SizedBox(height: 12),
-                Text('No Payment Receipts', style: GoogleFonts.outfit(fontSize: 16, color: Colors.white)),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(18),
-          itemCount: receipts.length,
-          itemBuilder: (context, index) {
-            final r = receipts[index];
-            final receiptNo = r['receipt_number']?.toString() ?? r['receipt_no']?.toString() ?? 'Receipt';
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.cardBorder),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: Center(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(receiptNo, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-                        const SizedBox(height: 4),
-                        Text(r['transaction_date'] ?? r['receipt_date'] ?? '', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-                        const SizedBox(height: 4),
-                        Text('₹${r['amount'] ?? '0'}', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF10B981))),
+                        const Icon(Icons.receipt_rounded, size: 54, color: Color(0xFF64748B)),
+                        const SizedBox(height: 12),
+                        Text('No Payment Receipts', style: GoogleFonts.outfit(fontSize: 16, color: Colors.white)),
                       ],
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: () => _downloadReceipt(receiptNo),
-                    icon: const Icon(Icons.download_rounded, size: 16),
-                    label: const Text('Receipt', style: TextStyle(fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
-                      foregroundColor: AppTheme.cyanAccent,
-                      elevation: 0,
-                      side: const BorderSide(color: AppTheme.cyanAccent),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ],
+            );
+          }
+
+          return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(18),
+            itemCount: receipts.length,
+            itemBuilder: (context, index) {
+              final r = receipts[index];
+              final receiptNo = r['receipt_number']?.toString() ?? r['receipt_no']?.toString() ?? 'Receipt';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.cardBorder),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(receiptNo, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
+                          const SizedBox(height: 4),
+                          Text(r['transaction_date'] ?? r['receipt_date'] ?? '', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                          const SizedBox(height: 4),
+                          Text('₹${r['amount'] ?? '0'}', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF10B981))),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            )
-                .animate(delay: (30 * index).ms)
-                .fadeIn(duration: 350.ms)
-                .slideY(begin: 0.05, end: 0);
-          },
-        );
-      },
+                    ElevatedButton.icon(
+                      onPressed: () => _downloadReceipt(receiptNo),
+                      icon: const Icon(Icons.download_rounded, size: 16),
+                      label: const Text('Receipt', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
+                        foregroundColor: AppTheme.cyanAccent,
+                        elevation: 0,
+                        side: const BorderSide(color: AppTheme.cyanAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+                  .animate(delay: (30 * index).ms)
+                  .fadeIn(duration: 350.ms)
+                  .slideY(begin: 0.05, end: 0);
+            },
+          );
+        },
+      ),
     );
   }
 }
