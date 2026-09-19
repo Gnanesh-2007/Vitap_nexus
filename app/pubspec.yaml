@@ -44,6 +44,8 @@ dependencies:
   web: ^1.1.1
   flutter_animate: ^4.5.2
   vit_vtop: ^0.0.3
+  shared_preferences: ^2.5.5
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

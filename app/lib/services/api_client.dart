@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'storage_service.dart';
 
 class _CachedResponse {
   final dynamic data;
@@ -286,11 +287,58 @@ class ApiClient {
           return handler.next(response);
         },
 
-        onError: (DioException e, handler) {
+        onError: (DioException e, handler) async {
           debugPrint(
             'API Error [${e.response?.statusCode}]: '
             '${e.response?.data}',
           );
+
+          // ----------------------------------------------------
+          // AUTO-RECOVERY ON 401 (Session Expired / Render Cold Restart)
+          // ----------------------------------------------------
+          if (e.response?.statusCode == 401) {
+            String? username;
+            String? password;
+
+            final data = e.requestOptions.data;
+            if (data is Map) {
+              username = data['registration_number']?.toString();
+              password = data['password']?.toString();
+            }
+
+            if (username == null || password == null || username.isEmpty || password.isEmpty) {
+              final creds = await StorageService.getCredentials();
+              username = creds['username'];
+              password = creds['password'];
+            }
+
+            if (username != null && password != null && username.isNotEmpty && password.isNotEmpty) {
+              try {
+                debugPrint('API Interceptor: 401 detected on ${e.requestOptions.path}. Auto-renewing session...');
+                final loginRes = await dio.post(
+                  '/auth/login',
+                  data: {
+                    'registration_number': username,
+                    'password': password,
+                  },
+                );
+
+                final newSessionId = loginRes.data['session_id']?.toString();
+                if (newSessionId != null && newSessionId.isNotEmpty) {
+                  setVtopSessionId(newSessionId);
+                  debugPrint('API Interceptor: Session renewed ($newSessionId). Retrying request...');
+
+                  final retryOptions = e.requestOptions;
+                  retryOptions.headers['X-VTOP-Session-ID'] = newSessionId;
+
+                  final response = await dio.fetch(retryOptions);
+                  return handler.resolve(response);
+                }
+              } catch (retryErr) {
+                debugPrint('API Interceptor: Auto-renewal failed: $retryErr');
+              }
+            }
+          }
 
           return handler.next(e);
         },

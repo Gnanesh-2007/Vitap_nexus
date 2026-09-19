@@ -253,14 +253,23 @@ final attendanceProvider = FutureProvider<List<dynamic>>((ref) async {
     return [];
   }
 
-  final semId = auth.activeSemesterId ?? '';
-  final fresh = await apiService.fetchAttendance(
-    username: auth.username!,
-    password: auth.password!,
-    semSubId: semId,
-  );
-  await StorageService.setCache('attendance', fresh);
-  return fresh;
+  try {
+    final semId = auth.activeSemesterId ?? '';
+    final fresh = await apiService.fetchAttendance(
+      username: auth.username!,
+      password: auth.password!,
+      semSubId: semId,
+    );
+    await StorageService.setCache('attendance', fresh);
+    return fresh;
+  } catch (e) {
+    debugPrint('attendanceProvider network error (falling back to cache): $e');
+    final fallback = await StorageService.getCache('attendance');
+    if (fallback is List && fallback.isNotEmpty) {
+      return fallback;
+    }
+    rethrow;
+  }
 });
 
 /// Timetable Provider — returns cached timetable instantly (0ms)
@@ -280,14 +289,23 @@ final timetableProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     return {};
   }
 
-  final semId = auth.activeSemesterId ?? '';
-  final fresh = await apiService.fetchTimetable(
-    username: auth.username!,
-    password: auth.password!,
-    semSubId: semId,
-  );
-  await StorageService.setCache('timetable', fresh);
-  return fresh;
+  try {
+    final semId = auth.activeSemesterId ?? '';
+    final fresh = await apiService.fetchTimetable(
+      username: auth.username!,
+      password: auth.password!,
+      semSubId: semId,
+    );
+    await StorageService.setCache('timetable', fresh);
+    return fresh;
+  } catch (e) {
+    debugPrint('timetableProvider network error (falling back to cache): $e');
+    final fallback = await StorageService.getCache('timetable');
+    if (fallback is Map<String, dynamic> && fallback.isNotEmpty) {
+      return fallback;
+    }
+    rethrow;
+  }
 });
 
 /// Marks Provider — returns cached marks instantly (0ms)
@@ -307,14 +325,23 @@ final marksProvider = FutureProvider<List<dynamic>>((ref) async {
     return [];
   }
 
-  final semId = auth.activeSemesterId ?? '';
-  final fresh = await apiService.fetchMarks(
-    username: auth.username!,
-    password: auth.password!,
-    semSubId: semId,
-  );
-  await StorageService.setCache('marks', fresh);
-  return fresh;
+  try {
+    final semId = auth.activeSemesterId ?? '';
+    final fresh = await apiService.fetchMarks(
+      username: auth.username!,
+      password: auth.password!,
+      semSubId: semId,
+    );
+    await StorageService.setCache('marks', fresh);
+    return fresh;
+  } catch (e) {
+    debugPrint('marksProvider network error (falling back to cache): $e');
+    final fallback = await StorageService.getCache('marks');
+    if (fallback is List && fallback.isNotEmpty) {
+      return fallback;
+    }
+    rethrow;
+  }
 });
 
 /// Profile Provider — returns cached profile instantly (0ms)
@@ -334,12 +361,21 @@ final profileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     return {};
   }
 
-  final fresh = await apiService.fetchProfile(
-    auth.username!,
-    auth.password!,
-  );
-  await StorageService.setCache('profile', fresh);
-  return fresh;
+  try {
+    final fresh = await apiService.fetchProfile(
+      auth.username!,
+      auth.password!,
+    );
+    await StorageService.setCache('profile', fresh);
+    return fresh;
+  } catch (e) {
+    debugPrint('profileProvider network error (falling back to cache): $e');
+    final fallback = await StorageService.getCache('profile');
+    if (fallback is Map<String, dynamic> && fallback.isNotEmpty) {
+      return fallback;
+    }
+    rethrow;
+  }
 });
 
 /// Grades Provider — returns cached grade history instantly (0ms)
@@ -359,12 +395,21 @@ final gradesProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     return {};
   }
 
-  final fresh = await apiService.fetchGradeHistory(
-    username: auth.username!,
-    password: auth.password!,
-  );
-  await StorageService.setCache('grades', fresh);
-  return fresh;
+  try {
+    final fresh = await apiService.fetchGradeHistory(
+      username: auth.username!,
+      password: auth.password!,
+    );
+    await StorageService.setCache('grades', fresh);
+    return fresh;
+  } catch (e) {
+    debugPrint('gradesProvider network error (falling back to cache): $e');
+    final fallback = await StorageService.getCache('grades');
+    if (fallback is Map<String, dynamic> && fallback.isNotEmpty) {
+      return fallback;
+    }
+    rethrow;
+  }
 });
 
 /// Exam Schedule Provider — returns cached exam schedule instantly (0ms)
@@ -384,12 +429,21 @@ final examScheduleProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     return {};
   }
 
-  final semId = auth.activeSemesterId ?? '';
-  final fresh = await apiService.fetchExamSchedule(
-    username: auth.username!,
-    password: auth.password!,
-    semSubId: semId,
-  );
-  await StorageService.setCache('exam_schedule', fresh);
-  return fresh;
+  try {
+    final semId = auth.activeSemesterId ?? '';
+    final fresh = await apiService.fetchExamSchedule(
+      username: auth.username!,
+      password: auth.password!,
+      semSubId: semId,
+    );
+    await StorageService.setCache('exam_schedule', fresh);
+    return fresh;
+  } catch (e) {
+    debugPrint('examScheduleProvider network error (falling back to cache): $e');
+    final fallback = await StorageService.getCache('exam_schedule');
+    if (fallback is Map<String, dynamic> && fallback.isNotEmpty) {
+      return fallback;
+    }
+    rethrow;
+  }
 });
