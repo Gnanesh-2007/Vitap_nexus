@@ -883,7 +883,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Text(message, textAlign: TextAlign.center, style: const TextStyle(color: _textMuted, fontSize: 12)),
             const SizedBox(height: 20),
             ElevatedButton.icon(
-              onPressed: () => ref.refresh(allDataProvider),
+              onPressed: () => ref.read(dashboardProvider.notifier).refresh(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _accentPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

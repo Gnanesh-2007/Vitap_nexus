@@ -127,12 +127,44 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
     }
 
     try {
+      // 1. Ensure VTOP session is established
+      if (apiService.vtopSessionId == null) {
+        debugPrint('DashboardViewModel: No VTOP session, initiating login...');
+        final loginRes = await apiService.initiateLogin(
+          username: auth.username!,
+          password: auth.password!,
+        );
+        final sid = loginRes['session_id']?.toString();
+        if (sid != null && sid.isNotEmpty) {
+          apiService.setVtopSessionId(sid);
+        }
+      }
+
       final semId = auth.activeSemesterId ?? '';
-      final fresh = await apiService.fetchAllData(
-        username: auth.username!,
-        password: auth.password!,
-        semSubId: semId,
-      );
+      Map<String, dynamic> fresh;
+
+      try {
+        fresh = await apiService.fetchAllData(
+          username: auth.username!,
+          password: auth.password!,
+          semSubId: semId,
+        );
+      } catch (allDataErr) {
+        debugPrint('DashboardViewModel: fetchAllData failed ($allDataErr), falling back to individual endpoints...');
+        
+        // Graceful parallel fallback: fetch profile, timetable, and attendance individually!
+        final results = await Future.wait([
+          apiService.fetchProfile(auth.username!, auth.password!).catchError((e) => <String, dynamic>{}),
+          apiService.fetchTimetable(username: auth.username!, password: auth.password!, semSubId: semId).catchError((e) => <String, dynamic>{}),
+          apiService.fetchAttendance(username: auth.username!, password: auth.password!, semSubId: semId).catchError((e) => <dynamic>[]),
+        ]);
+
+        fresh = {
+          'profile': results[0] as Map<String, dynamic>,
+          'timetable': results[1] as Map<String, dynamic>,
+          'attendance': results[2] as List<dynamic>,
+        };
+      }
 
       final now = DateTime.now();
 

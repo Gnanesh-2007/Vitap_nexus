@@ -41,12 +41,12 @@ class ComprehensiveDataRequest(BaseVtopRequest):
 
 class ComprehensiveDataResponse(BaseModel):
     """Response model for the comprehensive student data endpoint."""
-    profile: StudentProfileModel
-    attendance: List[AttendanceModel]
-    timetable: TimetableModel
-    exam_schedule: ExamScheduleModel
-    grade_history: GradeHistoryModel
-    marks: MarksModel
+    profile: Optional[StudentProfileModel] = None
+    attendance: Optional[List[AttendanceModel]] = None
+    timetable: Optional[TimetableModel] = None
+    exam_schedule: Optional[ExamScheduleModel] = None
+    grade_history: Optional[GradeHistoryModel] = None
+    marks: Optional[MarksModel] = None
 
 class SubmitGeneralOutingRequest(BaseVtopRequest):
     out_place: str

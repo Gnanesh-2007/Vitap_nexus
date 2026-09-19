@@ -138,21 +138,22 @@ async def get_all_student_data(
             sem_sub_id=request.sem_sub_id
         )
 
-        (
-            profile_data,
-            attendance_data,
-            timetable_data,
-            exam_schedule_data,
-            grade_history_data,
-            marks_data,
-        ) = await asyncio.gather(
+        results = await asyncio.gather(
             profile_task,
             attendance_task,
             timetable_task,
             exam_schedule_task,
             grade_history_task,
             marks_task,
+            return_exceptions=True,
         )
+
+        profile_data = results[0] if not isinstance(results[0], Exception) else None
+        attendance_data = results[1] if not isinstance(results[1], Exception) else None
+        timetable_data = results[2] if not isinstance(results[2], Exception) else None
+        exam_schedule_data = results[3] if not isinstance(results[3], Exception) else None
+        grade_history_data = results[4] if not isinstance(results[4], Exception) else None
+        marks_data = results[5] if not isinstance(results[5], Exception) else None
 
         comprehensive_data = ComprehensiveDataResponse(
             profile=profile_data,
