@@ -215,22 +215,20 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> with SingleTicker
   }
 
   Widget _buildSkeletonOutings() {
-    return Column(
-      children: List.generate(
-        2,
-        (index) => Container(
-          height: 90,
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.cardBorder),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
           ),
-        ),
+          SizedBox(height: 12),
+          Text('Loading outings...', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        ],
       ),
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.08));
+    );
   }
 
   // ─── History Tab ──────────────────────────────────────────────────────────

@@ -303,21 +303,20 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
   }
 
   Widget _buildSkeletonLoading() {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-      itemCount: 5,
-      itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        height: 150,
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _border),
-        ),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          SizedBox(height: 16),
+          Text('Loading attendance...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
       ),
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.05));
+    );
   }
 
   Widget _buildAttendanceList(List<dynamic> list, {required bool isLabTab}) {

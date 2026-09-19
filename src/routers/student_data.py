@@ -69,6 +69,18 @@ router = APIRouter(
 )
 
 
+async def _ensure_sem_sub_id(client: VtopClient, sem_sub_id: str | None) -> str:
+    if sem_sub_id and sem_sub_id.strip():
+        return sem_sub_id.strip()
+    try:
+        sem_data = await client.get_semesters()
+        if sem_data and sem_data.semesters:
+            return sem_data.semesters[0].id
+    except Exception:
+        pass
+    return sem_sub_id or ""
+
+
 # ============================================================
 # SEMESTERS
 # ============================================================
@@ -118,6 +130,8 @@ async def get_all_student_data(
     """
 
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
+
         profile_task = client.get_profile()
 
         attendance_task = client.get_attendance(
@@ -215,6 +229,7 @@ async def get_attendance(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         attendance_data = await client.get_attendance(
             sem_sub_id=request.sem_sub_id
         )
@@ -273,6 +288,7 @@ async def get_timetable(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         timetable_data = await client.get_timetable(
             sem_sub_id=request.sem_sub_id
         )
@@ -356,6 +372,7 @@ async def get_exam_schedule(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         exam_schedule = await client.get_exam_schedule(
             sem_sub_id=request.sem_sub_id
         )
@@ -385,6 +402,7 @@ async def get_marks(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         marks_data = await client.get_marks(
             sem_sub_id=request.sem_sub_id
         )
@@ -643,6 +661,7 @@ async def get_course_page_courses_endpoint(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         await client.init_course_page()
 
         courses = await client.get_course_page_courses(
@@ -674,6 +693,7 @@ async def get_course_page_slots_endpoint(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         await client.init_course_page()
 
         slots = await client.get_course_page_slots(
@@ -706,6 +726,7 @@ async def get_course_detail_endpoint(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         detail = await client.get_course_detail(
             sem_sub_id=request.sem_sub_id,
             erp_id=request.erp_id,
@@ -848,6 +869,7 @@ async def get_digital_assignments(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
         result = await client.get_digital_assignments(
             request.sem_sub_id
         )

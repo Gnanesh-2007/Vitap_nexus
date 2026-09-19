@@ -553,39 +553,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildSkeletonLoading() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          height: 240,
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: AppTheme.cardBorder),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
           ),
-        ),
-        Container(
-          height: 150,
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.cardBorder),
-          ),
-        ),
-        Container(
-          height: 150,
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.cardBorder),
-          ),
-        ),
-      ],
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.08));
+          SizedBox(height: 16),
+          Text('Loading profile...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
+      ),
+    );
   }
 
   Widget _buildErrorState(Object err) {

@@ -115,7 +115,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       return Scaffold(
         backgroundColor: _background,
         body: MeshAmbientBackground(
-          child: SafeArea(child: _buildShimmerSkeleton()),
+          child: SafeArea(child: _buildCleanLoading()),
         ),
       );
     }
@@ -830,41 +830,51 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         .scale(begin: const Offset(0.92, 0.92), end: const Offset(1, 1), curve: Curves.easeOutCubic);
   }
 
-  // ─── Shimmer Skeleton ────────────────────────────────────────────────────
-  Widget _buildShimmerSkeleton() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(width: 140, height: 40, decoration: BoxDecoration(color: _cardBg, borderRadius: BorderRadius.circular(12))),
-            Container(width: 80, height: 32, decoration: BoxDecoration(color: _cardBg, borderRadius: BorderRadius.circular(12))),
-          ],
-        ),
-        const SizedBox(height: 24),
-        Container(height: 110, decoration: BoxDecoration(color: _cardBg, borderRadius: BorderRadius.circular(20))),
-        const SizedBox(height: 24),
-        Container(width: 100, height: 20, decoration: BoxDecoration(color: _cardBg, borderRadius: BorderRadius.circular(6))),
-        const SizedBox(height: 14),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: 8,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.82,
+  // ─── Clean Loading State (No Skeletons) ──────────────────────────────────
+  Widget _buildCleanLoading() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _accentPrimary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _accentPrimary.withValues(alpha: 0.2),
+                width: 1.5,
+              ),
+            ),
+            child: const SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(_accentPrimary),
+              ),
+            ),
           ),
-          itemBuilder: (_, __) => Container(
-            decoration: BoxDecoration(color: _cardBg, borderRadius: BorderRadius.circular(18)),
+          const SizedBox(height: 16),
+          Text(
+            'Syncing with VTOP...',
+            style: GoogleFonts.outfit(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: _textPrimary,
+            ),
           ),
-        ),
-      ],
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1000.ms, color: Colors.white10);
+          const SizedBox(height: 4),
+          Text(
+            'Loading your campus data',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: _textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ─── Error State ─────────────────────────────────────────────────────────

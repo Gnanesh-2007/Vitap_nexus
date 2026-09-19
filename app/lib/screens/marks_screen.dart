@@ -223,21 +223,20 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
   }
 
   Widget _buildSkeletonLoading() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(14),
-      itemCount: 5,
-      itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        height: 72,
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFF24344D)),
-        ),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          SizedBox(height: 16),
+          Text('Loading marks...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
       ),
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.05));
+    );
   }
 
   Widget _buildMarksList(List<dynamic> list, {required bool isLabTab}) {

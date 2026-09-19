@@ -789,43 +789,21 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     );
   }
 
-  // --- SKELETON LOADING ---
+  // --- LOADING ---
   Widget _buildSkeletonLoading() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          children: List.generate(
-            3,
-            (i) => Expanded(
-              child: Container(
-                margin: EdgeInsets.only(right: i == 2 ? 0 : 10),
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppTheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              ),
-            ),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
           ),
-        ),
-        const SizedBox(height: 18),
-        Container(
-          height: 48,
-          decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(16)),
-        ),
-        const SizedBox(height: 18),
-        ...List.generate(
-          3,
-          (i) => Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            height: 100,
-            decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(20)),
-          ),
-        ),
-      ],
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.05));
+          SizedBox(height: 16),
+          Text('Loading assignments...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
+      ),
+    );
   }
 }

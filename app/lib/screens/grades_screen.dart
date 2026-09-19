@@ -383,33 +383,19 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
 }
 
   Widget _buildSkeletonLoading() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(18),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Container(
-            height: 100,
-            margin: const EdgeInsets.only(bottom: 24),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.cardBorder),
-            ),
-          );
-        }
-        return Container(
-          height: 80,
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.cardBorder),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
           ),
-        );
-      },
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.08));
+          SizedBox(height: 16),
+          Text('Loading grades...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
+      ),
+    );
   }
 }

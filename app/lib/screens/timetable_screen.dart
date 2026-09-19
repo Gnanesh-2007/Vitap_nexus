@@ -616,23 +616,20 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                     }).toList(),
                   );
                 },
-                loading: () => ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  itemCount: 5,
-                  itemBuilder: (context, index) => Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    height: 130,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-                    ),
+                loading: () => const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                      SizedBox(height: 16),
+                      Text('Loading timetable...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    ],
                   ),
-                )
-                    .animate(onPlay: (c) => c.repeat(reverse: true))
-                    .shimmer(
-                        duration: 1200.ms,
-                        color: Colors.white.withValues(alpha: 0.05)),
+                ),
                 error: (err, stack) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),

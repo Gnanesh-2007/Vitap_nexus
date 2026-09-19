@@ -220,43 +220,20 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
   }
 
   Widget _buildSkeletonMentor() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Container(
-          height: 190,
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.cardBorder),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
           ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          height: 48,
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.cardBorder),
-          ),
-        ),
-        const SizedBox(height: 24),
-        ...List.generate(
-          4,
-          (index) => Container(
-            height: 64,
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppTheme.cardBorder),
-            ),
-          ),
-        ),
-      ],
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.08));
+          SizedBox(height: 16),
+          Text('Loading mentor details...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
+      ),
+    );
   }
 
   Widget _buildDetailTile(IconData icon, String label, String value, int index) {

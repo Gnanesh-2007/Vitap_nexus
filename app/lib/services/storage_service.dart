@@ -216,7 +216,12 @@ class StorageService {
       await setCache('timetable', allData['timetable']);
     }
     if (allData['marks'] != null) {
-      await setCache('marks', allData['marks']);
+      final marks = allData['marks'];
+      if (marks is Map && marks.containsKey('marks') && marks['marks'] is List) {
+        await setCache('marks', marks['marks']);
+      } else {
+        await setCache('marks', marks);
+      }
     }
     if (allData['profile'] != null) {
       await setCache('profile', allData['profile']);

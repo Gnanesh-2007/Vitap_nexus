@@ -199,21 +199,20 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   }
 
   Widget _buildCoursesSkeleton() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(18),
-      itemCount: 8,
-      itemBuilder: (context, index) => Container(
-        height: 76,
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.cardBorder),
-        ),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          SizedBox(height: 16),
+          Text('Loading courses...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
       ),
-    )
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.08));
+    );
   }
 
   Widget _buildCoursesList() {
