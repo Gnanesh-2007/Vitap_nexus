@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mesh_ambient_background.dart';
 import 'main_nav_screen.dart';
+import 'otp_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -62,16 +63,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       password: password,
     );
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    final authState = ref.read(authProvider);
+
+    // CRITICAL: If VTOP requires OTP, immediately navigate to the OtpScreen
+    // without showing any "Login failed" error!
+    if (authState.otpRequired) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const OtpScreen(),
+        ),
+      );
+      return;
+    }
+
+    if (success) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => const MainNavScreen(),
         ),
       );
-    } else if (mounted) {
+    } else {
       final error =
-          ref.read(authProvider).errorMessage ??
-          'Login failed. Please try again.';
+          authState.errorMessage ??
+          'Login failed. Please check your credentials and try again.';
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

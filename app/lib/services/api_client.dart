@@ -36,15 +36,19 @@ class ApiClient {
   // ============================================================
   // IN-MEMORY RESPONSE CACHE
   // ============================================================
-
+  //
   // VTOP is slow compared with a normal API. Keep read-only
   // responses in memory so revisiting a screen does not hit VTOP
   // again. Cache is session-scoped and automatically cleared on
   // login/logout/session changes.
-
+  //
   static const Duration _cacheTtl = Duration(minutes: 5);
 
   final Map<String, _CachedResponse> _responseCache = {};
+
+  // Prevent the same background warm-up from being launched more than once
+  // for the same VTOP session + semester.
+  String? _lastWarmUpKey;
 
   static const Set<String> _cacheablePaths = {
     '/student/semesters',
@@ -52,6 +56,7 @@ class ApiClient {
     '/student/profile',
     '/student/attendance',
     '/student/timetable',
+    '/student/exam_schedule',
     '/student/marks',
     '/student/grade_history',
     '/student/mentor',
@@ -65,7 +70,6 @@ class ApiClient {
     '/student/course_detail',
     '/student/digital_assignments',
     '/student/course_assignments',
-    '/student/exam_schedule',
   };
 
   bool _isCacheable(String path) => _cacheablePaths.contains(path);
@@ -73,7 +77,6 @@ class ApiClient {
   String _cacheKey(RequestOptions options) {
     String body = '';
     final data = options.data;
-
     if (data != null) {
       try {
         body = jsonEncode(data);
@@ -90,43 +93,37 @@ class ApiClient {
     debugPrint('VTOP data cache cleared');
   }
 
-  /// Invalidate only one endpoint's cached responses.
-  /// This is used by pull-to-refresh so refreshing the dashboard does not
-  /// throw away cached Mentor/Payments/Courses/etc. data.
-  void invalidateCacheForPath(String path) {
-    final keysToRemove = _responseCache.keys
-        .where((key) => key.contains('|$path|'))
-        .toList();
-
-    for (final key in keysToRemove) {
-      _responseCache.remove(key);
-    }
-
-    debugPrint('VTOP cache invalidated → $path');
-  }
-
-  // ============================================================
-  // WARM-UP
-  // ============================================================
-
   // Warm the most commonly opened screens in the background.
   // This is deliberately fire-and-forget so dashboard navigation
   // is never blocked by prefetching.
-
   void warmUpCommonScreens({
     required String username,
     required String password,
     required String semSubId,
   }) {
-    if (_vtopSessionId == null || _vtopSessionId!.isEmpty) return;
+    final sessionId = _vtopSessionId;
 
-    unawaited(
-      _warmUpCommonScreens(
-        username: username,
-        password: password,
-        semSubId: semSubId,
-      ),
-    );
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    final warmUpKey = '$sessionId|$semSubId';
+
+    // all_data can be refreshed/rebuilt by Riverpod. Do not launch the
+    // five background prefetch requests again for the same session +
+    // semester.
+    if (_lastWarmUpKey == warmUpKey) {
+      debugPrint('VTOP warm-up skipped → already started for this session');
+      return;
+    }
+
+    // Set this BEFORE starting the async work so two nearly simultaneous
+    // calls cannot both pass the guard.
+    _lastWarmUpKey = warmUpKey;
+
+    unawaited(_warmUpCommonScreens(
+      username: username,
+      password: password,
+      semSubId: semSubId,
+    ));
   }
 
   Future<void> _warmUpCommonScreens({
@@ -143,23 +140,19 @@ class ApiClient {
         username: username,
         password: password,
       ).then((_) {}, onError: (_) {}),
-
       fetchPendingPayments(
         username: username,
         password: password,
       ).then((_) {}, onError: (_) {}),
-
       fetchPaymentReceipts(
         username: username,
         password: password,
       ).then((_) {}, onError: (_) {}),
-
       fetchCoursePageCourses(
         username: username,
         password: password,
         semSubId: semSubId,
       ).then((_) {}, onError: (_) {}),
-
       fetchDigitalAssignments(
         username: username,
         password: password,
@@ -170,27 +163,23 @@ class ApiClient {
     debugPrint('VTOP warm-up finished');
   }
 
-  // ============================================================
-  // VTOP SESSION ID
-  // ============================================================
-
   /// Called after /auth/login returns a session_id.
   void setVtopSessionId(String sessionId) {
     if (_vtopSessionId != sessionId) {
       clearDataCache();
+      _lastWarmUpKey = null;
     }
-
     _vtopSessionId = sessionId;
 
     debugPrint(
-      'VTOP session set: '
-      '${sessionId.length >= 8 ? sessionId.substring(0, 8) : sessionId}...',
+      'VTOP session set: ${sessionId.substring(0, 8)}...',
     );
   }
 
   /// Clears the current VTOP session.
   void clearVtopSessionId() {
     _vtopSessionId = null;
+    _lastWarmUpKey = null;
     clearDataCache();
     debugPrint('VTOP session cleared');
   }
@@ -230,7 +219,6 @@ class ApiClient {
 
           final isStudentRequest =
               options.path.startsWith('/student/');
-
           final isProxyStartRequest =
               options.path == '/vtop_proxy/start_session';
 
@@ -256,12 +244,8 @@ class ApiClient {
             final cached = _responseCache[key];
 
             if (cached != null) {
-              if (DateTime.now().difference(cached.createdAt) <=
-                  _cacheTtl) {
-                debugPrint(
-                  'CACHE HIT → ${options.path}',
-                );
-
+              if (DateTime.now().difference(cached.createdAt) <= _cacheTtl) {
+                debugPrint('CACHE HIT → ${options.path}');
                 return handler.resolve(
                   Response<dynamic>(
                     requestOptions: options,
@@ -296,9 +280,7 @@ class ApiClient {
               createdAt: DateTime.now(),
             );
 
-            debugPrint(
-              'CACHE STORE → ${options.path}',
-            );
+            debugPrint('CACHE STORE → ${options.path}');
           }
 
           return handler.next(response);
@@ -702,12 +684,9 @@ class ApiClient {
       },
     );
 
-    final message =
-        response.data['message']?.toString() ??
+    final message = response.data['message']?.toString() ??
         'Outing applied successfully.';
-
     clearDataCache();
-
     return message;
   }
 
@@ -733,12 +712,9 @@ class ApiClient {
       },
     );
 
-    final message =
-        response.data['message']?.toString() ??
+    final message = response.data['message']?.toString() ??
         'Weekend outing applied successfully.';
-
     clearDataCache();
-
     return message;
   }
 
@@ -756,12 +732,9 @@ class ApiClient {
       },
     );
 
-    final message =
-        response.data['message']?.toString() ??
+    final message = response.data['message']?.toString() ??
         'Outing deleted.';
-
     clearDataCache();
-
     return message;
   }
 
@@ -779,12 +752,9 @@ class ApiClient {
       },
     );
 
-    final message =
-        response.data['message']?.toString() ??
-        'Weekend outing deleted.';
-
+    final message = response.data['message']?.toString() ??
+        'Outing deleted.';
     clearDataCache();
-
     return message;
   }
 
@@ -1026,6 +996,7 @@ class ApiClient {
     return response.data ?? [];
   }
 }
+
 
 // ============================================================
 // GLOBAL API SERVICE

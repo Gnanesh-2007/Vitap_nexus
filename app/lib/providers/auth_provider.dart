@@ -1,25 +1,39 @@
 import 'dart:async';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 
+
+// ============================================================
+// AUTH STATE
+// ============================================================
+
 class AuthState {
   final bool isAuthenticated;
   final bool isLoading;
+
   final String? username;
   final String? password;
+
+  // Backend VTOP session ID.
+  //
+  // This is the session created by /auth/login and stored on
+  // the backend. It is intentionally kept in memory only.
+  final String? sessionId;
+
   final String? activeSemesterId;
   final String? activeSemesterName;
-  final List<Map<String, String>> availableSemesters;
+
+  final List<Map<String, dynamic>> availableSemesters;
+
   final String? errorMessage;
 
-  // ============================================================
-  // OTP STATE
-  // ============================================================
-
+  // True when VTOP requires OTP verification.
   final bool otpRequired;
+
+  // Session waiting for OTP verification.
   final String? pendingSessionId;
 
   const AuthState({
@@ -27,6 +41,7 @@ class AuthState {
     this.isLoading = false,
     this.username,
     this.password,
+    this.sessionId,
     this.activeSemesterId,
     this.activeSemesterName,
     this.availableSemesters = const [],
@@ -40,16 +55,17 @@ class AuthState {
     bool? isLoading,
     String? username,
     String? password,
+    String? sessionId,
     String? activeSemesterId,
     String? activeSemesterName,
-    List<Map<String, String>>? availableSemesters,
+    List<Map<String, dynamic>>? availableSemesters,
     String? errorMessage,
     bool? otpRequired,
     String? pendingSessionId,
 
-    // Explicitly clear nullable values.
-    bool clearErrorMessage = false,
-    bool clearPendingSessionId = false,
+    bool clearSessionId = false,
+    bool clearPendingSession = false,
+    bool clearError = false,
   }) {
     return AuthState(
       isAuthenticated:
@@ -64,6 +80,10 @@ class AuthState {
       password:
           password ?? this.password,
 
+      sessionId: clearSessionId
+          ? null
+          : sessionId ?? this.sessionId,
+
       activeSemesterId:
           activeSemesterId ?? this.activeSemesterId,
 
@@ -73,21 +93,20 @@ class AuthState {
       availableSemesters:
           availableSemesters ?? this.availableSemesters,
 
-      errorMessage:
-          clearErrorMessage
-              ? null
-              : (errorMessage ?? this.errorMessage),
+      errorMessage: clearError
+          ? null
+          : errorMessage ?? this.errorMessage,
 
       otpRequired:
           otpRequired ?? this.otpRequired,
 
-      pendingSessionId:
-          clearPendingSessionId
-              ? null
-              : (pendingSessionId ?? this.pendingSessionId),
+      pendingSessionId: clearPendingSession
+          ? null
+          : pendingSessionId ?? this.pendingSessionId,
     );
   }
 }
+
 
 // ============================================================
 // AUTH NOTIFIER
@@ -95,479 +114,634 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier()
-      : super(const AuthState(isLoading: true)) {
-    _initializationFuture = checkSavedAuth();
+      : super(
+          const AuthState(
+            isLoading: true,
+          ),
+        ) {
+    checkSavedAuth();
   }
 
-  // Prevent multiple login requests from happening at the same time.
+  // ============================================================
+  // LOGIN CONCURRENCY GUARD
+  // ============================================================
+  //
+  // If multiple widgets/providers attempt login at the same
+  // time, they all wait for the SAME login Future.
+  //
+  // This prevents:
+  //
+  //     /auth/login
+  //     /auth/login
+  //     /auth/login
+  //
+  // happening simultaneously.
+  //
+
   Future<bool>? _activeLogin;
 
-  // Prevent login() from racing against startup authentication.
-  late final Future<void> _initializationFuture;
-
   // ============================================================
-  // STARTUP AUTH
+  // CHECK SAVED AUTH
   // ============================================================
 
   Future<void> checkSavedAuth() async {
-    state = state.copyWith(
-      isLoading: true,
-      clearErrorMessage: true,
-    );
-
     try {
-      final creds = await StorageService.getCredentials();
+      final credentials =
+          await StorageService.getCredentials();
 
-      final username = creds['username'];
-      final password = creds['password'];
-      final semesterId = creds['semesterId'];
-      final semesterName = creds['semesterName'];
-      final savedSessionId = creds['sessionId'];
+      final username =
+          credentials['username'];
+
+      final password =
+          credentials['password'];
+
+      final semesterId =
+          credentials['semesterId'];
+
+      final semesterName =
+          credentials['semesterName'];
 
       // --------------------------------------------------------
       // No saved credentials
       // --------------------------------------------------------
 
       if (username == null ||
-          password == null ||
           username.isEmpty ||
+          password == null ||
           password.isEmpty) {
-        state = state.copyWith(
+        state = const AuthState(
           isAuthenticated: false,
           isLoading: false,
-          clearErrorMessage: true,
-          clearPendingSessionId: true,
-          otpRequired: false,
         );
+
         return;
       }
 
       // --------------------------------------------------------
-      // We need a real backend session.
+      // FAST-BOOT: Mark authenticated IMMEDIATELY!
+      // Do NOT block the user on a slow VTOP network call.
       // --------------------------------------------------------
 
-      if (savedSessionId == null ||
-          savedSessionId.isEmpty) {
-        state = state.copyWith(
-          isAuthenticated: false,
-          isLoading: false,
-          username: username,
-          password: password,
-          activeSemesterId: semesterId,
-          activeSemesterName: semesterName,
-          clearPendingSessionId: true,
-          otpRequired: false,
-        );
-        return;
-      }
+      state = state.copyWith(
+        isAuthenticated: true,
+        isLoading: false,
+        username: username,
+        password: password,
+        activeSemesterId: semesterId,
+        activeSemesterName: semesterName,
+        clearError: true,
+      );
 
-      // Restore the backend session into ApiClient.
-      apiService.setVtopSessionId(savedSessionId);
-
-      // --------------------------------------------------------
-      // Validate the restored session.
-      //
-      // /student/semesters requires the X-VTOP-Session-ID header,
-      // so a successful response proves the backend session works.
-      // --------------------------------------------------------
-
-      try {
-        final semData = await apiService.fetchSemesters(
-          username,
-          password,
-        );
-
-        final semesters = _parseSemesters(semData);
-
-        final currentSemId =
-            semesterId ??
-            (semesters.isNotEmpty
-                ? semesters.first['id']
-                : null);
-
-        final currentSemName =
-            semesterName ??
-            (semesters.isNotEmpty
-                ? semesters.first['name']
-                : null);
-
-        if (currentSemId != null &&
-            currentSemName != null) {
-          await StorageService.saveSemester(
-            currentSemId,
-            currentSemName,
-          );
-        }
-
-        state = state.copyWith(
-          isAuthenticated: true,
-          isLoading: false,
-          username: username,
-          password: password,
-          activeSemesterId: currentSemId,
-          activeSemesterName: currentSemName,
-          availableSemesters: semesters,
-          otpRequired: false,
-          clearPendingSessionId: true,
-          clearErrorMessage: true,
-        );
-      } catch (_) {
-        // The backend session no longer exists/works.
-        //
-        // Do NOT pretend the user is authenticated.
-        await StorageService.clearSessionId();
-        apiService.clearVtopSessionId();
-
-        state = state.copyWith(
-          isAuthenticated: false,
-          isLoading: false,
-          username: username,
-          password: password,
-          activeSemesterId: semesterId,
-          activeSemesterName: semesterName,
-          otpRequired: false,
-          clearPendingSessionId: true,
-        );
-      }
+      // Silently renew VTOP session in the background
+      _renewSessionSilently(username, password, semesterId, semesterName);
     } catch (e) {
-      apiService.clearVtopSessionId();
-
       state = state.copyWith(
         isAuthenticated: false,
         isLoading: false,
-        errorMessage: _friendlyError(
-          e.toString(),
-        ),
-        clearPendingSessionId: true,
-        otpRequired: false,
+        errorMessage: _cleanError(e),
       );
     }
   }
+
+  void _renewSessionSilently(
+    String username,
+    String password,
+    String? semesterId,
+    String? semesterName,
+  ) {
+    unawaited(() async {
+      try {
+        final result = await apiService.initiateLogin(
+          username: username,
+          password: password,
+        );
+        final sessionId = result['session_id']?.toString();
+        final otpRequired = result['otp_required'] == true;
+        if (sessionId != null && sessionId.isNotEmpty) {
+          apiService.setVtopSessionId(sessionId);
+          if (otpRequired) {
+            state = state.copyWith(
+              otpRequired: true,
+              sessionId: sessionId,
+              pendingSessionId: sessionId,
+            );
+          } else {
+            state = state.copyWith(
+              sessionId: sessionId,
+              otpRequired: false,
+            );
+            // Refresh semester list silently
+            _refreshSemesters(
+              username: username,
+              password: password,
+              preferredSemesterId: semesterId,
+              preferredSemesterName: semesterName,
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('Silent session renewal background error: $e');
+      }
+    }());
+  }
+
 
   // ============================================================
   // LOGIN
   // ============================================================
 
-  /// Starts a new VTOP login.
-  ///
-  /// IMPORTANT:
-  /// Multiple simultaneous calls return the SAME Future.
-  /// Therefore only one /auth/login request can be active.
   Future<bool> login({
     required String username,
     required String password,
-  }) async {
+    String? savedSemesterId,
+    String? savedSemesterName,
+  }) {
+    // ----------------------------------------------------------
+    // Already logging in?
+    //
+    // Return the same Future.
+    // ----------------------------------------------------------
+
     final existingLogin = _activeLogin;
 
     if (existingLogin != null) {
       return existingLogin;
     }
 
-    final loginFuture = _performLogin(
+    final future = _performLogin(
       username: username,
       password: password,
+      savedSemesterId: savedSemesterId,
+      savedSemesterName: savedSemesterName,
     );
 
-    _activeLogin = loginFuture;
+    _activeLogin = future;
 
-    try {
-      return await loginFuture;
-    } finally {
-      if (identical(_activeLogin, loginFuture)) {
+    future.whenComplete(() {
+      if (identical(_activeLogin, future)) {
         _activeLogin = null;
       }
-    }
+    });
+
+    return future;
   }
+
 
   Future<bool> _performLogin({
     required String username,
     required String password,
+    String? savedSemesterId,
+    String? savedSemesterName,
   }) async {
-    // Wait until startup authentication has completed.
-    await _initializationFuture;
-
     state = state.copyWith(
       isLoading: true,
-      isAuthenticated: false,
       username: username,
       password: password,
-      otpRequired: false,
-      clearPendingSessionId: true,
-      clearErrorMessage: true,
+      clearError: true,
     );
 
     try {
-      final result = await apiService.initiateLogin(
+      // ========================================================
+      // ONE BACKEND LOGIN
+      // ========================================================
+
+      final result =
+          await apiService.initiateLogin(
         username: username,
         password: password,
       );
+
+      // ========================================================
+      // GET SESSION ID
+      // ========================================================
 
       final sessionId =
           result['session_id']?.toString();
 
       final otpRequired =
-          result['otp_required'] as bool? ?? false;
+          result['otp_required'] == true;
 
       if (sessionId == null ||
           sessionId.isEmpty) {
-        throw Exception(
-          'Backend did not return a VTOP session.',
-        );
-      }
-
-      // Save the session immediately.
-      //
-      // This is important even when OTP is required because
-      // verifyOtp() must use the exact same backend session.
-      await StorageService.saveSessionId(sessionId);
-
-      // --------------------------------------------------------
-      // OTP REQUIRED
-      // --------------------------------------------------------
-
-      if (otpRequired) {
         state = state.copyWith(
           isAuthenticated: false,
           isLoading: false,
-          otpRequired: true,
-          pendingSessionId: sessionId,
-          username: username,
-          password: password,
-          clearErrorMessage: true,
+          errorMessage:
+              'Server did not return a VTOP session.',
         );
 
         return false;
       }
 
-      // --------------------------------------------------------
-      // LOGIN COMPLETE WITHOUT OTP
-      // --------------------------------------------------------
-
-      return await _finishLogin(
-        username: username,
-        password: password,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isAuthenticated: false,
-        isLoading: false,
-        otpRequired: false,
-        clearPendingSessionId: true,
-        errorMessage: _friendlyError(
-          e.toString(),
-        ),
+      // ApiClient already receives and stores the session ID,
+      // but explicitly set it here too for clarity.
+      apiService.setVtopSessionId(
+        sessionId,
       );
 
-      return false;
-    }
-  }
+      // ========================================================
+      // OTP REQUIRED
+      // ========================================================
 
-  // ============================================================
-  // VERIFY OTP
-  // ============================================================
+      if (otpRequired) {
+        state = state.copyWith(
+          isAuthenticated: false,
+          isLoading: false,
 
-  Future<bool> verifyOtp(String otp) async {
-    final sessionId = state.pendingSessionId;
+          username: username,
+          password: password,
 
-    if (sessionId == null || sessionId.isEmpty) {
-      state = state.copyWith(
-        errorMessage:
-            'No pending OTP session. Please login again.',
-      );
+          sessionId: sessionId,
+          pendingSessionId: sessionId,
 
-      return false;
-    }
+          otpRequired: true,
 
-    state = state.copyWith(
-      isLoading: true,
-      clearErrorMessage: true,
-    );
+          activeSemesterId:
+              savedSemesterId,
 
-    try {
-      await apiService.verifyLoginOtp(
-        sessionId: sessionId,
-        otp: otp,
-      );
+          activeSemesterName:
+              savedSemesterName,
 
-      // The same session has now become authenticated.
-      await StorageService.saveSessionId(sessionId);
-
-      return await _finishLogin(
-        username: state.username ?? '',
-        password: state.password ?? '',
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: _friendlyError(
-          e.toString(),
-        ),
-      );
-
-      return false;
-    }
-  }
-
-  // ============================================================
-  // RESEND OTP
-  // ============================================================
-
-  Future<void> resendOtp() async {
-    final sessionId = state.pendingSessionId;
-
-    if (sessionId == null || sessionId.isEmpty) {
-      state = state.copyWith(
-        errorMessage:
-            'No pending OTP session. Please login again.',
-      );
-      return;
-    }
-
-    try {
-      await apiService.resendLoginOtp(sessionId);
-
-      state = state.copyWith(
-        clearErrorMessage: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage:
-            'Failed to resend OTP: ${e.toString()}',
-      );
-    }
-  }
-
-  // ============================================================
-  // FINISH LOGIN
-  // ============================================================
-
-  Future<bool> _finishLogin({
-    required String username,
-    required String password,
-  }) async {
-    try {
-      final semData = await apiService.fetchSemesters(
-        username,
-        password,
-      );
-
-      final semesters = _parseSemesters(semData);
-
-      final firstSem =
-          semesters.isNotEmpty
-              ? semesters.first
-              : null;
-
-      final semId = firstSem?['id'];
-      final semName = firstSem?['name'];
-
-      await StorageService.saveCredentials(
-        username: username,
-        password: password,
-        semesterId: semId,
-        semesterName: semName,
-      );
-
-      // Session was already saved by login/OTP verification.
-      final sessionId =
-          apiService.vtopSessionId;
-
-      if (sessionId != null &&
-          sessionId.isNotEmpty) {
-        await StorageService.saveSessionId(
-          sessionId,
+          clearError: true,
         );
+
+        return false;
       }
+
+      // ========================================================
+      // LOGIN SUCCESSFUL WITHOUT OTP
+      // ========================================================
 
       state = state.copyWith(
         isAuthenticated: true,
         isLoading: false,
-        otpRequired: false,
-        clearPendingSessionId: true,
-        clearErrorMessage: true,
+
         username: username,
         password: password,
-        activeSemesterId: semId,
-        activeSemesterName: semName,
-        availableSemesters: semesters,
+
+        sessionId: sessionId,
+
+        otpRequired: false,
+        clearPendingSession: true,
+
+        activeSemesterId:
+            savedSemesterId,
+
+        activeSemesterName:
+            savedSemesterName,
+
+        clearError: true,
       );
+
+      // Save credentials.
+      await StorageService.saveCredentials(
+        username: username,
+        password: password,
+        semesterId: savedSemesterId,
+        semesterName: savedSemesterName,
+      );
+
+      // Fetch semesters asynchronously in background so login returns immediately
+      unawaited(_refreshSemesters(
+        username: username,
+        password: password,
+        preferredSemesterId:
+            savedSemesterId,
+        preferredSemesterName:
+            savedSemesterName,
+      ));
 
       return true;
     } catch (e) {
       state = state.copyWith(
         isAuthenticated: false,
         isLoading: false,
-        errorMessage: _friendlyError(
-          e.toString(),
-        ),
+        errorMessage: _cleanError(e),
       );
 
       return false;
     }
   }
 
+
   // ============================================================
-  // SEMESTER PARSING
+  // VERIFY OTP
   // ============================================================
 
-  List<Map<String, String>> _parseSemesters(
-    Map<String, dynamic> semData,
-  ) {
-    final rawSemesters =
-        semData['semesters'] as List<dynamic>? ?? [];
+  Future<bool> verifyOtp(String otp) async {
+    final sessionId =
+        state.pendingSessionId;
 
-    return rawSemesters
-        .whereType<Map>()
-        .map(
-          (s) => {
-            'id': s['id']?.toString() ?? '',
-            'name': s['name']?.toString() ?? '',
-          },
-        )
-        .where(
-          (s) =>
-              s['id']!.isNotEmpty &&
-              s['name']!.isNotEmpty,
-        )
-        .toList();
+    // ----------------------------------------------------------
+    // No pending session
+    // ----------------------------------------------------------
+
+    if (sessionId == null ||
+        sessionId.isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        otpRequired: false,
+        errorMessage:
+            'Login session expired. Please login again.',
+      );
+
+      return false;
+    }
+
+    final cleanedOtp =
+        otp.trim();
+
+    if (cleanedOtp.isEmpty) {
+      state = state.copyWith(
+        errorMessage:
+            'Please enter the OTP.',
+      );
+
+      return false;
+    }
+
+    try {
+      state = state.copyWith(
+        isLoading: true,
+        clearError: true,
+      );
+
+      // ========================================================
+      // VERIFY OTP USING SAME SESSION
+      // ========================================================
+
+      final result =
+          await apiService.verifyLoginOtp(
+        sessionId: sessionId,
+        otp: cleanedOtp,
+      );
+
+      // Backend normally returns the same session ID.
+      final verifiedSessionId =
+          result['session_id']?.toString() ??
+              sessionId;
+
+      // Make absolutely sure ApiClient uses the verified
+      // session for every /student/* request.
+      apiService.setVtopSessionId(
+        verifiedSessionId,
+      );
+
+      // ========================================================
+      // AUTHENTICATED
+      // ========================================================
+
+      state = state.copyWith(
+        isAuthenticated: true,
+        isLoading: false,
+
+        sessionId:
+            verifiedSessionId,
+
+        otpRequired: false,
+
+        clearPendingSession: true,
+        clearError: true,
+      );
+
+      // ========================================================
+      // SAVE CREDENTIALS
+      // ========================================================
+
+      final username =
+          state.username;
+
+      final password =
+          state.password;
+
+      if (username != null &&
+          username.isNotEmpty &&
+          password != null &&
+          password.isNotEmpty) {
+        await StorageService.saveCredentials(
+          username: username,
+          password: password,
+          semesterId:
+              state.activeSemesterId,
+          semesterName:
+              state.activeSemesterName,
+        );
+      }
+
+      // ========================================================
+      // FETCH SEMESTERS
+      // ========================================================
+      //
+      // This request uses the SAME VTOP session.
+      //
+
+      if (username != null &&
+          password != null) {
+        await _refreshSemesters(
+          username: username,
+          password: password,
+          preferredSemesterId:
+              state.activeSemesterId,
+          preferredSemesterName:
+              state.activeSemesterName,
+        );
+      }
+
+      return true;
+    } catch (e) {
+      // Keep OTP popup open so the user can correct the OTP.
+      state = state.copyWith(
+        isLoading: false,
+        isAuthenticated: false,
+        otpRequired: true,
+        errorMessage: _cleanError(e),
+      );
+
+      return false;
+    }
   }
 
+
   // ============================================================
-  // ERROR HANDLING
+  // RESEND OTP
   // ============================================================
 
-  String _friendlyError(String raw) {
-    if (raw.contains('Invalid Username') ||
-        raw.contains('Invalid Password')) {
-      return 'Invalid username or password.';
+  Future<bool> resendOtp() async {
+    final sessionId =
+        state.pendingSessionId;
+
+    if (sessionId == null ||
+        sessionId.isEmpty) {
+      state = state.copyWith(
+        otpRequired: false,
+        errorMessage:
+            'Login session expired. Please login again.',
+      );
+
+      return false;
     }
 
-    if (raw.contains('Invalid Captcha') ||
-        raw.contains('captcha')) {
-      return 'Captcha verification failed. Please try again.';
-    }
+    try {
+      state = state.copyWith(
+        clearError: true,
+      );
 
-    if (raw.contains('OTP') &&
-        raw.contains('Incorrect')) {
-      return 'Incorrect OTP. Please try again.';
-    }
+      await apiService.resendLoginOtp(
+        sessionId,
+      );
 
-    if (raw.contains('OTP') &&
-        raw.contains('expired')) {
-      return 'OTP has expired. Please login again.';
-    }
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        otpRequired: true,
+        errorMessage: _cleanError(e),
+      );
 
-    if (raw.contains('Connection') ||
-        raw.contains('connect')) {
-      return 'Cannot connect to backend server. Make sure FastAPI is running.';
+      return false;
     }
-
-    if (raw.contains('VTOP session')) {
-      return 'VTOP session expired. Please login again.';
-    }
-
-    return raw;
   }
+
+
+  // ============================================================
+  // REFRESH SEMESTERS
+  // ============================================================
+
+  Future<void> _refreshSemesters({
+    required String username,
+    required String password,
+    String? preferredSemesterId,
+    String? preferredSemesterName,
+  }) async {
+    try {
+      // --------------------------------------------------------
+      // ApiClient automatically attaches:
+      //
+      // X-VTOP-Session-ID
+      //
+      // to /student/semesters.
+      // --------------------------------------------------------
+
+      final data =
+          await apiService.fetchSemesters(
+        username,
+        password,
+      );
+
+      final semesters =
+          _parseSemesters(data);
+
+      if (semesters.isEmpty) {
+        return;
+      }
+
+      // ========================================================
+      // SELECT SEMESTER
+      // ========================================================
+
+      String? selectedId;
+      String? selectedName;
+
+      // --------------------------------------------------------
+      // 1. Previously selected semester
+      // --------------------------------------------------------
+
+      if (preferredSemesterId != null &&
+          semesters.any(
+            (semester) =>
+                semester['id'] ==
+                preferredSemesterId,
+          )) {
+        selectedId =
+            preferredSemesterId;
+
+        final selected =
+            semesters.firstWhere(
+          (semester) =>
+              semester['id'] ==
+              preferredSemesterId,
+        );
+
+        selectedName =
+            selected['name']?.toString() ??
+                preferredSemesterName ??
+                preferredSemesterId;
+      }
+
+      // --------------------------------------------------------
+      // 2. Current state semester
+      // --------------------------------------------------------
+
+      if (selectedId == null &&
+          state.activeSemesterId != null &&
+          semesters.any(
+            (semester) =>
+                semester['id'] ==
+                state.activeSemesterId,
+          )) {
+        selectedId =
+            state.activeSemesterId;
+
+        final selected =
+            semesters.firstWhere(
+          (semester) =>
+              semester['id'] ==
+              selectedId,
+        );
+
+        selectedName =
+            selected['name']?.toString() ??
+                state.activeSemesterName ??
+                selectedId;
+      }
+
+      // --------------------------------------------------------
+      // 3. First semester
+      // --------------------------------------------------------
+
+      if (selectedId == null) {
+        selectedId =
+            semesters.first['id']
+                ?.toString();
+
+        selectedName =
+            semesters.first['name']
+                    ?.toString() ??
+                selectedId;
+      }
+
+      // ========================================================
+      // UPDATE STATE
+      // ========================================================
+
+      state = state.copyWith(
+        availableSemesters:
+            semesters,
+        activeSemesterId:
+            selectedId,
+        activeSemesterName:
+            selectedName,
+      );
+
+      // ========================================================
+      // SAVE SEMESTER
+      // ========================================================
+
+      if (selectedId != null &&
+          selectedId.isNotEmpty) {
+        await StorageService.saveSemester(
+          selectedId,
+          selectedName ?? selectedId,
+        );
+      }
+    } catch (e) {
+      // Don't destroy a valid authenticated state just because
+      // semester fetching failed.
+      state = state.copyWith(
+        errorMessage: _cleanError(e),
+      );
+    }
+  }
+
 
   // ============================================================
   // CHANGE SEMESTER
@@ -577,37 +751,182 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String semesterId,
     String semesterName,
   ) async {
+    if (semesterId.isEmpty) {
+      return;
+    }
+
+    state = state.copyWith(
+      activeSemesterId:
+          semesterId,
+      activeSemesterName:
+          semesterName,
+      clearError: true,
+    );
+
     await StorageService.saveSemester(
       semesterId,
       semesterName,
     );
-
-    state = state.copyWith(
-      activeSemesterId: semesterId,
-      activeSemesterName: semesterName,
-    );
   }
+
 
   // ============================================================
   // LOGOUT
   // ============================================================
 
   Future<void> logout() async {
-    // Clear the in-memory backend session reference first.
+    // ----------------------------------------------------------
+    // Clear backend session ID from ApiClient.
+    // ----------------------------------------------------------
+
     apiService.clearVtopSessionId();
 
-    // Remove credentials + session from secure storage.
-    await StorageService.clearAll();
+    // ----------------------------------------------------------
+    // Clear saved credentials.
+    // ----------------------------------------------------------
+
+    try {
+      await StorageService.clearAll();
+    } catch (_) {
+      // Ignore storage errors during logout.
+    }
+
+    // ----------------------------------------------------------
+    // Reset state.
+    // ----------------------------------------------------------
 
     state = const AuthState(
       isAuthenticated: false,
       isLoading: false,
     );
   }
+
+
+  // ============================================================
+  // PARSE SEMESTERS
+  // ============================================================
+
+  List<Map<String, dynamic>> _parseSemesters(
+    dynamic data,
+  ) {
+    dynamic rawList;
+
+    // ----------------------------------------------------------
+    // Response itself is a list.
+    // ----------------------------------------------------------
+
+    if (data is List) {
+      rawList = data;
+    }
+
+    // ----------------------------------------------------------
+    // Response is a map.
+    // ----------------------------------------------------------
+
+    else if (data is Map) {
+      if (data['semesters'] is List) {
+        rawList =
+            data['semesters'];
+      } else if (data['data'] is List) {
+        rawList =
+            data['data'];
+      } else if (data['semester_list'] is List) {
+        rawList =
+            data['semester_list'];
+      }
+    }
+
+    if (rawList is! List) {
+      return [];
+    }
+
+    final result =
+        <Map<String, dynamic>>[];
+
+    for (final item in rawList) {
+      if (item is! Map) {
+        continue;
+      }
+
+      final map =
+          Map<String, dynamic>.from(item);
+
+      // ========================================================
+      // FIND SEMESTER ID
+      // ========================================================
+
+      String? id;
+
+      for (final key in [
+        'id',
+        'sem_sub_id',
+        'semester_id',
+        'value',
+      ]) {
+        final value =
+            map[key]?.toString();
+
+        if (value != null &&
+            value.isNotEmpty) {
+          id = value;
+          break;
+        }
+      }
+
+      // ========================================================
+      // FIND SEMESTER NAME
+      // ========================================================
+
+      String? name;
+
+      for (final key in [
+        'name',
+        'semester_name',
+        'sem_name',
+        'label',
+        'text',
+      ]) {
+        final value =
+            map[key]?.toString();
+
+        if (value != null &&
+            value.isNotEmpty) {
+          name = value;
+          break;
+        }
+      }
+
+      if (id != null &&
+          id.isNotEmpty) {
+        result.add({
+          'id': id,
+          'name': name ?? id,
+        });
+      }
+    }
+
+    return result;
+  }
+
+
+  // ============================================================
+  // ERROR CLEANUP
+  // ============================================================
+
+  String _cleanError(Object error) {
+    return error
+        .toString()
+        .replaceFirst(
+          'Exception: ',
+          '',
+        )
+        .trim();
+  }
 }
 
+
 // ============================================================
-// PROVIDER
+// RIVERPOD PROVIDER
 // ============================================================
 
 final authProvider =

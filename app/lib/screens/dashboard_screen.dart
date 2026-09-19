@@ -5,8 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
-import '../services/api_client.dart';
 import '../utils/vtop_helpers.dart';
+import '../widgets/last_synced_badge.dart';
 import '../widgets/mesh_ambient_background.dart';
 import 'grades_screen.dart';
 import 'outings_screen.dart';
@@ -109,36 +109,50 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    final allDataAsync = ref.watch(allDataProvider);
+    final dashboardState = ref.watch(dashboardProvider);
+
+    if (!dashboardState.hasData && dashboardState.isLoading) {
+      return Scaffold(
+        backgroundColor: _background,
+        body: MeshAmbientBackground(
+          child: SafeArea(child: _buildShimmerSkeleton()),
+        ),
+      );
+    }
+
+    if (!dashboardState.hasData && dashboardState.error != null) {
+      return Scaffold(
+        backgroundColor: _background,
+        body: MeshAmbientBackground(
+          child: SafeArea(
+            child: _buildErrorState(dashboardState.error!),
+          ),
+        ),
+      );
+    }
+
+    final data = dashboardState.data ?? {};
+    final profile = data['profile'] as Map<String, dynamic>? ?? {};
+    final studentName = profile['student_name'] ?? authState.username ?? 'Student';
+    final timetable = (data['timetable'] as Map<String, dynamic>?) ?? {};
+
+    final today = DateFormat('EEEE').format(DateTime.now());
+    final rawTodayClasses = (timetable[today] as List<dynamic>?) ?? [];
+    final todayClasses = VtopHelpers.sortTimetableList(rawTodayClasses);
+
+    final classStatus = VtopHelpers.getLiveClassStatus(todayClasses);
+    final activeClass = classStatus['activeClass'] as Map<String, dynamic>?;
+    final nextClasses = classStatus['nextClasses'] as List<dynamic>? ?? [];
 
     return Scaffold(
       backgroundColor: _background,
       body: MeshAmbientBackground(
         child: SafeArea(
-          child: allDataAsync.when(
-            data: (data) {
-              final profile = data['profile'] as Map<String, dynamic>? ?? {};
-              final studentName = profile['student_name'] ?? authState.username ?? 'Student';
-              final timetable = (data['timetable'] as Map<String, dynamic>?) ?? {};
-
-              final today = DateFormat('EEEE').format(DateTime.now());
-              final rawTodayClasses = (timetable[today] as List<dynamic>?) ?? [];
-              final todayClasses = VtopHelpers.sortTimetableList(rawTodayClasses);
-
-              final classStatus = VtopHelpers.getLiveClassStatus(todayClasses);
-              final activeClass = classStatus['activeClass'] as Map<String, dynamic>?;
-              final nextClasses = classStatus['nextClasses'] as List<dynamic>? ?? [];
-
-              return RefreshIndicator(
-                onRefresh: () async {
-                  // Force only the dashboard data to refresh.
-                  // Keep Mentor/Payments/Courses/Assignments cache warm.
-                  apiService.invalidateCacheForPath('/student/all_data');
-                  await ref.refresh(allDataProvider.future);
-                },
-                color: _accentPrimary,
-                backgroundColor: _cardBg,
-                child: ListView(
+          child: RefreshIndicator(
+            onRefresh: () async => ref.read(dashboardProvider.notifier).refresh(),
+            color: _accentPrimary,
+            backgroundColor: _cardBg,
+            child: ListView(
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   children: [
@@ -147,7 +161,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         .animate()
                         .fadeIn(duration: 400.ms)
                         .slideY(begin: -0.1, end: 0, curve: Curves.easeOutCubic),
-                    const SizedBox(height: 20),
+                    LastSyncedBadge(
+                      lastSynced: dashboardState.lastSynced,
+                      isRefreshing: dashboardState.isSyncing,
+                      onRefresh: () => ref.read(dashboardProvider.notifier).refresh(),
+                      padding: const EdgeInsets.only(top: 6, bottom: 8),
+                    ),
+                    const SizedBox(height: 12),
 
                     // ─── Live Class Status Card ──────────────────────────────────────
                     if (activeClass != null)
@@ -227,14 +247,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     const SizedBox(height: 24),
                   ],
                 ),
-              );
-            },
-            loading: () => _buildShimmerSkeleton(),
-            error: (err, stack) => _buildErrorState(err.toString()),
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
   }
 
   // ─── Header Bar (Fixed Overflow Issue) ──────────────────────────────────────
@@ -867,10 +883,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Text(message, textAlign: TextAlign.center, style: const TextStyle(color: _textMuted, fontSize: 12)),
             const SizedBox(height: 20),
             ElevatedButton.icon(
-              onPressed: () {
-                        apiService.invalidateCacheForPath('/student/all_data');
-                        ref.refresh(allDataProvider);
-                      },
+              onPressed: () => ref.refresh(allDataProvider),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _accentPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

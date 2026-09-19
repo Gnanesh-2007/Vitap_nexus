@@ -34,39 +34,65 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
     final marksAsync = ref.watch(marksProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Marks & Assessments',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => ref.refresh(marksProvider),
+      backgroundColor: AppTheme.background,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(98),
+        child: AppBar(
+          titleSpacing: 0,
+          toolbarHeight: 48,
+          backgroundColor: AppTheme.surface.withValues(alpha: 0.95),
+          elevation: 0,
+          scrolledUnderElevation: 1.0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
+          title: Text(
+            'Marks & Assessments',
+            style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              onPressed: () => ref.refresh(marksProvider),
+              tooltip: 'Refresh Marks',
             ),
-            child: TabBar(
-              controller: _tabController,
-              indicatorSize: TabBarIndicatorSize.tab,
-              indicator: BoxDecoration(
-                color: AppTheme.primary,
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(42),
+            child: Container(
+              height: 36,
+              margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF24344D)),
               ),
-              labelColor: Colors.white,
-              unselectedLabelColor: const Color(0xFF94A3B8),
-              labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold),
-              tabs: const [
-                Tab(text: 'Theory Assessments'),
-                Tab(text: 'Lab / Practicals'),
-              ],
+              child: TabBar(
+                controller: _tabController,
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                indicator: BoxDecoration(
+                  color: AppTheme.primary,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                labelColor: Colors.white,
+                unselectedLabelColor: const Color(0xFF94A3B8),
+                labelStyle: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold),
+                unselectedLabelStyle: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w500),
+                tabs: const [
+                  Tab(text: 'Theory Assessments'),
+                  Tab(text: 'Lab / Practicals'),
+                ],
+              ),
             ),
           ),
         ),
@@ -76,9 +102,38 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
           data: (marksList) {
             if (marksList.isEmpty) {
               return Center(
-                child: Text(
-                  'No marks uploaded for this semester yet.',
-                  style: GoogleFonts.inter(color: Colors.white70),
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppTheme.primary.withValues(alpha: 0.2),
+                              AppTheme.cyanAccent.withValues(alpha: 0.05),
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: const Icon(Icons.analytics_outlined, size: 40, color: AppTheme.cyanAccent),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No Marks Released',
+                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'No marks uploaded for this semester yet.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }
@@ -113,16 +168,36 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: AppTheme.error),
-                  const SizedBox(height: 16),
-                  Text('Failed to load marks', style: GoogleFonts.outfit(fontSize: 18, color: Colors.white)),
-                  const SizedBox(height: 8),
-                  Text(err.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.error.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.error_outline_rounded, size: 40, color: AppTheme.error),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Failed to Load Marks',
+                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    err.toString(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 12, color: Colors.white54, height: 1.3),
+                  ),
+                  const SizedBox(height: 20),
                   ElevatedButton.icon(
                     onPressed: () => ref.refresh(marksProvider),
-                    icon: const Icon(Icons.refresh),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: const Text('Try Again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
                   ),
                 ],
               ),
@@ -135,20 +210,20 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
 
   Widget _buildSkeletonLoading() {
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       itemCount: 5,
       itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        height: 110,
+        margin: const EdgeInsets.only(bottom: 10),
+        height: 72,
         decoration: BoxDecoration(
           color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.cardBorder),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF24344D)),
         ),
       ),
     )
         .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.08));
+        .shimmer(duration: 1200.ms, color: Colors.white.withValues(alpha: 0.05));
   }
 
   Widget _buildMarksList(List<dynamic> list, {required bool isLabTab}) {
@@ -156,15 +231,17 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
       return Center(
         child: Text(
           isLabTab ? 'No lab assessments found.' : 'No theory assessments found.',
-          style: GoogleFonts.inter(color: const Color(0xFF94A3B8)),
+          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)),
         ),
       );
     }
 
     return RefreshIndicator(
       onRefresh: () async => ref.refresh(marksProvider.future),
+      color: AppTheme.cyanAccent,
+      backgroundColor: AppTheme.surface,
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         itemCount: list.length,
         itemBuilder: (context, index) {
           final subject = list[index];
@@ -174,239 +251,252 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
           final slot = subject['slot'] ?? '';
           final details = (subject['details'] as List<dynamic>?) ?? [];
 
-          // Calculate total weightage
           double totalWeightage = 0;
           for (var d in details) {
             final weight = double.tryParse(d['weightage_mark']?.toString() ?? '') ?? 0;
             totalWeightage += weight;
           }
 
+          final themeColor = isLabTab ? const Color(0xFF10B981) : AppTheme.primaryAccent;
+
           return Container(
-            margin: const EdgeInsets.only(bottom: 14),
+            margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
               color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: isLabTab
-                    ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                    : AppTheme.cardBorder,
+                    ? const Color(0xFF10B981).withValues(alpha: 0.25)
+                    : const Color(0xFF24344D),
               ),
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: ExpansionTile(
-                shape: const Border(),
-                collapsedShape: const Border(),
-                backgroundColor: Colors.transparent,
-                collapsedBackgroundColor: Colors.transparent,
-                tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                title: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceLight,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        courseCode,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isLabTab ? AppTheme.cyanAccent : AppTheme.primaryAccent,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (slot.isNotEmpty)
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  childrenPadding: EdgeInsets.zero,
+                  backgroundColor: Colors.transparent,
+                  collapsedBackgroundColor: Colors.transparent,
+                  title: Row(
+                    children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
-                          color: isLabTab
-                              ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                              : Colors.white10,
+                          color: themeColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          slot,
-                          style: GoogleFonts.inter(
+                          courseCode,
+                          style: GoogleFonts.outfit(
                             fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isLabTab ? AppTheme.cyanAccent : Colors.white70,
+                            fontWeight: FontWeight.bold,
+                            color: isLabTab ? AppTheme.cyanAccent : AppTheme.primaryAccent,
                           ),
                         ),
                       ),
-                  ],
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        courseTitle,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (faculty.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          faculty,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: const Color(0xFF94A3B8),
+                      if (slot.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            slot,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isLabTab ? AppTheme.cyanAccent : Colors.white70,
+                            ),
                           ),
                         ),
                       ],
                     ],
                   ),
-                ),
-                trailing: totalWeightage > 0
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            totalWeightage.toStringAsFixed(1),
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.cyanAccent,
-                            ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          courseTitle,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (faculty.isNotEmpty) ...[
+                          const SizedBox(height: 1),
                           Text(
-                            'Weightage',
+                            faculty,
                             style: GoogleFonts.inter(
-                              fontSize: 10,
+                              fontSize: 10.5,
                               color: const Color(0xFF94A3B8),
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                      )
-                    : const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54),
-                children: [
-                  if (details.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'No individual assessment marks released yet.',
-                        style: TextStyle(color: Colors.white54, fontSize: 13),
-                      ),
-                    )
-                  else
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceLight,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          // Table Header
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  'Assessment',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  'Scored / Max',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  'Weightage',
-                                  textAlign: TextAlign.right,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(color: Color(0xFF30363D), height: 16),
-
-                          // Rows
-                          ...details.map((d) {
-                            final title = d['mark_title'] ?? 'Assessment';
-                            final scored = d['scored_mark'] ?? '-';
-                            final maxM = d['max_mark'] ?? '-';
-                            final weight = d['weightage_mark'] ?? '-';
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    flex: 3,
-                                    child: Text(
-                                      title,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      '$scored / $maxM',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        color: Colors.white70,
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      weight,
-                                      textAlign: TextAlign.right,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.cyanAccent,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
+                      ],
                     ),
-                ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (totalWeightage > 0)
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              totalWeightage.toStringAsFixed(1),
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.cyanAccent,
+                              ),
+                            ),
+                            Text(
+                              'Weightage',
+                              style: GoogleFonts.inter(
+                                fontSize: 9.5,
+                                color: const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54, size: 20),
+                    ],
+                  ),
+                  children: [
+                    const Divider(height: 1, color: Color(0xFF1E293B)),
+                    if (details.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'No individual assessment marks released yet.',
+                          style: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 11),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        color: const Color(0xFF0F172A),
+                        child: Column(
+                          children: [
+                            // Header Row
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 4,
+                                  child: Text(
+                                    'ASSESSMENT',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF64748B),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    'SCORED / MAX',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF64748B),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    'WEIGHTAGE',
+                                    textAlign: TextAlign.right,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF64748B),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(color: Color(0xFF1E293B), height: 12),
+                            // Data Rows
+                            ...details.map((d) {
+                              final title = d['mark_title'] ?? 'Assessment';
+                              final scored = d['scored_mark'] ?? '-';
+                              final maxM = d['max_mark'] ?? '-';
+                              final weight = d['weightage_mark'] ?? '-';
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 4,
+                                      child: Text(
+                                        title,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        '$scored / $maxM',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11.5,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        weight,
+                                        textAlign: TextAlign.right,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.cyanAccent,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           )
-              .animate(delay: (35 * index).ms)
-              .fadeIn(duration: 350.ms)
-              .slideY(begin: 0.06, end: 0);
+              .animate(delay: (30 * index).ms)
+              .fadeIn(duration: 300.ms)
+              .slideY(begin: 0.04, end: 0);
         },
       ),
     );
