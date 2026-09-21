@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../providers/auth_provider.dart';
+import '../services/api_client.dart';
 import '../utils/vtop_embed_helper.dart';
 
 class VtopWebViewScreen extends ConsumerStatefulWidget {
@@ -21,10 +22,11 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
   bool _isLoading = true;
   double _progress = 0.0;
   String? _errorMessage;
+  String? _currentUrl;
   bool _canGoBack = false;
   bool _canGoForward = false;
 
-  static const String _vtopUrl = 'https://vtop.vitap.ac.in/vtop/';
+  static const String _officialVtopUrl = 'https://vtop.vitap.ac.in/vtop/';
 
   // Editorial campus theme
   static const _paper = Color(0xFFF4F2ED);
@@ -40,29 +42,51 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
   @override
   void initState() {
     super.initState();
-    _initWebView();
+    _startSession();
   }
 
-  void _initWebView() {
+  Future<void> _startSession() async {
     setState(() {
       _isLoading = true;
-      _progress = 0.1;
+      _progress = 0.15;
       _errorMessage = null;
     });
 
+    final auth = ref.read(authProvider);
+    final username = auth.username ?? '';
+    final password = auth.password ?? '';
+
+    String targetUrl = _officialVtopUrl;
+
+    if (username.isNotEmpty && password.isNotEmpty) {
+      try {
+        final sessionData = await apiService.startProxySession(
+          username: username,
+          password: password,
+        );
+        final portalPath = sessionData['portal_path']?.toString();
+        if (portalPath != null && portalPath.isNotEmpty) {
+          targetUrl = '${ApiClient.defaultBaseUrl}$portalPath';
+        }
+      } catch (e) {
+        debugPrint('Proxy start session fallback to official portal: $e');
+        targetUrl = _officialVtopUrl;
+      }
+    }
+
+    _currentUrl = targetUrl;
+
+    if (!mounted) return;
+
     if (kIsWeb) {
       setState(() {
-        _webEmbedView = buildVtopEmbed(_vtopUrl);
+        _webEmbedView = buildVtopEmbed(targetUrl);
         _isLoading = false;
       });
       return;
     }
 
     try {
-      final auth = ref.read(authProvider);
-      final username = auth.username ?? '';
-      final password = auth.password ?? '';
-
       late final WebViewController controller;
       controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -70,11 +94,12 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
         ..enableZoom(true)
         ..setNavigationDelegate(
           NavigationDelegate(
-            onPageStarted: (_) {
+            onPageStarted: (url) {
               if (mounted) {
                 setState(() {
                   _isLoading = true;
                   _errorMessage = null;
+                  _currentUrl = url;
                 });
                 _updateNavState();
               }
@@ -89,25 +114,26 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                 setState(() {
                   _isLoading = false;
                   _progress = 1.0;
+                  _currentUrl = url;
                 });
                 _updateNavState();
               }
 
-              // Optional: auto-fill login credentials if on login page
-              if (username.isNotEmpty && password.isNotEmpty && url.contains('vtop')) {
+              // Pre-fill login credentials if on official login page
+              if (username.isNotEmpty && password.isNotEmpty) {
                 try {
                   await controller.runJavaScript('''
                     (function() {
                       try {
-                        var uInput = document.getElementById('username') || document.querySelector('input[name="username"]');
-                        var pInput = document.getElementById('password') || document.querySelector('input[name="password"]');
-                        if (uInput && !uInput.value) {
-                          uInput.value = "$username";
-                          uInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        var u = document.getElementById('username') || document.querySelector('input[name="username"]') || document.querySelector('input[name="uname"]');
+                        var p = document.getElementById('password') || document.querySelector('input[name="password"]') || document.querySelector('input[name="passwd"]');
+                        if (u && !u.value) {
+                          u.value = "$username";
+                          u.dispatchEvent(new Event('input', { bubbles: true }));
                         }
-                        if (pInput && !pInput.value) {
-                          pInput.value = "$password";
-                          pInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        if (p && !p.value) {
+                          p.value = "$password";
+                          p.dispatchEvent(new Event('input', { bubbles: true }));
                         }
                       } catch(e) {}
                     })();
@@ -125,7 +151,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
             },
           ),
         )
-        ..loadRequest(Uri.parse(_vtopUrl));
+        ..loadRequest(Uri.parse(targetUrl));
 
       setState(() {
         _controller = controller;
@@ -154,7 +180,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
   }
 
   Future<void> _launchExternal({String? url}) async {
-    final target = url ?? _vtopUrl;
+    final target = url ?? _currentUrl ?? _officialVtopUrl;
     try {
       await launchUrl(
         Uri.parse(target),
@@ -173,7 +199,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
             _buildHeader(),
             if (_isLoading)
               LinearProgressIndicator(
-                value: _progress > 0 ? _progress : null,
+                value: _progress > 0 && _progress < 1.0 ? _progress : null,
                 minHeight: 2.5,
                 backgroundColor: _line,
                 valueColor: const AlwaysStoppedAnimation<Color>(_navy),
@@ -261,7 +287,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
               if (_controller != null) {
                 _controller!.reload();
               } else {
-                _initWebView();
+                _startSession();
               }
             },
             tooltip: 'Reload',
@@ -326,7 +352,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
           ),
           const SizedBox(width: 4),
           Text(
-            _isLoading ? 'LOADING' : 'OFFICIAL VTOP',
+            _isLoading ? 'LOADING' : 'LIVE PORTAL',
             style: GoogleFonts.spaceGrotesk(
               color: active ? _green : _orange,
               fontSize: 6.5,
@@ -433,7 +459,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _initWebView,
+                    onPressed: _startSession,
                     icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: Text(
                       'Try Again',
@@ -454,7 +480,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                   ),
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
-                    onPressed: () => _launchExternal(),
+                    onPressed: () => _launchExternal(url: _officialVtopUrl),
                     icon: const Icon(Icons.open_in_new_rounded, size: 16),
                     label: Text(
                       'Open in Chrome',

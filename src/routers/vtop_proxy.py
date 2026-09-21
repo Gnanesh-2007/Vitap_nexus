@@ -283,20 +283,16 @@ async def proxy_vtop(
 
     clean_path = path.lstrip("/")
 
-    if (
-        clean_path.startswith("vtop/")
-        or clean_path == "vtop"
-    ):
-        target_url = (
-            f"{VTOP_BASE}/"
-            f"{clean_path}"
-        )
+    # Strip redundant prefixes from relative link navigation
+    if clean_path.startswith("content/"):
+        clean_path = clean_path[len("content/"):]
+    if clean_path.startswith("vtop/"):
+        clean_path = clean_path[len("vtop/"):]
 
-    else:
-        target_url = (
-            f"{VTOP_BASE}/vtop/"
-            f"{clean_path}"
-        )
+    if not clean_path:
+        clean_path = "content"
+
+    target_url = f"{VTOP_BASE}/vtop/{clean_path}"
 
     # ========================================================
     # REQUEST DATA
@@ -319,6 +315,7 @@ async def proxy_vtop(
         "content-length",
         "connection",
         "transfer-encoding",
+        "cookie",
     }
 
     forward_headers = {
@@ -337,6 +334,10 @@ async def proxy_vtop(
     )
 
     forward_headers["Origin"] = VTOP_BASE
+
+    csrf_token = getattr(client, "csrf_token", "") or ""
+    if csrf_token:
+        forward_headers["X-CSRF-TOKEN"] = csrf_token
 
     # ========================================================
     # REQUEST UPSTREAM VTOP
