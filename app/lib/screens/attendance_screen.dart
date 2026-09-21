@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
 import '../utils/vtop_helpers.dart';
-import '../widgets/last_synced_badge.dart';
 
 class AttendanceScreen extends ConsumerStatefulWidget {
   const AttendanceScreen({super.key});
@@ -139,9 +138,19 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     );
   }
 
+  String _formatLastSynced(DateTime? timestamp) {
+    if (timestamp == null) return 'Not Synced 💾';
+    final diff = DateTime.now().difference(timestamp);
+    if (diff.inMinutes < 1) return 'Just now 💾';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago 💾';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago 💾';
+    return '${diff.inDays} days ago 💾';
+  }
+
   @override
   Widget build(BuildContext context) {
     final attendanceAsync = ref.watch(attendanceProvider);
+    final lastSyncedTime = StorageService.getMemoryTimestamp('attendance');
 
     return Scaffold(
       backgroundColor: _background,
@@ -150,7 +159,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
         scrolledUnderElevation: 0,
         backgroundColor: _background,
         surfaceTintColor: Colors.transparent,
-        toolbarHeight: 70,
+        toolbarHeight: 82,
         titleSpacing: 20,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,34 +178,93 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
               'Attendance',
               style: GoogleFonts.dmSans(
                 fontWeight: FontWeight.w900,
-                fontSize: 25,
+                fontSize: 23,
                 color: _ink,
                 letterSpacing: -.8,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Last Synced: ${_formatLastSynced(lastSyncedTime)}',
+              style: GoogleFonts.dmSans(
+                color: _muted,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 14),
+            padding: const EdgeInsets.only(right: 8),
             child: Material(
               color: _surface,
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(12),
               child: InkWell(
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(12),
                 onTap: () => _showCalculatorSheet(context),
                 child: Container(
-                  width: 43,
-                  height: 43,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: _line),
                   ),
                   child: const Icon(
                     Icons.calculate_outlined,
                     color: _navy,
-                    size: 20,
+                    size: 19,
                   ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Material(
+              color: _surface,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: attendanceAsync.isLoading
+                    ? null
+                    : () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        try {
+                          await refreshAttendance(ref);
+                        } catch (e) {
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Could not update attendance: $e'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _line),
+                  ),
+                  child: attendanceAsync.isLoading
+                      ? const Center(
+                          child: SizedBox(
+                            width: 17,
+                            height: 17,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(_navy),
+                            ),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.refresh_rounded,
+                          color: _navy,
+                          size: 19,
+                        ),
                 ),
               ),
             ),
@@ -205,23 +273,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
       ),
       body: Column(
         children: [
-          LastSyncedBadge(
-            lastSynced: StorageService.getMemoryTimestamp('attendance'),
-            isRefreshing: attendanceAsync.isLoading,
-            onRefresh: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await refreshAttendance(ref);
-              } catch (e) {
-                if (mounted) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Could not update attendance: $e')),
-                  );
-                }
-              }
-            },
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-          ),
+          const SizedBox(height: 6),
           _buildTabSelector(),
           Expanded(
             child: attendanceAsync.when(

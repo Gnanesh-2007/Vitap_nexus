@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../utils/vtop_helpers.dart';
-import '../widgets/last_synced_badge.dart';
 import 'grades_screen.dart';
 import 'outings_screen.dart';
 import 'mentor_screen.dart';
@@ -258,25 +257,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               studentName,
             ),
 
-              const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-              LastSyncedBadge(
-                lastSynced: dashboardState.lastSynced,
-                isRefreshing: dashboardState.isSyncing,
-                onRefresh: () {
-                  ref
-                      .read(dashboardProvider.notifier)
-                      .refresh();
-                },
-                padding: const EdgeInsets.only(
-                  top: 2,
-                  bottom: 12,
-                ),
-              ),
-
-              const SizedBox(height: 4),
-
-              _buildDateStrip(),
+            _buildDateStrip(),
 
               const SizedBox(height: 18),
 

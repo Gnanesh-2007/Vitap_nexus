@@ -5,9 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/vtop_providers.dart';
-import '../services/storage_service.dart';
 import '../utils/vtop_helpers.dart';
-import '../widgets/last_synced_badge.dart';
 
 class TimetableScreen extends ConsumerStatefulWidget {
   const TimetableScreen({super.key});
@@ -211,23 +209,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
       ),
       body: Column(
         children: [
-          LastSyncedBadge(
-            lastSynced: StorageService.getMemoryTimestamp('timetable'),
-            isRefreshing: timetableAsync.isLoading,
-            onRefresh: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await refreshTimetable(ref);
-              } catch (e) {
-                if (mounted) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Could not update schedule: $e')),
-                  );
-                }
-              }
-            },
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 9),
-          ),
+          const SizedBox(height: 4),
           _buildDaySelector(todayName),
           Expanded(
             child: timetableAsync.when(

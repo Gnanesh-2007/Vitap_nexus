@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
 import '../utils/vtop_helpers.dart';
-import '../widgets/last_synced_badge.dart';
 
 class MarksScreen extends ConsumerStatefulWidget {
   const MarksScreen({super.key});
@@ -48,16 +47,26 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
         letterSpacing: 1.0,
       );
 
+  String _formatLastSynced(DateTime? timestamp) {
+    if (timestamp == null) return 'Not Synced 💾';
+    final diff = DateTime.now().difference(timestamp);
+    if (diff.inMinutes < 1) return 'Just now 💾';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago 💾';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago 💾';
+    return '${diff.inDays} days ago 💾';
+  }
+
   TextStyle get _bodyStyle => GoogleFonts.dmSans();
 
   @override
   Widget build(BuildContext context) {
     final marksAsync = ref.watch(marksProvider);
+    final lastSyncedTime = StorageService.getMemoryTimestamp('marks');
 
     return Scaffold(
       backgroundColor: _paper,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(132),
+        preferredSize: const Size.fromHeight(146),
         child: AppBar(
           backgroundColor: _paper,
           surfaceTintColor: Colors.transparent,
@@ -65,10 +74,11 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
           scrolledUnderElevation: 0,
           automaticallyImplyLeading: false,
           titleSpacing: 0,
-          toolbarHeight: 82,
+          toolbarHeight: 92,
           title: Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
@@ -76,31 +86,74 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text('ACADEMICS', style: _labelStyle.copyWith(color: _orange)),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         'Marks & Assessments',
                         style: GoogleFonts.dmSans(
                           color: _ink,
-                          fontSize: 23,
+                          fontSize: 22,
                           fontWeight: FontWeight.w800,
                           height: 1.05,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Last Synced: ${_formatLastSynced(lastSyncedTime)}',
+                        style: GoogleFonts.dmSans(
+                          color: _muted,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _surface,
+                Material(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _line),
-                  ),
-                  child: const Icon(
-                    Icons.bar_chart_rounded,
-                    color: _navy,
-                    size: 20,
+                    onTap: marksAsync.isLoading
+                        ? null
+                        : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            try {
+                              await refreshMarks(ref);
+                            } catch (e) {
+                              if (mounted) {
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text('Could not update marks: $e'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _line),
+                      ),
+                      child: marksAsync.isLoading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(_navy),
+                                ),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.refresh_rounded,
+                              color: _navy,
+                              size: 20,
+                            ),
+                    ),
                   ),
                 ),
               ],
@@ -148,23 +201,6 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
       ),
       body: Column(
         children: [
-          LastSyncedBadge(
-            lastSynced: StorageService.getMemoryTimestamp('marks'),
-            isRefreshing: marksAsync.isLoading,
-            onRefresh: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await refreshMarks(ref);
-              } catch (e) {
-                if (mounted) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Could not update marks: $e')),
-                  );
-                }
-              }
-            },
-            padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
-          ),
           Expanded(
             child: marksAsync.when(
               data: (marksList) {
