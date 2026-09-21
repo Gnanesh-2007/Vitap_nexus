@@ -195,6 +195,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Do NOT block the user on a slow VTOP network call.
       // --------------------------------------------------------
 
+      // Restore the COMPLETE semester list from local storage too.
+      // This keeps the semester dropdown available immediately after restart.
+      // Restore the complete semester list from disk/memory.
+      // Do NOT depend on initCache() having already run.
+      final cachedSemesters =
+          await StorageService.getAvailableSemesters();
+
       state = state.copyWith(
         isAuthenticated: true,
         isLoading: false,
@@ -202,11 +209,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
         password: password,
         activeSemesterId: semesterId,
         activeSemesterName: semesterName,
+        availableSemesters: cachedSemesters,
         clearError: true,
       );
 
-      // Local session is restored 100% offline without any network calls.
-      // Network sync will only happen when the user taps 'Sync Now' or pulls to refresh.
+      // Local session + semester list are restored 100% offline.
+      // Network sync continues in the background after login/OTP.
     } catch (e) {
       state = state.copyWith(
         isAuthenticated: false,
@@ -700,6 +708,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
             selectedName,
       );
 
+      // Persist the COMPLETE semester list so the next app launch
+      // can render the dropdown without waiting for VTOP.
+      await StorageService.saveAvailableSemesters(
+        semesters,
+      );
+
       // ========================================================
       // SAVE SEMESTER
       // ========================================================
@@ -718,6 +732,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
         errorMessage: _cleanError(e),
       );
     }
+  }
+
+
+  // ============================================================
+  // PUBLIC SEMESTER REFRESH
+  // ============================================================
+
+  Future<void> refreshSemesters() async {
+    final username = state.username;
+    final password = state.password;
+
+    if (username == null ||
+        username.isEmpty ||
+        password == null ||
+        password.isEmpty) {
+      return;
+    }
+
+    await _refreshSemesters(
+      username: username,
+      password: password,
+      preferredSemesterId: state.activeSemesterId,
+      preferredSemesterName: state.activeSemesterName,
+    );
   }
 
 

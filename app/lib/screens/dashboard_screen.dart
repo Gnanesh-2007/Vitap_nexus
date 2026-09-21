@@ -3,11 +3,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
 import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../utils/vtop_helpers.dart';
 import '../widgets/last_synced_badge.dart';
-import '../widgets/mesh_ambient_background.dart';
 import 'grades_screen.dart';
 import 'outings_screen.dart';
 import 'mentor_screen.dart';
@@ -16,91 +16,176 @@ import 'payments_screen.dart';
 import 'courses_screen.dart';
 import 'assignments_screen.dart';
 import 'vtop_webview_screen.dart';
+import 'profile_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   final Function(int)? onNavigateTab;
 
-  const DashboardScreen({super.key, this.onNavigateTab});
+  const DashboardScreen({
+    super.key,
+    this.onNavigateTab,
+  });
 
   @override
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  bool _isNextClassesExpanded = false;
+  bool _isScheduleExpanded = false;
 
-  // ─────────────────────────────────────────────
-  // Deep Cyberpunk Luxury Theme Palette
-  // ─────────────────────────────────────────────
-  static const Color _background = Color(0xFF090A0F);
-  static const Color _cardBg = Color(0xFF12151E);
-  static const Color _cardBgLight = Color(0xFF1A1E2B);
-  static const Color _cardBorder = Color(0xFF262B3A);
+  // ============================================================
+  // NEW DESIGN SYSTEM
+  // Editorial Campus / Paper + Ink
+  // ============================================================
 
-  static const Color _accentPrimary = Color(0xFF6366F1); // Vivid Indigo
-  static const Color _accentSecondary = Color(0xFFA855F7); // Neon Purple
-  static const Color _accentCyan = Color(0xFF06B6D4); // Bright Cyan
+  static const Color _paper = Color(0xFFF5F3EE);
+  static const Color _paperBright = Color(0xFFFFFEFA);
+  static const Color _ink = Color(0xFF17202A);
+  static const Color _inkSoft = Color(0xFF56616D);
+  static const Color _inkMuted = Color(0xFF8A929A);
 
-  static const Color _textPrimary = Color(0xFFF8FAFC);
-  static const Color _textSecondary = Color(0xFF94A3B8);
-  static const Color _textMuted = Color(0xFF64748B);
+  static const Color _navy = Color(0xFF172B4D);
+  static const Color _blue = Color(0xFF2F6FED);
+  static const Color _orange = Color(0xFFE76F3C);
+  static const Color _cream = Color(0xFFECE7DC);
+  static const Color _green = Color(0xFF23835B);
+
+  static const Color _line = Color(0xFFDCD8D0);
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning 🌅';
-    if (hour < 17) return 'Good Afternoon ☀️';
-    return 'Good Evening 🌙';
+
+    if (hour < 12) return 'GOOD MORNING';
+    if (hour < 17) return 'GOOD AFTERNOON';
+    return 'GOOD EVENING';
   }
 
-  static final _quickAccessItems = [
-    _QuickItem(label: 'Grades & CGPA', icon: Icons.emoji_events_rounded, gradient: [_accentPrimary, _accentSecondary], action: 'grades'),
-    _QuickItem(label: 'Outings', icon: Icons.directions_walk_rounded, gradient: [Color(0xFF3B82F6), Color(0xFF1D4ED8)], action: 'outings'),
-    _QuickItem(label: 'Mentor Details', icon: Icons.supervisor_account_rounded, gradient: [Color(0xFF10B981), Color(0xFF047857)], action: 'mentor'),
-    _QuickItem(label: 'Biometric Logs', icon: Icons.fingerprint_rounded, gradient: [Color(0xFFF59E0B), Color(0xFFD97706)], action: 'biometric'),
-    _QuickItem(label: 'Payments & Dues', icon: Icons.account_balance_wallet_rounded, gradient: [Color(0xFFEC4899), Color(0xFFBE185D)], action: 'payments'),
-    _QuickItem(label: 'Courses Page', icon: Icons.menu_book_rounded, gradient: [_accentCyan, Color(0xFF0284C7)], action: 'courses'),
-    _QuickItem(label: 'Assignments', icon: Icons.assignment_rounded, gradient: [Color(0xFF8B5CF6), Color(0xFF6D28D9)], action: 'assignments'),
-    _QuickItem(label: 'Direct VTOP', icon: Icons.open_in_browser_rounded, gradient: [Color(0xFF64748B), Color(0xFF334155)], action: 'direct_vtop'),
+  static const List<_QuickItem> _quickAccessItems = [
+    _QuickItem(
+      label: 'Grades',
+      subtitle: 'CGPA & marks',
+      icon: Icons.bar_chart_rounded,
+      accent: _blue,
+      action: 'grades',
+    ),
+    _QuickItem(
+      label: 'Outings',
+      subtitle: 'Requests & status',
+      icon: Icons.directions_walk_rounded,
+      accent: _orange,
+      action: 'outings',
+    ),
+    _QuickItem(
+      label: 'Mentor',
+      subtitle: 'Contact details',
+      icon: Icons.person_outline_rounded,
+      accent: _green,
+      action: 'mentor',
+    ),
+    _QuickItem(
+      label: 'Biometric',
+      subtitle: 'Entry & exit logs',
+      icon: Icons.fingerprint_rounded,
+      accent: _navy,
+      action: 'biometric',
+    ),
+    _QuickItem(
+      label: 'Payments',
+      subtitle: 'Dues & receipts',
+      icon: Icons.account_balance_wallet_outlined,
+      accent: _orange,
+      action: 'payments',
+    ),
+    _QuickItem(
+      label: 'Courses',
+      subtitle: 'Course information',
+      icon: Icons.menu_book_outlined,
+      accent: _blue,
+      action: 'courses',
+    ),
+    _QuickItem(
+      label: 'Assignments',
+      subtitle: 'Upcoming work',
+      icon: Icons.assignment_outlined,
+      accent: _green,
+      action: 'assignments',
+    ),
+    _QuickItem(
+      label: 'VTOP',
+      subtitle: 'Open portal',
+      icon: Icons.open_in_new_rounded,
+      accent: _navy,
+      action: 'direct_vtop',
+    ),
   ];
 
-  Future<void> _handleQuickTap(_QuickItem item, Map<String, dynamic> data, AuthState authState) async {
+  Future<void> _handleQuickTap(
+    _QuickItem item,
+    Map<String, dynamic> data,
+    AuthState authState,
+  ) async {
     if (!mounted) return;
 
-    Widget targetScreen;
+    late Widget targetScreen;
+
     switch (item.action) {
       case 'grades':
-        targetScreen = GradesScreen(initialData: data['grade_history'] as Map<String, dynamic>?);
+        targetScreen = GradesScreen(
+          initialData: data['grade_history'] as Map<String, dynamic>?,
+        );
         break;
+
       case 'outings':
         targetScreen = const OutingsScreen();
         break;
+
       case 'mentor':
         targetScreen = const MentorScreen();
         break;
+
       case 'biometric':
         targetScreen = const BiometricScreen();
         break;
+
       case 'payments':
         targetScreen = const PaymentsScreen();
         break;
+
       case 'courses':
         targetScreen = const CoursesScreen();
         break;
+
       case 'assignments':
         targetScreen = const AssignmentsScreen();
         break;
+
       case 'direct_vtop':
         targetScreen = const VtopWebViewScreen();
         break;
+
       default:
         return;
     }
 
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
+        pageBuilder: (_, animation, _) => targetScreen,
+        transitionsBuilder: (_, animation, _, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.04, 0),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ),
+            ),
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          );
         },
       ),
     );
@@ -111,278 +196,349 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final authState = ref.watch(authProvider);
     final dashboardState = ref.watch(dashboardProvider);
 
-    if (!dashboardState.hasData && dashboardState.isLoading) {
-      return Scaffold(
-        backgroundColor: _background,
-        body: MeshAmbientBackground(
-          child: SafeArea(child: _buildCleanLoading()),
-        ),
-      );
-    }
-
     if (!dashboardState.hasData && dashboardState.error != null) {
       return Scaffold(
-        backgroundColor: _background,
-        body: MeshAmbientBackground(
-          child: SafeArea(
-            child: _buildErrorState(dashboardState.error!),
+        backgroundColor: _paper,
+        body: SafeArea(
+          child: _ErrorView(
+            message: dashboardState.error!,
+            onRetry: () {
+              ref.read(dashboardProvider.notifier).refresh();
+            },
           ),
         ),
       );
     }
 
     final data = dashboardState.data ?? {};
-    final profile = data['profile'] as Map<String, dynamic>? ?? {};
-    final studentName = profile['student_name'] ?? authState.username ?? 'Student';
-    final timetable = (data['timetable'] as Map<String, dynamic>?) ?? {};
 
-    final today = DateFormat('EEEE').format(DateTime.now());
-    final rawTodayClasses = (timetable[today] as List<dynamic>?) ?? [];
-    final todayClasses = VtopHelpers.sortTimetableList(rawTodayClasses);
+    final profile =
+        data['profile'] as Map<String, dynamic>? ?? {};
 
-    final classStatus = VtopHelpers.getLiveClassStatus(todayClasses);
-    final activeClass = classStatus['activeClass'] as Map<String, dynamic>?;
-    final nextClasses = classStatus['nextClasses'] as List<dynamic>? ?? [];
+    final studentName =
+        profile['student_name'] ??
+        authState.username ??
+        'Student';
+
+    final timetable =
+        data['timetable'] as Map<String, dynamic>? ?? {};
+
+    final today =
+        DateFormat('EEEE').format(DateTime.now());
+
+    final rawTodayClasses =
+        timetable[today] as List<dynamic>? ?? [];
+
+    final todayClasses =
+        VtopHelpers.sortTimetableList(rawTodayClasses);
+
+    final classStatus =
+        VtopHelpers.getLiveClassStatus(todayClasses);
+
+    final activeClass =
+        classStatus['activeClass'] as Map<String, dynamic>?;
+
+    final nextClasses =
+        classStatus['nextClasses'] as List<dynamic>? ?? [];
 
     return Scaffold(
-      backgroundColor: _background,
-      body: MeshAmbientBackground(
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: () async => ref.read(dashboardProvider.notifier).refresh(),
-            color: _accentPrimary,
-            backgroundColor: _cardBg,
-            child: ListView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  children: [
-                    // ─── Header Section ──────────────────────────────────────────────
-                    _buildTopHeader(authState, studentName)
-                        .animate()
-                        .fadeIn(duration: 400.ms)
-                        .slideY(begin: -0.1, end: 0, curve: Curves.easeOutCubic),
-                    LastSyncedBadge(
-                      lastSynced: dashboardState.lastSynced,
-                      isRefreshing: dashboardState.isSyncing,
-                      onRefresh: () => ref.read(dashboardProvider.notifier).refresh(),
-                      padding: const EdgeInsets.only(top: 6, bottom: 8),
-                    ),
-                    const SizedBox(height: 12),
+      backgroundColor: _paper,
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: _navy,
+          backgroundColor: _paperBright,
+          onRefresh: () async {
+            await ref
+                .read(dashboardProvider.notifier)
+                .refresh();
+          },
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              18,
+              20,
+              40,
+            ),
+            children: [
+              _buildHeader(
+                authState,
+                studentName,
+              ),
 
-                    // ─── Live Class Status Card ──────────────────────────────────────
-                    if (activeClass != null)
-                      _buildLiveClassCard(activeClass)
-                          .animate()
-                          .fadeIn(duration: 450.ms, delay: 60.ms)
-                          .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic)
-                    else
-                      _buildFreeStateCard(nextClasses)
-                          .animate()
-                          .fadeIn(duration: 450.ms, delay: 60.ms)
-                          .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
-                    const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
-                    // ─── Upcoming Classes Expandable ──────────────────────────────────
-                    if (nextClasses.isNotEmpty) ...[
-                      _buildUpcomingClassesAccordion(nextClasses)
-                          .animate()
-                          .fadeIn(duration: 400.ms, delay: 100.ms),
-                      const SizedBox(height: 22),
-                    ],
-
-                    // ─── Section Header ───────────────────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 4,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: _accentPrimary,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Quick Actions',
-                              style: GoogleFonts.manrope(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: _textPrimary,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          '${_quickAccessItems.length} Apps',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _textMuted,
-                          ),
-                        ),
-                      ],
-                    ).animate().fadeIn(duration: 400.ms, delay: 120.ms),
-                    const SizedBox(height: 14),
-
-                    // ─── Quick Access Grid ─────────────────────────────────────────────
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _quickAccessItems.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.82,
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = _quickAccessItems[index];
-                        return _buildQuickAccessCard(item, data, authState, index);
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+              LastSyncedBadge(
+                lastSynced: dashboardState.lastSynced,
+                isRefreshing: dashboardState.isSyncing,
+                onRefresh: () {
+                  ref
+                      .read(dashboardProvider.notifier)
+                      .refresh();
+                },
+                padding: const EdgeInsets.only(
+                  top: 2,
+                  bottom: 12,
                 ),
               ),
-            ),
+
+              const SizedBox(height: 4),
+
+              _buildDateStrip(),
+
+              const SizedBox(height: 18),
+
+              // ======================================================
+              // HERO / CURRENT STATUS
+              // ======================================================
+
+              if (activeClass != null)
+                _buildActiveClass(activeClass)
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideY(
+                      begin: 0.04,
+                      end: 0,
+                      curve: Curves.easeOutCubic,
+                    )
+              else
+                _buildFreeState(nextClasses)
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideY(
+                      begin: 0.04,
+                      end: 0,
+                      curve: Curves.easeOutCubic,
+                    ),
+
+              const SizedBox(height: 28),
+
+              // ======================================================
+              // TODAY'S SCHEDULE
+              // ======================================================
+
+              _buildSectionTitle(
+                title: 'TODAY',
+                subtitle: '${todayClasses.length} classes',
+              ),
+
+              const SizedBox(height: 12),
+
+              _buildScheduleTimeline(todayClasses),
+
+              const SizedBox(height: 30),
+
+              // ======================================================
+              // QUICK ACCESS
+              // ======================================================
+
+              _buildSectionTitle(
+                title: 'CAMPUS',
+                subtitle: 'Quick access',
+              ),
+
+              const SizedBox(height: 12),
+
+              _buildQuickActions(
+                data,
+                authState,
+              ),
+
+              const SizedBox(height: 30),
+
+              _buildFooter(),
+            ],
           ),
-        );
+        ),
+      ),
+    );
   }
 
-  // ─── Header Bar (Fixed Overflow Issue) ──────────────────────────────────────
-  Widget _buildTopHeader(AuthState authState, String studentName) {
+  // ============================================================
+  // HEADER
+  // ============================================================
+
+  Widget _buildHeader(
+    AuthState authState,
+    String studentName,
+  ) {
+    final firstName =
+        studentName.split(' ').first;
+
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // Logo block
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: _navy,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(9),
+            child: Image.asset(
+              'assets/images/konoha_logo.png',
+              color: Colors.white,
+              errorBuilder: (_, _, _) {
+                return const Icon(
+                  Icons.school_rounded,
+                  color: Colors.white,
+                  size: 27,
+                );
+              },
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 13),
+
         Expanded(
-          child: Row(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(2.5),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: [_accentPrimary, _accentSecondary],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _accentPrimary.withOpacity(0.35),
-                      blurRadius: 16,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _cardBg,
-                  ),
-                  child: Image.asset(
-                    'assets/images/konoha_logo.png',
-                    width: 26,
-                    height: 26,
-                    color: Colors.white,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.school_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
+              Text(
+                _getGreeting(),
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: _inkMuted,
+                  letterSpacing: 1.6,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _getGreeting(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.manrope(
-                        fontSize: 12,
-                        color: _textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      studentName.split(' ').first,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.manrope(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: _textPrimary,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 2),
+              Text(
+                firstName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSans(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                  letterSpacing: -0.8,
                 ),
               ),
             ],
           ),
         ),
+
         const SizedBox(width: 8),
-        if (authState.availableSemesters.isNotEmpty)
-          Container(
-            constraints: const BoxConstraints(maxWidth: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _cardBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _cardBorder),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: authState.activeSemesterId,
-                isExpanded: true,
-                dropdownColor: _cardBgLight,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _accentPrimary, size: 20),
-                style: GoogleFonts.manrope(
-                  fontSize: 11.5,
-                  color: _textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-                items: authState.availableSemesters.map((sem) {
-                  return DropdownMenuItem<String>(
-                    value: sem['id'],
-                    child: Text(
-                      sem['name'] ?? sem['id'] ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (newSemId) {
-                  if (newSemId != null) {
-                    final match = authState.availableSemesters.firstWhere((s) => s['id'] == newSemId);
-                    ref.read(authProvider.notifier).changeSemester(newSemId, match['name'] ?? newSemId);
-                    ref.invalidate(allDataProvider);
-                  }
-                },
+
+        // Profile icon
+        GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ProfileScreen(),
               ),
+            );
+          },
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _paperBright,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _line),
+            ),
+            child: const Icon(
+              Icons.person_outline_rounded,
+              color: _navy,
+              size: 20,
             ),
           ),
+        ),
       ],
     );
   }
 
-  // ─── Live Ongoing Class Card ──────────────────────────────────────────────
-  Widget _buildLiveClassCard(Map<String, dynamic> item) {
+  // ============================================================
+  // DATE STRIP
+  // ============================================================
+
+  Widget _buildDateStrip() {
+    final now = DateTime.now();
+
+    return Row(
+      children: [
+        Text(
+          DateFormat('EEE').format(now).toUpperCase(),
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: _orange,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(width: 9),
+        Container(
+          width: 1,
+          height: 13,
+          color: _line,
+        ),
+        const SizedBox(width: 9),
+        Text(
+          DateFormat('d MMMM yyyy').format(now),
+          style: GoogleFonts.dmSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _inkSoft,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // SECTION TITLE
+  // ============================================================
+
+  Widget _buildSectionTitle({
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      crossAxisAlignment:
+          CrossAxisAlignment.end,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: _ink,
+            letterSpacing: 1.8,
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: _line,
+          ),
+        ),
+        const SizedBox(width: 9),
+        Text(
+          subtitle,
+          style: GoogleFonts.dmSans(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: _inkMuted,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // ACTIVE CLASS
+  // ============================================================
+
+  Widget _buildActiveClass(
+    Map<String, dynamic> item,
+  ) {
     final isLab = VtopHelpers.isLabCourse(
       courseType: item['course_type']?.toString(),
       courseSlot: item['slot']?.toString(),
@@ -390,240 +546,129 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [
-            _accentPrimary.withOpacity(0.18),
-            _cardBg,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: _accentPrimary.withOpacity(0.6), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: _accentPrimary.withOpacity(0.15),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: _navy,
+        borderRadius: BorderRadius.circular(26),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color(0xFF10B981),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0xFF10B981),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                      )
-                          .animate(onPlay: (c) => c.repeat(reverse: true))
-                          .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.4, 1.4), duration: 800.ms),
-                      const SizedBox(width: 8),
-                      Text(
-                        'ONGOING CLASS',
-                        style: GoogleFonts.manrope(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF10B981),
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isLab
-                          ? const Color(0xFF10B981).withOpacity(0.15)
-                          : _accentPrimary.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isLab ? const Color(0xFF10B981) : _accentPrimary,
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Text(
-                      isLab ? 'LAB' : 'THEORY',
-                      style: GoogleFonts.manrope(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: isLab ? const Color(0xFF10B981) : _accentPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                item['course_name'] ?? 'Class in Session',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.manrope(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: _textPrimary,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _cardBgLight,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      item['slot'] ?? 'Slot N/A',
-                      style: GoogleFonts.manrope(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: _textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Icon(Icons.schedule_rounded, size: 14, color: _textSecondary),
-                  const SizedBox(width: 4),
-                  Text(
-                    item['time'] ?? '',
-                    style: GoogleFonts.manrope(fontSize: 12, color: _textSecondary),
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.location_on_rounded, size: 14, color: _accentCyan),
-                  const SizedBox(width: 4),
-                  Text(
-                    item['venue'] ?? 'TBA',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _accentCyan,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─── Free Schedule State Card ─────────────────────────────────────────────
-  Widget _buildFreeStateCard(List<dynamic> nextClasses) {
-    final nextClass = nextClasses.isNotEmpty ? nextClasses.first : null;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
+      child: Stack(
         children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: _cardBgLight,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _cardBorder),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                'assets/images/naruto_running.gif',
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.coffee_rounded, color: _accentPrimary, size: 28),
+          Positioned(
+            right: -35,
+            top: -35,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _orange.withValues(alpha: 0.14),
               ),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
+
+          Padding(
+            padding: const EdgeInsets.all(22),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
+                      width: 8,
+                      height: 8,
+                      decoration:
+                          const BoxDecoration(
+                        color: _green,
                         shape: BoxShape.circle,
-                        color: Color(0xFF10B981),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Text(
-                      'STATUS: FREE',
-                      style: GoogleFonts.manrope(
+                      'HAPPENING NOW',
+                      style:
+                          GoogleFonts.spaceGrotesk(
                         fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF10B981),
-                        letterSpacing: 1.1,
+                        fontWeight:
+                            FontWeight.w800,
+                        color: Colors.white
+                            .withValues(alpha: .72),
+                        letterSpacing: 1.5,
                       ),
+                    ),
+                    const Spacer(),
+                    _typeBadge(
+                      isLab ? 'LAB' : 'THEORY',
+                      dark: true,
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+
+                const SizedBox(height: 22),
+
                 Text(
-                  nextClass != null ? 'No Live Class Right Now' : 'Done For Today! 🎉',
-                  style: GoogleFonts.manrope(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: _textPrimary,
+                  item['course_name'] ??
+                      'Class in Session',
+                  maxLines: 2,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 25,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.08,
+                    letterSpacing: -0.7,
                   ),
                 ),
-                const SizedBox(height: 3),
-                if (nextClass != null) ...[
-                  Text(
-                    'Next: ${nextClass['course_name'] ?? 'Class'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _accentPrimary,
+
+                const SizedBox(height: 20),
+
+                Row(
+                  children: [
+                    _infoItem(
+                      Icons.schedule_rounded,
+                      item['time'] ?? '',
+                      dark: true,
                     ),
-                  ),
-                  Text(
-                    '${nextClass['time']?.toString().split('-').first.trim() ?? ''} • ${nextClass['venue'] ?? ''}',
-                    style: GoogleFonts.manrope(fontSize: 11, color: _textMuted),
-                  ),
-                ] else
-                  Text(
-                    'Relax or catch up on your assignments.',
-                    style: GoogleFonts.manrope(fontSize: 11.5, color: _textMuted),
-                  ),
+                    const SizedBox(width: 18),
+                    _infoItem(
+                      Icons.location_on_outlined,
+                      item['venue'] ?? 'TBA',
+                      dark: true,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                Container(
+                  height: 1,
+                  color: Colors.white
+                      .withValues(alpha: .12),
+                ),
+
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    Text(
+                      item['slot'] ??
+                          'CURRENT SLOT',
+                      style:
+                          GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight:
+                            FontWeight.w800,
+                        color: _orange,
+                        letterSpacing: 1.3,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white54,
+                      size: 18,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -632,244 +677,658 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ─── Expandable Upcoming List ──────────────────────────────────────────────
-  Widget _buildUpcomingClassesAccordion(List<dynamic> nextClasses) {
+  // ============================================================
+  // FREE STATE
+  // ============================================================
+
+  Widget _buildFreeState(
+    List<dynamic> nextClasses,
+  ) {
+    final nextClass =
+        nextClasses.isNotEmpty
+            ? nextClasses.first
+            : null;
+
     return Container(
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _cardBorder),
+        color: _paperBright,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: _line,
+        ),
       ),
       child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: () => setState(() => _isNextClassesExpanded = !_isNextClassesExpanded),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      _green.withValues(alpha: .10),
+                  borderRadius:
+                      BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration:
+                          const BoxDecoration(
+                        color: _green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      'FREE NOW',
+                      style:
+                          GoogleFonts.spaceGrotesk(
+                        fontSize: 9,
+                        fontWeight:
+                            FontWeight.w800,
+                        color: _green,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              const Icon(
+                Icons.free_breakfast_outlined,
+                color: _inkMuted,
+                size: 22,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          Text(
+            nextClass != null
+                ? 'You have some breathing room.'
+                : 'That’s a wrap for today.',
+            style: GoogleFonts.dmSans(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: _ink,
+              letterSpacing: -0.5,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            nextClass != null
+                ? 'Your next class is ${nextClass['course_name'] ?? 'up next'}.'
+                : 'No more classes are scheduled today.',
+            style: GoogleFonts.dmSans(
+              fontSize: 12.5,
+              height: 1.45,
+              color: _inkSoft,
+            ),
+          ),
+
+          if (nextClass != null) ...[
+            const SizedBox(height: 18),
+            Container(
+              padding:
+                  const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: _cream,
+                borderRadius:
+                    BorderRadius.circular(14),
+              ),
               child: Row(
                 children: [
-                  const Icon(Icons.event_note_rounded, color: _accentPrimary, size: 20),
-                  const SizedBox(width: 10),
                   Text(
-                    'Remaining Schedule',
-                    style: GoogleFonts.manrope(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.bold,
-                      color: _textPrimary,
+                    nextClass['time']
+                            ?.toString()
+                            .split('-')
+                            .first
+                            .trim() ??
+                        '',
+                    style:
+                        GoogleFonts.spaceGrotesk(
+                      fontSize: 13,
+                      fontWeight:
+                          FontWeight.w800,
+                      color: _navy,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _accentPrimary.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    width: 1,
+                    height: 24,
+                    color: _line,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Text(
-                      '${nextClasses.length}',
-                      style: GoogleFonts.manrope(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: _accentPrimary,
+                      nextClass['course_name'] ??
+                          'Next Class',
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight:
+                            FontWeight.w700,
+                        color: _ink,
                       ),
                     ),
                   ),
-                  const Spacer(),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 17,
+                    color: _inkMuted,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // TIMELINE
+  // ============================================================
+
+  Widget _buildScheduleTimeline(
+    List<dynamic> classes,
+  ) {
+    if (classes.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: _paperBright,
+          borderRadius:
+              BorderRadius.circular(20),
+          border: Border.all(
+            color: _line,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.event_available_rounded,
+              color: _green,
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'No classes scheduled today.',
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _inkSoft,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final visibleClasses =
+        _isScheduleExpanded
+            ? classes
+            : classes.take(4).toList();
+
+    return Column(
+      children: [
+        ...visibleClasses
+            .asMap()
+            .entries
+            .map(
+              (entry) => _buildTimelineItem(
+                entry.value,
+                entry.key,
+                visibleClasses.length,
+              ),
+            ),
+
+        if (classes.length > 4)
+          const SizedBox(height: 5),
+
+        if (classes.length > 4)
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isScheduleExpanded =
+                    !_isScheduleExpanded;
+              });
+            },
+            child: Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(
+                vertical: 13,
+              ),
+              decoration: BoxDecoration(
+                color: _paperBright,
+                borderRadius:
+                    BorderRadius.circular(15),
+                border: Border.all(
+                  color: _line,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _isScheduleExpanded
+                        ? 'SHOW LESS'
+                        : 'SHOW ALL ${classes.length} CLASSES',
+                    style:
+                        GoogleFonts.spaceGrotesk(
+                      fontSize: 9.5,
+                      fontWeight:
+                          FontWeight.w800,
+                      color: _navy,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
                   Icon(
-                    _isNextClassesExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: _textSecondary,
-                    size: 22,
+                    _isScheduleExpanded
+                        ? Icons
+                            .keyboard_arrow_up_rounded
+                        : Icons
+                            .keyboard_arrow_down_rounded,
+                    size: 17,
+                    color: _navy,
                   ),
                 ],
               ),
             ),
           ),
-          if (_isNextClassesExpanded) ...[
-            const Divider(color: _cardBorder, height: 1),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(12),
-              itemCount: nextClasses.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final item = nextClasses[index];
-                final isLab = VtopHelpers.isLabCourse(
-                  courseType: item['course_type']?.toString(),
-                  courseSlot: item['slot']?.toString(),
-                );
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _cardBgLight,
-                    borderRadius: BorderRadius.circular(12),
+      ],
+    );
+  }
+
+  Widget _buildTimelineItem(
+    dynamic item,
+    int index,
+    int total,
+  ) {
+    final isLab = VtopHelpers.isLabCourse(
+      courseType: item['course_type']?.toString(),
+      courseSlot: item['slot']?.toString(),
+    );
+
+    final accent =
+        isLab ? _orange : _blue;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 57,
+            child: Column(
+              children: [
+                Text(
+                  item['time']
+                          ?.toString()
+                          .split('-')
+                          .first
+                          .trim() ??
+                      '--',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 10,
+                    fontWeight:
+                        FontWeight.w800,
+                    color: _inkSoft,
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isLab
-                              ? const Color(0xFF10B981).withOpacity(0.12)
-                              : _accentPrimary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          item['slot'] ?? '',
-                          style: GoogleFonts.manrope(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isLab ? const Color(0xFF10B981) : _accentPrimary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Container(
+                    width: 1,
+                    color: index == total - 1
+                        ? Colors.transparent
+                        : _line,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Container(
+            width: 9,
+            margin:
+                const EdgeInsets.only(
+              top: 2,
+              right: 12,
+            ),
+            decoration: BoxDecoration(
+              color: accent,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _paper,
+                width: 2,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: Container(
+              margin:
+                  const EdgeInsets.only(
+                bottom: 10,
+              ),
+              padding:
+                  const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: _paperBright,
+                borderRadius:
+                    BorderRadius.circular(17),
+                border: Border.all(
+                  color: _line,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
                             Text(
-                              item['course_name'] ?? 'Class',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.manrope(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _textPrimary,
+                              item['slot'] ?? '',
+                              style:
+                                  GoogleFonts.spaceGrotesk(
+                                fontSize: 9,
+                                fontWeight:
+                                    FontWeight.w800,
+                                color: accent,
+                                letterSpacing:
+                                    .8,
                               ),
                             ),
-                            Text(
-                              '${item['time'] ?? ''} • ${item['venue'] ?? 'TBA'}',
-                              style: GoogleFonts.manrope(
-                                fontSize: 11,
-                                color: _textSecondary,
+                            const SizedBox(width: 8),
+                            _typeBadge(
+                              isLab
+                                  ? 'LAB'
+                                  : 'THEORY',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          item['course_name'] ??
+                              'Class',
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style:
+                              GoogleFonts.dmSans(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.w800,
+                            color: _ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons
+                                  .location_on_outlined,
+                              size: 13,
+                              color: _inkMuted,
+                            ),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                item['venue'] ??
+                                    'TBA',
+                                maxLines: 1,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                                style:
+                                    GoogleFonts.dmSans(
+                                  fontSize: 10.5,
+                                  fontWeight:
+                                      FontWeight.w600,
+                                  color:
+                                      _inkMuted,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                );
-              },
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: _inkMuted,
+                    size: 19,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  // ─── Quick Access Card ───────────────────────────────────────────────────
-  Widget _buildQuickAccessCard(_QuickItem item, Map<String, dynamic> data, AuthState authState, int index) {
+  // ============================================================
+  // QUICK ACTIONS
+  // ============================================================
+
+  Widget _buildQuickActions(
+    Map<String, dynamic> data,
+    AuthState authState,
+  ) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics:
+          const NeverScrollableScrollPhysics(),
+      itemCount: _quickAccessItems.length,
+      gridDelegate:
+          const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.55,
+      ),
+      itemBuilder: (context, index) {
+        final item =
+            _quickAccessItems[index];
+
+        return _buildQuickAction(
+          item,
+          data,
+          authState,
+          index,
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickAction(
+    _QuickItem item,
+    Map<String, dynamic> data,
+    AuthState authState,
+    int index,
+  ) {
     return GestureDetector(
-      onTap: () => _handleQuickTap(item, data, authState),
+      onTap: () => _handleQuickTap(
+        item,
+        data,
+        authState,
+      ),
       child: Container(
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: _cardBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _cardBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+          color: _paperBright,
+          borderRadius:
+              BorderRadius.circular(18),
+          border: Border.all(
+            color: _line,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color:
+                    item.accent.withValues(alpha: .10),
+                borderRadius:
+                    BorderRadius.circular(12),
+              ),
+              child: Icon(
+                item.icon,
+                color: item.accent,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12.5,
+                      fontWeight:
+                          FontWeight.w800,
+                      color: _ink,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    item.subtitle,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 9.5,
+                      fontWeight:
+                          FontWeight.w500,
+                      color: _inkMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_outward_rounded,
+              size: 15,
+              color: _inkMuted,
             ),
           ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: item.gradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: item.gradient.first.withOpacity(0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Icon(item.icon, color: Colors.white, size: 22),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  item.label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.manrope(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: _textPrimary,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     )
-        .animate(delay: (30 * index).ms)
+        .animate(
+          delay: (35 * index).ms,
+        )
         .fadeIn(duration: 300.ms)
-        .scale(begin: const Offset(0.92, 0.92), end: const Offset(1, 1), curve: Curves.easeOutCubic);
+        .slideY(
+          begin: .08,
+          end: 0,
+          curve: Curves.easeOutCubic,
+        );
   }
 
-  // ─── Clean Loading State (No Skeletons) ──────────────────────────────────
-  Widget _buildCleanLoading() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  // ============================================================
+  // SMALL COMPONENTS
+  // ============================================================
+
+  Widget _typeBadge(
+    String text, {
+    bool dark = false,
+  }) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 7,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: dark
+            ? Colors.white.withValues(alpha: .10)
+            : _cream,
+        borderRadius:
+            BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 7.5,
+          fontWeight: FontWeight.w800,
+          color: dark
+              ? Colors.white70
+              : _inkSoft,
+          letterSpacing: .8,
+        ),
+      ),
+    );
+  }
+
+  Widget _infoItem(
+    IconData icon,
+    String text, {
+    bool dark = false,
+  }) {
+    return Flexible(
+      child: Row(
+        mainAxisSize:
+            MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _accentPrimary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: _accentPrimary.withValues(alpha: 0.2),
-                width: 1.5,
-              ),
-            ),
-            child: const SizedBox(
-              width: 32,
-              height: 32,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(_accentPrimary),
-              ),
-            ),
+          Icon(
+            icon,
+            size: 15,
+            color: dark
+                ? Colors.white54
+                : _inkMuted,
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Syncing with VTOP...',
-            style: GoogleFonts.outfit(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: _textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Loading your campus data',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: _textSecondary,
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+              style: GoogleFonts.dmSans(
+                fontSize: 10.5,
+                fontWeight:
+                    FontWeight.w600,
+                color: dark
+                    ? Colors.white70
+                    : _inkSoft,
+              ),
             ),
           ),
         ],
@@ -877,48 +1336,158 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ─── Error State ─────────────────────────────────────────────────────────
-  Widget _buildErrorState(String message) {
+  Widget _buildFooter() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.warning_amber_rounded, size: 52, color: Colors.redAccent),
-            const SizedBox(height: 16),
-            Text('Could not update Dashboard',
-                style: GoogleFonts.manrope(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: _textMuted, fontSize: 12)),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => ref.read(dashboardProvider.notifier).refresh(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accentPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              label: Text('Retry', style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ],
+      child: Text(
+        'VIT-AP  •  VTOP NEXUS',
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+          color: _inkMuted,
+          letterSpacing: 1.8,
         ),
       ),
     );
   }
 }
 
+// ============================================================
+// QUICK ACTION MODEL
+// ============================================================
+
 class _QuickItem {
   final String label;
+  final String subtitle;
   final IconData icon;
-  final List<Color> gradient;
+  final Color accent;
   final String? action;
 
   const _QuickItem({
     required this.label,
+    required this.subtitle,
     required this.icon,
-    required this.gradient,
+    required this.accent,
     this.action,
   });
 }
+
+// ============================================================
+// ERROR SCREEN
+// ============================================================
+
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorView({
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                color:
+                    _DashboardStateStatic.red
+                        .withValues(alpha: .10),
+                borderRadius:
+                    BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Icons.sync_problem_rounded,
+                color:
+                    _DashboardStateStatic.red,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Couldn’t update dashboard',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color:
+                    _DashboardStateStatic.ink,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 11.5,
+                height: 1.45,
+                color:
+                    _DashboardStateStatic.muted,
+              ),
+            ),
+            const SizedBox(height: 22),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    _DashboardStateStatic.navy,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 13,
+                ),
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(
+                Icons.refresh_rounded,
+                size: 17,
+              ),
+              label: Text(
+                'TRY AGAIN',
+                style:
+                    GoogleFonts.spaceGrotesk(
+                  fontSize: 10,
+                  fontWeight:
+                      FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// STATIC COLORS FOR STATELESS WIDGETS
+// ============================================================
+
+class _DashboardStateStatic {
+  static const Color navy =
+      Color(0xFF172B4D);
+
+  static const Color ink =
+      Color(0xFF17202A);
+
+  static const Color muted =
+      Color(0xFF8A929A);
+
+  static const Color red =
+      Color(0xFFD94B4B);
+}
+

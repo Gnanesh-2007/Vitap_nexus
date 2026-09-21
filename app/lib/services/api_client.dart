@@ -608,7 +608,7 @@ class ApiClient {
   // EXAM SCHEDULE
   // ============================================================
 
-  Future<Map<String, dynamic>> fetchExamSchedule({
+  Future<dynamic> fetchExamSchedule({
     required String username,
     required String password,
     required String semSubId,
@@ -622,7 +622,7 @@ class ApiClient {
       },
     );
 
-    return response.data as Map<String, dynamic>;
+    return response.data;
   }
 
   // ============================================================

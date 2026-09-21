@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/mesh_ambient_background.dart';
 
 class BiometricScreen extends ConsumerStatefulWidget {
   const BiometricScreen({super.key});
@@ -20,6 +18,18 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
   DateTime _selectedDate = DateTime.now();
   late Future<List<dynamic>> _biometricFuture;
 
+  static const _paper = Color(0xFFF4F2ED);
+  static const _surface = Color(0xFFFFFEFB);
+  static const _ink = Color(0xFF17202A);
+  static const _navy = Color(0xFF172B4D);
+  static const _blue = Color(0xFF356AE6);
+  static const _orange = Color(0xFFE47543);
+  static const _green = Color(0xFF278B68);
+  static const _red = Color(0xFFC84C43);
+  static const _muted = Color(0xFF6E7681);
+  static const _line = Color(0xFFE2DED5);
+  static const _soft = Color(0xFFF0EEE8);
+
   @override
   void initState() {
     super.initState();
@@ -30,12 +40,15 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
     _biometricFuture = _getBiometricData(forceRefresh: forceRefresh);
   }
 
-  Future<List<dynamic>> _getBiometricData({bool forceRefresh = false}) async {
+  Future<List<dynamic>> _getBiometricData({
+    bool forceRefresh = false,
+  }) async {
     if (!forceRefresh) {
       final mem = StorageService.getMemoryCache('biometric');
       if (mem is List && mem.isNotEmpty) {
         return List<dynamic>.from(mem);
       }
+
       final disk = await StorageService.getCache('biometric');
       if (disk is List && disk.isNotEmpty) {
         return List<dynamic>.from(disk);
@@ -44,237 +57,703 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
 
     final auth = ref.read(authProvider);
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+
     try {
       final fresh = await apiService.fetchBiometric(
         username: auth.username ?? '',
         password: auth.password ?? '',
         date: dateStr,
       );
+
       if (fresh.isNotEmpty) {
         await StorageService.setCache('biometric', fresh);
         return fresh;
       }
     } catch (e) {
-      debugPrint('BiometricScreen: Network fetch failed ($e). Checking offline cache...');
+      debugPrint(
+        'BiometricScreen: Network fetch failed ($e). '
+        'Checking offline cache...',
+      );
+
       final fallback = StorageService.getMemoryCache('biometric') ??
           await StorageService.getCache('biometric');
+
       if (fallback is List && fallback.isNotEmpty) {
         return List<dynamic>.from(fallback);
       }
+
       rethrow;
     }
 
     final fallback = StorageService.getMemoryCache('biometric') ??
         await StorageService.getCache('biometric');
+
     if (fallback is List && fallback.isNotEmpty) {
       return List<dynamic>.from(fallback);
     }
+
     return [];
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 90)),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: _navy,
+              onPrimary: Colors.white,
+              surface: _surface,
+              onSurface: _ink,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedDate = picked;
+        _fetchBiometric(forceRefresh: true);
+      });
+    }
+  }
+
+  bool _isEntry(String direction, int index) {
+    final normalized = direction.trim().toUpperCase();
+
+    if (normalized == 'IN' || normalized == 'ENTRY') return true;
+    if (normalized == 'OUT' || normalized == 'EXIT') return false;
+
+    return index.isEven;
+  }
+
+  int _entryCount(List<dynamic> logs) {
+    return logs.asMap().entries.where((entry) {
+      final direction = entry.value['direction']?.toString() ?? '';
+      return _isEntry(direction, entry.key);
+    }).length;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: Text('Biometric Punch Logs', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
-        backgroundColor: AppTheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: const [],
-      ),
-      body: MeshAmbientBackground(
-        child: Column(
-          children: [
-            // Date Selector Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              color: AppTheme.surface,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.calendar_month_rounded, color: AppTheme.cyanAccent, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        DateFormat('EEE, dd MMM yyyy').format(_selectedDate),
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 90)),
-                        lastDate: DateTime.now(),
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          _selectedDate = picked;
-                          _fetchBiometric();
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.edit_calendar_rounded, size: 16),
-                    label: const Text('Change Date'),
-                  ),
-                ],
-              ),
-            ),
+      backgroundColor: _paper,
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: _blue,
+          backgroundColor: _surface,
+          onRefresh: () async {
+            setState(() => _fetchBiometric(forceRefresh: true));
+            await _biometricFuture;
+          },
+          child: FutureBuilder<List<dynamic>>(
+            future: _biometricFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _buildLoading();
+              }
 
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  setState(() => _fetchBiometric(forceRefresh: true));
-                  await _biometricFuture;
-                },
-                color: AppTheme.primary,
-                backgroundColor: AppTheme.surface,
-                child: FutureBuilder<List<dynamic>>(
-                  future: _biometricFuture,
-                  builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return _buildSkeletonLogs();
-                  }
+              if (snapshot.hasError) {
+                return _buildError(snapshot.error!);
+              }
 
-                  if (snapshot.hasError) {
-                    return ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Text('Failed to load biometric punches: ${snapshot.error}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white60)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
+              final logs = snapshot.data ?? [];
 
-                  final logs = snapshot.data ?? [];
-                  if (logs.isEmpty) {
-                    return ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.fingerprint_rounded, size: 54, color: Color(0xFF64748B)),
-                                const SizedBox(height: 12),
-                                Text('No Biometric Punches Recorded', style: GoogleFonts.outfit(fontSize: 16, color: Colors.white)),
-                                const SizedBox(height: 4),
-                                Text('No activity recorded for ${DateFormat('dd MMM yyyy').format(_selectedDate)}', style: GoogleFonts.inter(fontSize: 12, color: Colors.white54)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(18),
-                    itemCount: logs.length,
-                    itemBuilder: (context, index) {
-                      final log = logs[index];
-                      final time = log['punch_time'] ?? 'Punch';
-                      final location = log['punch_location'] ?? 'Turnstile Gate';
-                      final direction = log['direction'] ?? (index % 2 == 0 ? 'IN' : 'OUT');
-                      final isEntry = direction.toString().toUpperCase() == 'IN';
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppTheme.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppTheme.cardBorder),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isEntry ? const Color(0xFF10B981).withValues(alpha: 0.15) : const Color(0xFFF97316).withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                isEntry ? Icons.login_rounded : Icons.logout_rounded,
-                                color: isEntry ? const Color(0xFF10B981) : const Color(0xFFF97316),
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(location, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-                                  const SizedBox(height: 2),
-                                  Text(time, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: isEntry ? const Color(0xFF10B981).withValues(alpha: 0.2) : const Color(0xFFF97316).withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                direction.toString().toUpperCase(),
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: isEntry ? const Color(0xFF10B981) : const Color(0xFFF97316),
+              return CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildHeader()),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 30),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _buildDateCard(logs),
+                        const SizedBox(height: 20),
+                        if (logs.isNotEmpty) ...[
+                          _buildSummary(logs),
+                          const SizedBox(height: 24),
+                          _buildSectionHeader(logs.length),
+                          const SizedBox(height: 11),
+                          ...logs.asMap().entries.map(
+                                (entry) => Padding(
+                                  padding:
+                                      const EdgeInsets.only(bottom: 10),
+                                  child: _buildPunchCard(
+                                    entry.value,
+                                    entry.key,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                          .animate(delay: (30 * index).ms)
-                          .fadeIn(duration: 350.ms)
-                          .slideY(begin: 0.05, end: 0);
-                    },
-                  );
-                },
-              ),
-            ),
+                        ] else
+                          _buildEmpty(),
+                      ]),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-          ],
         ),
       ),
     );
   }
 
-  Widget _buildSkeletonLogs() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      child: Row(
         children: [
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
+          InkWell(
+            onTap: () => Navigator.of(context).pop(),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _line),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: _navy,
+                size: 19,
+              ),
+            ),
           ),
-          SizedBox(height: 16),
-          Text('Loading biometric logs...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ATTENDANCE',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: _orange,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Biometric Punch Logs',
+                  style: GoogleFonts.dmSans(
+                    color: _ink,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: () => setState(() => _fetchBiometric(forceRefresh: true)),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _line),
+              ),
+              child: const Icon(
+                Icons.refresh_rounded,
+                color: _navy,
+                size: 18,
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDateCard(List<dynamic> logs) {
+    final dateLabel =
+        DateFormat('EEE, dd MMM yyyy').format(_selectedDate);
+    final isToday = DateUtils.isSameDay(_selectedDate, DateTime.now());
+
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 43,
+            height: 43,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF0FD),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: const Icon(
+              Icons.calendar_month_rounded,
+              color: _blue,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isToday ? 'TODAY' : 'SELECTED DATE',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: _muted,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .8,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  dateLabel,
+                  style: GoogleFonts.dmSans(
+                    color: _ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          OutlinedButton.icon(
+            onPressed: _selectDate,
+            icon: const Icon(Icons.edit_calendar_rounded, size: 15),
+            label: Text(
+              'Change',
+              style: GoogleFonts.dmSans(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _navy,
+              side: const BorderSide(color: _line),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 9,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(9),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummary(List<dynamic> logs) {
+    final entries = _entryCount(logs);
+    final exits = logs.length - entries;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _summaryMetric(
+            icon: Icons.fingerprint_rounded,
+            label: 'TOTAL PUNCHES',
+            value: logs.length.toString(),
+            color: _blue,
+            background: const Color(0xFFEAF0FD),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _summaryMetric(
+            icon: Icons.login_rounded,
+            label: 'ENTRIES',
+            value: entries.toString(),
+            color: _green,
+            background: const Color(0xFFE8F4EF),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _summaryMetric(
+            icon: Icons.logout_rounded,
+            label: 'EXITS',
+            value: exits.toString(),
+            color: _orange,
+            background: const Color(0xFFF9ECE7),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _summaryMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 11, 10, 12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 27,
+            height: 27,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.dmSans(
+              color: _ink,
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.spaceGrotesk(
+              color: _muted,
+              fontSize: 6.8,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(int count) {
+    return Row(
+      children: [
+        Container(
+          width: 31,
+          height: 31,
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: _line),
+          ),
+          child: const Icon(
+            Icons.history_rounded,
+            color: _blue,
+            size: 16,
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            'PUNCH HISTORY',
+            style: GoogleFonts.spaceGrotesk(
+              color: _ink,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 5,
+          ),
+          decoration: BoxDecoration(
+            color: _soft,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Text(
+            '$count LOGS',
+            style: GoogleFonts.spaceGrotesk(
+              color: _navy,
+              fontSize: 7.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .55,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPunchCard(dynamic log, int index) {
+    final time = log['punch_time']?.toString() ?? 'Punch';
+    final location =
+        log['punch_location']?.toString() ?? 'Turnstile Gate';
+    final direction = log['direction']?.toString() ??
+        (index.isEven ? 'IN' : 'OUT');
+
+    final isEntry = _isEntry(direction, index);
+    final color = isEntry ? _green : _orange;
+    final background =
+        isEntry ? const Color(0xFFE8F4EF) : const Color(0xFFF9ECE7);
+    final icon =
+        isEntry ? Icons.login_rounded : Icons.logout_rounded;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: _line),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0617202A),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 45,
+            height: 45,
+            decoration: BoxDecoration(
+              color: background,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  location,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    color: _ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.schedule_rounded,
+                      color: _muted,
+                      size: 13,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      time,
+                      style: GoogleFonts.spaceGrotesk(
+                        color: _muted,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 9,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Text(
+              direction.toUpperCase(),
+              style: GoogleFonts.spaceGrotesk(
+                color: color,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .55,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 34, 22, 36),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 66,
+            height: 66,
+            decoration: BoxDecoration(
+              color: _soft,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.fingerprint_rounded,
+              size: 31,
+              color: _muted,
+            ),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            'No Biometric Punches',
+            style: GoogleFonts.dmSans(
+              color: _ink,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'No activity was recorded for '
+            '${DateFormat('dd MMM yyyy').format(_selectedDate)}.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSans(
+              color: _muted,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: _blue,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Loading biometric logs...',
+            style: GoogleFonts.dmSans(
+              color: _muted,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError(Object error) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      children: [
+        SizedBox(
+          height: MediaQuery.of(context).size.height * .75,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFCEDEA),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error_outline_rounded,
+                      color: _red,
+                      size: 31,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Failed to Load Biometric Logs',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      color: _ink,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    error.toString(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      color: _muted,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: () {
+                      setState(() => _fetchBiometric(forceRefresh: true));
+                    },
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(
+                      'Try Again',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _navy,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
-import '../widgets/mesh_ambient_background.dart';
 import 'main_nav_screen.dart';
 import 'otp_screen.dart';
 
@@ -23,21 +23,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool _obscurePassword = true;
 
-  // ─────────────────────────────────────────────
-  // MINIMALIST THEME COLORS
-  // ─────────────────────────────────────────────
+  // ============================================================
+  // VITAP NEXUS — NEW VISUAL SYSTEM
+  // Warm editorial / university identity.
+  // No mesh background, neon glow, or glassmorphism.
+  // ============================================================
 
-  static const Color _background = Color(0xFF0F1117);
-  static const Color _surface = Color(0xFF171B24);
-  static const Color _surfaceLight = Color(0xFF1C202A);
-  static const Color _border = Color(0xFF2A2F3A);
+  static const Color _background = Color(0xFFF4F2ED);
+  static const Color _surface = Color(0xFFFFFEFB);
+  static const Color _ink = Color(0xFF17202A);
+  static const Color _inkSoft = Color(0xFF59636E);
+  static const Color _muted = Color(0xFF8B939B);
+  static const Color _line = Color(0xFFDCD9D2);
 
-  static const Color _accent = Color(0xFF8B8FD8);
-  static const Color _accentSoft = Color(0xFFB7B9E8);
-
-  static const Color _textPrimary = Color(0xFFF4F4F5);
-  static const Color _textSecondary = Color(0xFF9CA3AF);
-  static const Color _textMuted = Color(0xFF687080);
+  static const Color _navy = Color(0xFF172B4D);
+  static const Color _blue = Color(0xFF356AE6);
+  static const Color _orange = Color(0xFFE47543);
+  static const Color _cream = Color(0xFFEAE5DA);
 
   @override
   void dispose() {
@@ -45,10 +47,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
-
-  // ─────────────────────────────────────────────
-  // LOGIN LOGIC
-  // ─────────────────────────────────────────────
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -59,16 +57,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final password = _passwordController.text.trim();
 
     final success = await ref.read(authProvider.notifier).login(
-      username: username,
-      password: password,
-    );
+          username: username,
+          password: password,
+        );
 
     if (!mounted) return;
 
     final authState = ref.read(authProvider);
 
-    // CRITICAL: If VTOP requires OTP, immediately navigate to the OtpScreen
-    // without showing any "Login failed" error!
+    // Keep the existing OTP flow exactly intact.
     if (authState.otpRequired) {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -85,8 +82,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       );
     } else {
-      final error =
-          authState.errorMessage ??
+      final error = authState.errorMessage ??
           'Login failed. Please check your credentials and try again.';
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,19 +90,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           content: Row(
             children: [
               const Icon(
-                Icons.error_outline,
+                Icons.error_outline_rounded,
                 color: Colors.white,
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(error),
+                child: Text(
+                  error,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           ),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       );
@@ -116,620 +119,608 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final size = MediaQuery.sizeOf(context);
+    final isWide = size.width >= 760;
 
     return Scaffold(
       backgroundColor: _background,
-      body: MeshAmbientBackground(
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 28.0,
-              ),
-              child: Form(
-                key: _formKey,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 430,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // ─────────────────────────────────────────
-                      // KONOHA LOGO
-                      // ─────────────────────────────────────────
+      body: SafeArea(
+        child: isWide
+            ? _buildWideLayout(authState)
+            : _buildMobileLayout(authState),
+      ),
+    );
+  }
 
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: _surface,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _border,
-                              width: 1.2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _accent.withOpacity(0.12),
-                                blurRadius: 28,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: Image.asset(
-                            'assets/images/konoha_logo.png',
-                            width: 58,
-                            height: 58,
-                            color: _accentSoft,
-                            colorBlendMode: BlendMode.srcIn,
-                            errorBuilder:
-                                (context, error, stackTrace) =>
-                                    const Icon(
-                              Icons.school_rounded,
-                              size: 52,
-                              color: _accentSoft,
-                            ),
-                          ),
-                        ),
-                      )
-                          .animate()
-                          .scale(
-                            duration: 500.ms,
-                            curve: Curves.easeOutBack,
-                          )
-                          .fadeIn(
-                            duration: 400.ms,
-                          ),
+  // ============================================================
+  // DESKTOP / TABLET
+  // ============================================================
 
-                      const SizedBox(height: 24),
-
-                      // ─────────────────────────────────────────
-                      // APP TITLE
-                      // ─────────────────────────────────────────
-
-                      Text(
-                        'VITAP NEXUS',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.manrope(
-                          fontSize: 29,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 2.2,
-                          color: _textPrimary,
-                        ),
-                      ).animate().fadeIn(
-                            duration: 400.ms,
-                            delay: 100.ms,
-                          ),
-
-                      const SizedBox(height: 7),
-
-                      Text(
-                        'Your smart companion for VIT-AP',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.manrope(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w500,
-                          color: _textSecondary,
-                          letterSpacing: 0.1,
-                        ),
-                      ).animate().fadeIn(
-                            duration: 400.ms,
-                            delay: 150.ms,
-                          ),
-
-                      const SizedBox(height: 36),
-
-                      // ─────────────────────────────────────────
-                      // LOGIN CARD
-                      // ─────────────────────────────────────────
-
-                      Container(
-                        padding: const EdgeInsets.all(22),
-                        decoration: BoxDecoration(
-                          color: _surface.withOpacity(0.94),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: _border,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.20),
-                              blurRadius: 30,
-                              offset: const Offset(0, 14),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.stretch,
-                          children: [
-                            // ─────────────────────────────────
-                            // WELCOME
-                            // ─────────────────────────────────
-
-                            Text(
-                              'Welcome back',
-                              style: GoogleFonts.manrope(
-                                fontSize: 21,
-                                fontWeight: FontWeight.w700,
-                                color: _textPrimary,
-                              ),
-                            ),
-
-                            const SizedBox(height: 5),
-
-                            Text(
-                              'Sign in with your VTOP credentials',
-                              style: GoogleFonts.manrope(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: _textSecondary,
-                              ),
-                            ),
-
-                            const SizedBox(height: 25),
-
-                            // ─────────────────────────────────
-                            // USERNAME
-                            // ─────────────────────────────────
-
-                            Text(
-                              'VTOP Username / Reg Number',
-                              style: GoogleFonts.manrope(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: _textSecondary,
-                              ),
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            TextFormField(
-                              controller: _usernameController,
-                              style: GoogleFonts.manrope(
-                                color: _textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textCapitalization:
-                                  TextCapitalization.characters,
-                              inputFormatters: [
-                                TextInputFormatter.withFunction(
-                                  (oldValue, newValue) =>
-                                      newValue.copyWith(
-                                    text: newValue.text.toUpperCase(),
-                                  ),
-                                ),
-                              ],
-                              decoration: InputDecoration(
-                                hintText:
-                                    'e.g. 24BCE8650 or NARUTO2007',
-                                hintStyle: GoogleFonts.manrope(
-                                  color: _textMuted,
-                                  fontSize: 13,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.person_outline_rounded,
-                                  color: _accent,
-                                  size: 20,
-                                ),
-                                filled: true,
-                                fillColor: _surfaceLight,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: _border,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: _border,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: _accent,
-                                    width: 1.3,
-                                  ),
-                                ),
-                                errorBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: AppTheme.error,
-                                  ),
-                                ),
-                                focusedErrorBorder:
-                                    OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: AppTheme.error,
-                                    width: 1.3,
-                                  ),
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null ||
-                                    value.trim().isEmpty) {
-                                  return 'Please enter your username';
-                                }
-
-                                return null;
-                              },
-                            )
-                                .animate()
-                                .fadeIn(
-                                  duration: 400.ms,
-                                  delay: 200.ms,
-                                )
-                                .slideY(
-                                  begin: 0.08,
-                                  end: 0,
-                                ),
-
-                            const SizedBox(height: 20),
-
-                            // ─────────────────────────────────
-                            // PASSWORD LABEL
-                            // ─────────────────────────────────
-
-                            Text(
-                              'VTOP Password',
-                              style: GoogleFonts.manrope(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: _textSecondary,
-                              ),
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            // ─────────────────────────────────
-                            // PASSWORD FIELD
-                            //
-                            // IMPORTANT:
-                            // We do NOT use obscureText here.
-                            //
-                            // Instead, the real password remains
-                            // inside _passwordController while
-                            // the actual text is rendered
-                            // transparent and we draw our own
-                            // bullets on top.
-                            //
-                            // This prevents the last character
-                            // from briefly appearing.
-                            // ─────────────────────────────────
-
-                            ValueListenableBuilder<TextEditingValue>(
-                              valueListenable: _passwordController,
-                              builder: (
-                                context,
-                                value,
-                                child,
-                              ) {
-                                return Stack(
-                                  alignment: Alignment.centerLeft,
-                                  children: [
-                                    TextFormField(
-                                      controller:
-                                          _passwordController,
-
-                                      // Deliberately false.
-                                      // We handle masking ourselves.
-                                      obscureText: false,
-
-                                      autocorrect: false,
-                                      enableSuggestions: false,
-
-                                      keyboardType:
-                                          TextInputType.visiblePassword,
-
-                                      cursorColor: _accent,
-
-                                      style: GoogleFonts.manrope(
-                                        color: _obscurePassword
-                                            ? Colors.transparent
-                                            : _textPrimary,
-                                        fontSize: 14,
-                                        fontWeight:
-                                            FontWeight.w500,
-                                      ),
-
-                                      decoration: InputDecoration(
-                                        hintText: value.text.isEmpty
-                                            ? '••••••••••••'
-                                            : null,
-
-                                        hintStyle:
-                                            GoogleFonts.manrope(
-                                          color: _textMuted,
-                                        ),
-
-                                        prefixIcon: const Icon(
-                                          Icons
-                                              .lock_outline_rounded,
-                                          color: _accent,
-                                          size: 20,
-                                        ),
-
-                                        suffixIcon: IconButton(
-                                          icon: Icon(
-                                            _obscurePassword
-                                                ? Icons
-                                                    .visibility_off_rounded
-                                                : Icons
-                                                    .visibility_rounded,
-                                            color: _textSecondary,
-                                            size: 20,
-                                          ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _obscurePassword =
-                                                  !_obscurePassword;
-                                            });
-                                          },
-                                        ),
-
-                                        filled: true,
-                                        fillColor: _surfaceLight,
-
-                                        contentPadding:
-                                            const EdgeInsets
-                                                .symmetric(
-                                          horizontal: 16,
-                                          vertical: 16,
-                                        ),
-
-                                        border:
-                                            OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide:
-                                              const BorderSide(
-                                            color: _border,
-                                          ),
-                                        ),
-
-                                        enabledBorder:
-                                            OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide:
-                                              const BorderSide(
-                                            color: _border,
-                                          ),
-                                        ),
-
-                                        focusedBorder:
-                                            OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide:
-                                              const BorderSide(
-                                            color: _accent,
-                                            width: 1.3,
-                                          ),
-                                        ),
-
-                                        errorBorder:
-                                            OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide:
-                                              const BorderSide(
-                                            color: AppTheme.error,
-                                          ),
-                                        ),
-
-                                        focusedErrorBorder:
-                                            OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide:
-                                              const BorderSide(
-                                            color: AppTheme.error,
-                                            width: 1.3,
-                                          ),
-                                        ),
-                                      ),
-
-                                      validator: (value) {
-                                        if (value == null ||
-                                            value.isEmpty) {
-                                          return 'Please enter your password';
-                                        }
-
-                                        return null;
-                                      },
-                                    ),
-
-                                    // ─────────────────────────
-                                    // MANUAL PASSWORD MASK
-                                    // ─────────────────────────
-
-                                    if (_obscurePassword &&
-                                        value.text.isNotEmpty)
-                                      Positioned(
-                                        left: 48,
-                                        right: 48,
-                                        child: IgnorePointer(
-                                          child: Text(
-                                            '•' * value.text.length,
-                                            maxLines: 1,
-                                            overflow:
-                                                TextOverflow.clip,
-                                            style:
-                                                GoogleFonts.manrope(
-                                              color: _textSecondary,
-                                              fontSize: 14,
-                                              fontWeight:
-                                                  FontWeight.w500,
-                                              letterSpacing: 2.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            )
-                                .animate()
-                                .fadeIn(
-                                  duration: 400.ms,
-                                  delay: 250.ms,
-                                )
-                                .slideY(
-                                  begin: 0.08,
-                                  end: 0,
-                                ),
-
-                            const SizedBox(height: 28),
-
-                            // ─────────────────────────────────
-                            // LOGIN BUTTON
-                            // ─────────────────────────────────
-
-                            Container(
-                              height: 52,
-                              decoration: BoxDecoration(
-                                borderRadius:
-                                    BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        _accent.withOpacity(0.16),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 7),
-                                  ),
-                                ],
-                              ),
-                              child: ElevatedButton(
-                                onPressed: authState.isLoading
-                                    ? null
-                                    : _handleLogin,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _accent,
-                                  disabledBackgroundColor:
-                                      _accent.withOpacity(0.55),
-                                  shadowColor: Colors.transparent,
-                                  padding: EdgeInsets.zero,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: Container(
-                                  alignment: Alignment.center,
-                                  child: authState.isLoading
-                                      ? const SizedBox(
-                                          height: 22,
-                                          width: 22,
-                                          child:
-                                              CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2.3,
-                                          ),
-                                        )
-                                      : Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              'Login with VTOP',
-                                              style:
-                                                  GoogleFonts.manrope(
-                                                fontSize: 14.5,
-                                                fontWeight:
-                                                    FontWeight.w700,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Icon(
-                                              Icons
-                                                  .arrow_forward_rounded,
-                                              color: Colors.white,
-                                              size: 19,
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              ),
-                            )
-                                .animate()
-                                .fadeIn(
-                                  duration: 400.ms,
-                                  delay: 300.ms,
-                                )
-                                .scale(
-                                  begin: const Offset(0.97, 0.97),
-                                  end: const Offset(1, 1),
-                                ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 22),
-
-                      // ─────────────────────────────────────────
-                      // PRIVACY NOTE
-                      // ─────────────────────────────────────────
-
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.lock_clock_outlined,
-                            size: 14,
-                            color: _textMuted,
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              'Credentials are encrypted and stored locally only',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.manrope(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w500,
-                                color: _textMuted,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+  Widget _buildWideLayout(AuthState authState) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 5,
+          child: _buildBrandPanel(),
+        ),
+        Expanded(
+          flex: 6,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 60,
+              vertical: 42,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 450,
                 ),
+                child: _buildLoginContent(authState),
               ),
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildBrandPanel() {
+    return Container(
+      margin: const EdgeInsets.all(14),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _navy,
+        borderRadius: BorderRadius.circular(32),
       ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -110,
+            top: -100,
+            child: _decorativeCircle(
+              310,
+              _orange.withValues(alpha: .13),
+            ),
+          ),
+          Positioned(
+            left: -120,
+            bottom: -130,
+            child: _decorativeCircle(
+              360,
+              _blue.withValues(alpha: .10),
+            ),
+          ),
+          Positioned(
+            right: 70,
+            bottom: 75,
+            child: _decorativeCircle(
+              120,
+              Colors.white.withValues(alpha: .035),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBrandMark(dark: true),
+                const Spacer(),
+                Text(
+                  'YOUR CAMPUS,\nIN ONE PLACE.',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    height: .98,
+                    letterSpacing: -2.2,
+                  ),
+                )
+                    .animate()
+                    .fadeIn(duration: 500.ms)
+                    .slideY(begin: .08, end: 0),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: 390,
+                  child: Text(
+                    'A smarter way to stay connected with your VIT-AP academic life.',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      height: 1.55,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 34),
+                _featureRow(
+                  Icons.calendar_today_outlined,
+                  'Timetable & live classes',
+                ),
+                _featureRow(
+                  Icons.bar_chart_rounded,
+                  'Grades, attendance & academics',
+                ),
+                _featureRow(
+                  Icons.dashboard_outlined,
+                  'Campus services in one app',
+                ),
+                const Spacer(),
+                Text(
+                  'VIT-AP UNIVERSITY',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white38,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _decorativeCircle(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+      ),
+    );
+  }
+
+  Widget _featureRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 13),
+      child: Row(
+        children: [
+          Container(
+            width: 31,
+            height: 31,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white70,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Text(
+            text,
+            style: GoogleFonts.dmSans(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // MOBILE
+  // ============================================================
+
+  Widget _buildMobileLayout(AuthState authState) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(22, 26, 22, 30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildBrandMark(),
+          const SizedBox(height: 44),
+          Text(
+            'Welcome back.',
+            style: GoogleFonts.dmSans(
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              color: _ink,
+              letterSpacing: -1.5,
+            ),
+          )
+              .animate()
+              .fadeIn(duration: 400.ms)
+              .slideY(begin: .06, end: 0),
+          const SizedBox(height: 7),
+          Text(
+            'Sign in to continue to your VIT-AP dashboard.',
+            style: GoogleFonts.dmSans(
+              fontSize: 12.5,
+              color: _inkSoft,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 30),
+          _buildLoginForm(authState),
+          const SizedBox(height: 22),
+          _buildSecurityNote(),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // BRAND MARK
+  // ============================================================
+
+  Widget _buildBrandMark({bool dark = false}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 45,
+          height: 45,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: dark ? Colors.white : _navy,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Image.asset(
+            'assets/images/konoha_logo.png',
+            color: dark ? _navy : Colors.white,
+            errorBuilder: (_, _, _) => Icon(
+              Icons.school_rounded,
+              color: dark ? _navy : Colors.white,
+              size: 25,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'VITAP',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: dark ? Colors.white54 : _muted,
+                letterSpacing: 1.7,
+              ),
+            ),
+            Text(
+              'NEXUS',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: dark ? Colors.white : _ink,
+                letterSpacing: .8,
+              ),
+            ),
+          ],
+        ),
+      ],
+    )
+        .animate()
+        .fadeIn(duration: 350.ms)
+        .slideX(begin: -.04, end: 0);
+  }
+
+  // ============================================================
+  // LOGIN CONTENT
+  // ============================================================
+
+  Widget _buildLoginContent(AuthState authState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildBrandMark(),
+        const SizedBox(height: 65),
+        Text(
+          'Welcome back.',
+          style: GoogleFonts.dmSans(
+            fontSize: 38,
+            fontWeight: FontWeight.w900,
+            color: _ink,
+            letterSpacing: -1.8,
+          ),
+        )
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .slideY(begin: .06, end: 0),
+        const SizedBox(height: 7),
+        Text(
+          'Sign in to continue to your VIT-AP dashboard.',
+          style: GoogleFonts.dmSans(
+            fontSize: 13,
+            color: _inkSoft,
+          ),
+        ),
+        const SizedBox(height: 34),
+        _buildLoginForm(authState),
+        const SizedBox(height: 22),
+        _buildSecurityNote(),
+      ],
+    );
+  }
+
+  Widget _buildLoginForm(AuthState authState) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _fieldLabel('VTOP USERNAME / REGISTRATION NUMBER'),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _usernameController,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              TextInputFormatter.withFunction(
+                (oldValue, newValue) => newValue.copyWith(
+                  text: newValue.text.toUpperCase(),
+                ),
+              ),
+            ],
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: _ink,
+            ),
+            decoration: _inputDecoration(
+              hint: 'e.g. 24BCE8650',
+              icon: Icons.person_outline_rounded,
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter your username';
+              }
+              return null;
+            },
+          )
+              .animate()
+              .fadeIn(duration: 350.ms, delay: 100.ms)
+              .slideY(begin: .05, end: 0),
+
+          const SizedBox(height: 22),
+
+          _fieldLabel('VTOP PASSWORD'),
+          const SizedBox(height: 8),
+          _buildPasswordField()
+              .animate()
+              .fadeIn(duration: 350.ms, delay: 150.ms)
+              .slideY(begin: .05, end: 0),
+
+          const SizedBox(height: 26),
+
+          SizedBox(
+            height: 54,
+            child: ElevatedButton(
+              onPressed: authState.isLoading ? null : _handleLogin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _navy,
+                disabledBackgroundColor: _navy.withValues(alpha: .45),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: authState.isLoading
+                    ? const SizedBox(
+                        key: ValueKey('loading'),
+                        width: 21,
+                        height: 21,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Row(
+                        key: const ValueKey('login'),
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'CONTINUE TO VTOP',
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          )
+              .animate()
+              .fadeIn(duration: 350.ms, delay: 200.ms)
+              .slideY(begin: .05, end: 0),
+
+          const SizedBox(height: 17),
+
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: _cream,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 16,
+                  color: _inkSoft,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Use the same credentials you use on VTOP. OTP verification will appear automatically when required.',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 10.5,
+                      height: 1.45,
+                      fontWeight: FontWeight.w500,
+                      color: _inkSoft,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.spaceGrotesk(
+        fontSize: 9,
+        fontWeight: FontWeight.w800,
+        color: _inkSoft,
+        letterSpacing: 1.25,
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required String hint,
+    required IconData icon,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.dmSans(
+        fontSize: 13,
+        color: _muted,
+        fontWeight: FontWeight.w500,
+      ),
+      prefixIcon: Icon(
+        icon,
+        color: _inkSoft,
+        size: 19,
+      ),
+      filled: true,
+      fillColor: _surface,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 15,
+        vertical: 17,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _line),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _line),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(
+          color: _blue,
+          width: 1.5,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(
+          color: AppTheme.error,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(
+          color: AppTheme.error,
+          width: 1.5,
+        ),
+      ),
+      errorStyle: GoogleFonts.dmSans(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _passwordController,
+      builder: (context, value, child) {
+        return TextFormField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          autocorrect: false,
+          enableSuggestions: false,
+          keyboardType: TextInputType.visiblePassword,
+          style: GoogleFonts.dmSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: _ink,
+          ),
+          decoration: _inputDecoration(
+            hint: 'Enter your password',
+            icon: Icons.lock_outline_rounded,
+          ).copyWith(
+            suffixIcon: IconButton(
+              tooltip: _obscurePassword
+                  ? 'Show password'
+                  : 'Hide password',
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                color: _inkSoft,
+                size: 20,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+            ),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter your password';
+            }
+            return null;
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSecurityNote() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.shield_outlined,
+          size: 14,
+          color: _muted,
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            'Credentials are encrypted and stored locally',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: _muted,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

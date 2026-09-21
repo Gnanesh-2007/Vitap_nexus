@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/mesh_ambient_background.dart';
 
 class MentorScreen extends ConsumerStatefulWidget {
   const MentorScreen({super.key});
@@ -19,6 +17,18 @@ class MentorScreen extends ConsumerStatefulWidget {
 class _MentorScreenState extends ConsumerState<MentorScreen> {
   late Future<Map<String, dynamic>> _mentorFuture;
 
+  static const _paper = Color(0xFFF4F2ED);
+  static const _surface = Color(0xFFFFFEFB);
+  static const _ink = Color(0xFF17202A);
+  static const _navy = Color(0xFF172B4D);
+  static const _blue = Color(0xFF356AE6);
+  static const _orange = Color(0xFFE47543);
+  static const _green = Color(0xFF278B68);
+  static const _red = Color(0xFFC84C43);
+  static const _muted = Color(0xFF6E7681);
+  static const _line = Color(0xFFE2DED5);
+  static const _soft = Color(0xFFF0EEE8);
+
   @override
   void initState() {
     super.initState();
@@ -29,12 +39,15 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
     _mentorFuture = _getMentorData(forceRefresh: forceRefresh);
   }
 
-  Future<Map<String, dynamic>> _getMentorData({bool forceRefresh = false}) async {
+  Future<Map<String, dynamic>> _getMentorData({
+    bool forceRefresh = false,
+  }) async {
     if (!forceRefresh) {
       final mem = StorageService.getMemoryCache('mentor');
       if (mem is Map && mem.isNotEmpty) {
         return Map<String, dynamic>.from(mem);
       }
+
       final disk = await StorageService.getCache('mentor');
       if (disk is Map && disk.isNotEmpty) {
         return Map<String, dynamic>.from(disk);
@@ -42,42 +55,54 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
     }
 
     final auth = ref.read(authProvider);
+
     try {
       final fresh = await apiService.fetchMentor(
         username: auth.username ?? '',
         password: auth.password ?? '',
       );
+
       if (fresh.isNotEmpty) {
         await StorageService.setCache('mentor', fresh);
         return fresh;
       }
     } catch (e) {
-      debugPrint('MentorScreen: Network fetch failed ($e). Checking offline cache...');
+      debugPrint(
+        'MentorScreen: Network fetch failed ($e). '
+        'Checking offline cache...',
+      );
+
       final fallback = StorageService.getMemoryCache('mentor') ??
           await StorageService.getCache('mentor');
+
       if (fallback is Map && fallback.isNotEmpty) {
         return Map<String, dynamic>.from(fallback);
       }
+
       rethrow;
     }
 
     final fallback = StorageService.getMemoryCache('mentor') ??
         await StorageService.getCache('mentor');
+
     if (fallback is Map && fallback.isNotEmpty) {
       return Map<String, dynamic>.from(fallback);
     }
+
     return {};
   }
 
   Future<void> _launchEmail(String email) async {
     try {
       final uri = Uri.parse('mailto:$email');
-      await launchUrl(uri);
+      final launched = await launchUrl(uri);
+
+      if (!launched && mounted) {
+        _showMessage('Could not open email client for $email');
+      }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open email client for $email')),
-        );
+        _showMessage('Could not open email client for $email');
       }
     }
   }
@@ -85,232 +110,595 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
   Future<void> _launchCall(String phone) async {
     try {
       final uri = Uri.parse('tel:$phone');
-      await launchUrl(uri);
+      final launched = await launchUrl(uri);
+
+      if (!launched && mounted) {
+        _showMessage('Could not dial $phone');
+      }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not dial $phone')),
-        );
+        _showMessage('Could not dial $phone');
       }
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.dmSans(fontSize: 12),
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: _navy,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: Text('Faculty Mentor / Proctor', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold)),
-        backgroundColor: AppTheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: const [],
-      ),
-      body: MeshAmbientBackground(
+      backgroundColor: _paper,
+      body: SafeArea(
         child: RefreshIndicator(
+          color: _blue,
+          backgroundColor: _surface,
           onRefresh: () async {
             setState(() => _fetchMentor(forceRefresh: true));
             await _mentorFuture;
           },
-          color: AppTheme.primary,
-          backgroundColor: AppTheme.surface,
           child: FutureBuilder<Map<String, dynamic>>(
             future: _mentorFuture,
             builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildSkeletonMentor();
-            }
-
-            if (snapshot.hasError) {
-                return ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.7,
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.error_outline_rounded, color: AppTheme.error, size: 48),
-                              const SizedBox(height: 12),
-                              Text('Failed to load mentor details', style: GoogleFonts.outfit(fontSize: 18, color: Colors.white)),
-                              const SizedBox(height: 8),
-                              Text(snapshot.error.toString(), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () => setState(() => _fetchMentor(forceRefresh: true)),
-                                icon: const Icon(Icons.refresh_rounded),
-                                label: const Text('Try Again'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _buildLoading();
               }
 
-            final mentor = snapshot.data ?? {};
-            final name = mentor['faculty_name'] ?? mentor['name'] ?? 'Faculty Mentor';
-            final email = mentor['faculty_email'] ?? mentor['email'] ?? 'Not Available';
-            final phone = mentor['faculty_mobile_number'] ?? mentor['mobile'] ?? 'Not Available';
-            final cabin = mentor['cabin'] ?? mentor['faculty_cabin'] ?? 'Faculty Block';
-            final designation = mentor['faculty_designation'] ?? mentor['designation'] ?? 'Professor / Proctor';
-            final school = mentor['school'] ?? mentor['faculty_department'] ?? 'School of Computer Science & Engineering';
+              if (snapshot.hasError) {
+                return _buildError(snapshot.error!);
+              }
 
-            return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(20),
-              children: [
-                // Mentor Profile Header Card
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1E3A8A), Color(0xFF0F172A)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+              final mentor = snapshot.data ?? {};
+
+              final name =
+                  mentor['faculty_name'] ?? mentor['name'] ?? 'Faculty Mentor';
+              final email = mentor['faculty_email'] ??
+                  mentor['email'] ??
+                  'Not Available';
+              final phone = mentor['faculty_mobile_number'] ??
+                  mentor['mobile'] ??
+                  'Not Available';
+              final cabin =
+                  mentor['cabin'] ?? mentor['faculty_cabin'] ?? 'Faculty Block';
+              final designation = mentor['faculty_designation'] ??
+                  mentor['designation'] ??
+                  'Professor / Proctor';
+              final school = mentor['school'] ??
+                  mentor['faculty_department'] ??
+                  'School of Computer Science & Engineering';
+
+              return CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildHeader()),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 30),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _buildProfileCard(
+                          name: name.toString(),
+                          designation: designation.toString(),
+                          school: school.toString(),
+                        ),
+                        const SizedBox(height: 14),
+                        _buildContactActions(
+                          email: email.toString(),
+                          phone: phone.toString(),
+                        ),
+                        const SizedBox(height: 28),
+                        _buildSectionTitle(),
+                        const SizedBox(height: 11),
+                        _buildDetailTile(
+                          Icons.person_outline_rounded,
+                          'FULL NAME',
+                          name.toString(),
+                        ),
+                        _buildDetailTile(
+                          Icons.alternate_email_rounded,
+                          'OFFICIAL EMAIL',
+                          email.toString(),
+                        ),
+                        _buildDetailTile(
+                          Icons.phone_outlined,
+                          'MOBILE NUMBER',
+                          phone.toString(),
+                        ),
+                        _buildDetailTile(
+                          Icons.meeting_room_outlined,
+                          'CABIN / OFFICE',
+                          cabin.toString(),
+                        ),
+                        _buildDetailTile(
+                          Icons.domain_outlined,
+                          'DEPARTMENT / SCHOOL',
+                          school.toString(),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildNote(),
+                      ]),
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppTheme.primaryAccent.withValues(alpha: 0.3)),
                   ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 70,
-                        height: 70,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF84CC16).withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF84CC16), width: 2),
-                        ),
-                        child: const Icon(Icons.supervisor_account_rounded, size: 36, color: Color(0xFF84CC16)),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        name,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        designation,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(fontSize: 13, color: AppTheme.cyanAccent, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        school,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.08, end: 0),
-                const SizedBox(height: 20),
-
-                // Contact Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: email.contains('@') ? () => _launchEmail(email) : null,
-                        icon: const Icon(Icons.email_rounded, size: 18),
-                        label: const Text('Email Mentor'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    if (phone != 'Not Available') ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _launchCall(phone),
-                          icon: const Icon(Icons.phone_rounded, size: 18, color: Color(0xFF10B981)),
-                          label: const Text('Call', style: TextStyle(color: Color(0xFF10B981))),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF10B981)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ).animate(delay: 70.ms).fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
-                const SizedBox(height: 24),
-
-                // Detailed Info Tiles
-                Text('Mentor Information', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                const SizedBox(height: 12),
-
-                _buildDetailTile(Icons.person_rounded, 'Full Name', name, 0),
-                _buildDetailTile(Icons.email_rounded, 'Official Email', email, 1),
-                _buildDetailTile(Icons.phone_rounded, 'Mobile Number', phone, 2),
-                _buildDetailTile(Icons.meeting_room_rounded, 'Cabin / Office', cabin, 3),
-                _buildDetailTile(Icons.domain_rounded, 'Department / School', school, 4),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 
-  Widget _buildSkeletonMentor() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 17),
+      child: Row(
         children: [
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
+          InkWell(
+            onTap: () => Navigator.of(context).pop(),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _line),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: _navy,
+                size: 19,
+              ),
+            ),
           ),
-          SizedBox(height: 16),
-          Text('Loading mentor details...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ACADEMICS',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: _orange,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Faculty Mentor',
+                  style: GoogleFonts.dmSans(
+                    color: _ink,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: () => setState(() => _fetchMentor(forceRefresh: true)),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _line),
+              ),
+              child: const Icon(
+                Icons.refresh_rounded,
+                color: _navy,
+                size: 18,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildDetailTile(IconData icon, String label, String value, int index) {
+  Widget _buildProfileCard({
+    required String name,
+    required String designation,
+    required String school,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _navy,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x17172B4D),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .07),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFFF2B35B),
+                width: 1.5,
+              ),
+            ),
+            child: const Icon(
+              Icons.person_rounded,
+              color: Color(0xFFF2B35B),
+              size: 36,
+            ),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'FACULTY MENTOR / PROCTOR',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: Colors.white54,
+                    fontSize: 7.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    height: 1.08,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  designation,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    color: const Color(0xFF8CB9FF),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  school,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    color: Colors.white54,
+                    fontSize: 10.5,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactActions({
+    required String email,
+    required String phone,
+  }) {
+    final hasEmail = email.contains('@');
+    final hasPhone = phone != 'Not Available' && phone.trim().isNotEmpty;
+
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: hasEmail ? () => _launchEmail(email) : null,
+              icon: const Icon(Icons.email_outlined, size: 17),
+              label: Text(
+                'Email Mentor',
+                style: GoogleFonts.dmSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: _blue,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: _soft,
+                disabledForegroundColor: _muted,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (hasPhone) ...[
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: () => _launchCall(phone),
+                icon: const Icon(
+                  Icons.phone_outlined,
+                  size: 17,
+                  color: _green,
+                ),
+                label: Text(
+                  'Call',
+                  style: GoogleFonts.dmSans(
+                    color: _green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: _surface,
+                  side: const BorderSide(color: Color(0xFFB8DCCF)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle() {
+    return Row(
+      children: [
+        Container(
+          width: 31,
+          height: 31,
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: _line),
+          ),
+          child: const Icon(
+            Icons.badge_outlined,
+            color: _blue,
+            size: 16,
+          ),
+        ),
+        const SizedBox(width: 9),
+        Text(
+          'MENTOR INFORMATION',
+          style: GoogleFonts.spaceGrotesk(
+            color: _ink,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailTile(
+    IconData icon,
+    String label,
+    String value,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: _surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.cardBorder),
+        border: Border.all(color: _line),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF84CC16)),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
-              const SizedBox(height: 2),
-              Text(value, style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: Colors.white)),
-            ],
+          Container(
+            width: 37,
+            height: 37,
+            decoration: BoxDecoration(
+              color: _soft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: _navy,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.spaceGrotesk(
+                    color: _muted,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .75,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    color: _ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-    )
-        .animate(delay: (100 + 35 * index).ms)
-        .fadeIn(duration: 350.ms)
-        .slideY(begin: 0.04, end: 0);
+    );
+  }
+
+  Widget _buildNote() {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9ECE7),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFE8C9BD)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            color: _orange,
+            size: 17,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Use the contact actions above to reach your assigned faculty mentor.',
+              style: GoogleFonts.dmSans(
+                color: _muted,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: _blue,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Loading mentor details...',
+            style: GoogleFonts.dmSans(
+              color: _muted,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError(Object error) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      children: [
+        SizedBox(
+          height: MediaQuery.of(context).size.height * .75,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFCEDEA),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error_outline_rounded,
+                      color: _red,
+                      size: 31,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Failed to Load Mentor Details',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      color: _ink,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    error.toString(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      color: _muted,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: () {
+                      setState(() => _fetchMentor(forceRefresh: true));
+                    },
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(
+                      'Try Again',
+                      style: GoogleFonts.dmSans(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _navy,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

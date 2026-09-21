@@ -1,10 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../providers/auth_provider.dart';
-import '../theme/app_theme.dart';
 import 'main_nav_screen.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
@@ -17,9 +18,11 @@ class OtpScreen extends ConsumerStatefulWidget {
 class _OtpScreenState extends ConsumerState<OtpScreen>
     with SingleTickerProviderStateMixin {
   static const int _otpLength = 6;
+
   final List<TextEditingController> _controllers =
       List.generate(_otpLength, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(_otpLength, (_) => FocusNode());
+  final List<FocusNode> _focusNodes =
+      List.generate(_otpLength, (_) => FocusNode());
 
   late final AnimationController _shakeController;
   late final Animation<double> _shakeAnimation;
@@ -27,9 +30,19 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   Timer? _cooldownTimer;
   int _cooldownSeconds = 0;
 
-  // Prevent duplicate OTP verification/resend requests.
   bool _isSubmittingOtp = false;
   bool _isResendingOtp = false;
+
+  static const _paper = Color(0xFFF4F2ED);
+  static const _surface = Color(0xFFFFFEFB);
+  static const _ink = Color(0xFF17202A);
+  static const _navy = Color(0xFF172B4D);
+  static const _blue = Color(0xFF356AE6);
+  static const _orange = Color(0xFFE47543);
+  static const _red = Color(0xFFC84C43);
+  static const _muted = Color(0xFF6E7681);
+  static const _line = Color(0xFFE2DED5);
+  static const _soft = Color(0xFFF0EEE8);
 
   bool get _isCooldownActive => _cooldownSeconds > 0;
   String get _otp => _controllers.map((c) => c.text).join();
@@ -38,8 +51,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   void initState() {
     super.initState();
     _setupAnimations();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNodes[0].requestFocus();
+      if (mounted) _focusNodes[0].requestFocus();
     });
   }
 
@@ -48,24 +62,33 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
     _shakeAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: -10.0), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -10.0, end: 10.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 10.0, end: -8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 8.0, end: 0.0), weight: 1),
-    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
+      TweenSequenceItem(tween: Tween(begin: 0, end: -10), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -10, end: 10), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 10, end: -8), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 8, end: 0), weight: 1),
+    ]).animate(
+      CurvedAnimation(
+        parent: _shakeController,
+        curve: Curves.easeOut,
+      ),
+    );
   }
 
   @override
   void dispose() {
     _cooldownTimer?.cancel();
+
     for (final c in _controllers) {
       c.dispose();
     }
+
     for (final f in _focusNodes) {
       f.dispose();
     }
+
     _shakeController.dispose();
     super.dispose();
   }
@@ -84,15 +107,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   void _triggerErrorFeedback() {
     _shakeController.forward(from: 0);
     HapticFeedback.vibrate();
+
     for (final c in _controllers) {
       c.clear();
     }
+
     _focusNodes[0].requestFocus();
+    setState(() {});
   }
 
   Future<void> _submitOtp() async {
-    // Prevent the automatic 6th-digit submit and the button press
-    // from creating two verification requests at the same time.
     if (_isSubmittingOtp) return;
 
     final otp = _otp;
@@ -111,7 +135,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       if (!mounted) return;
 
       if (success) {
-        // Navigate to main app after successful OTP.
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (_) => const MainNavScreen(),
@@ -129,8 +152,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   void _startResendCooldown() {
     setState(() => _cooldownSeconds = 30);
     _cooldownTimer?.cancel();
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+
+    _cooldownTimer =
+        Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
+
       if (_cooldownSeconds <= 1) {
         timer.cancel();
         setState(() => _cooldownSeconds = 0);
@@ -141,7 +167,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   }
 
   Future<void> _resendOtp() async {
-    // Prevent duplicate resend requests.
     if (_isCooldownActive || _isResendingOtp) return;
 
     _isResendingOtp = true;
@@ -160,301 +185,453 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
     final username = authState.username ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: _paper,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxHeight < 720;
 
-              // Glassmorphic Header Icon
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.primaryAccent.withValues(alpha: 0.1),
-                  border: Border.all(
-                    color: AppTheme.primaryAccent.withValues(alpha: 0.25),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryAccent.withValues(alpha: 0.15),
-                      blurRadius: 24,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Image.asset(
-                    'assets/images/konoha_logo.png',
-                    width: 42,
-                    height: 42,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.shield_outlined,
-                      color: AppTheme.primaryAccent,
-                      size: 36,
-                    ),
-                  ),
-                ),
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                22,
+                compact ? 14 : 24,
+                22,
+                18,
               ),
-              const SizedBox(height: 24),
-
-              Text(
-                'Security Verification',
-                style: GoogleFonts.outfit(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: -0.5,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight -
+                      MediaQuery.of(context).padding.vertical -
+                      42,
                 ),
-              ),
-              const SizedBox(height: 8),
-
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: const Color(0xFF94A3B8),
-                    height: 1.5,
-                  ),
+                child: Column(
                   children: [
-                    const TextSpan(text: 'Enter the 6-digit code sent to\n'),
-                    TextSpan(
-                      text: username.isEmpty ? 'your registered account' : username,
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.cyanAccent,
-                      ),
+                    _buildTopBar(),
+                    SizedBox(height: compact ? 28 : 48),
+                    _buildSecurityHeader(
+                      username: username,
+                      compact: compact,
                     ),
+                    SizedBox(height: compact ? 28 : 38),
+                    _buildOtpFields(),
+                    const SizedBox(height: 16),
+                    _buildError(authState),
+                    SizedBox(height: compact ? 20 : 28),
+                    _buildVerifyButton(authState),
+                    const SizedBox(height: 22),
+                    _buildResendRow(),
+                    const SizedBox(height: 30),
+                    _buildSecurityNote(),
+                    const SizedBox(height: 24),
+                    _buildBackButton(),
                   ],
                 ),
               ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 
-              const SizedBox(height: 36),
-
-              // Animated OTP Pin Row
-              AnimatedBuilder(
-                animation: _shakeAnimation,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(_shakeAnimation.value, 0),
-                    child: child,
-                  );
-                },
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(_otpLength, (index) {
-                    final isFocused = _focusNodes[index].hasFocus;
-                    final hasText = _controllers[index].text.isNotEmpty;
-
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 48,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        color: isFocused
-                            ? AppTheme.primaryAccent.withValues(alpha: 0.08)
-                            : const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isFocused
-                              ? AppTheme.primaryAccent
-                              : hasText
-                                  ? AppTheme.cyanAccent.withValues(alpha: 0.6)
-                                  : const Color(0xFF334155),
-                          width: isFocused ? 2 : 1,
-                        ),
-                        boxShadow: isFocused
-                            ? [
-                                BoxShadow(
-                                  color: AppTheme.primaryAccent.withValues(alpha: 0.25),
-                                  blurRadius: 12,
-                                ),
-                              ]
-                            : [],
-                      ),
-                      child: Center(
-                        child: RawKeyboardListener(
-                          focusNode: FocusNode(),
-                          onKey: (event) {
-                            if (event.runtimeType.toString() == 'RawKeyDownEvent' &&
-                                event.logicalKey.keyLabel == 'Backspace' &&
-                                _controllers[index].text.isEmpty &&
-                                index > 0) {
-                              _focusNodes[index - 1].requestFocus();
-                            }
-                          },
-                          child: TextField(
-                            controller: _controllers[index],
-                            focusNode: _focusNodes[index],
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            inputFormatters: [
-                              LengthLimitingTextInputFormatter(1),
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            style: GoogleFonts.outfit(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                            decoration: const InputDecoration(
-                              counterText: '',
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            onChanged: (value) => _onDigitEntered(index, value),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+  Widget _buildTopBar() {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _line),
+          ),
+          child: const Icon(
+            Icons.lock_outline_rounded,
+            color: _navy,
+            size: 19,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'VIT-AP NEXUS',
+                style: GoogleFonts.spaceGrotesk(
+                  color: _orange,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // Error Display
-              if (authState.errorMessage != null && !authState.isLoading)
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline_rounded,
-                          size: 16, color: Color(0xFFFCA5A5)),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          authState.errorMessage!,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFFFCA5A5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              const SizedBox(height: 28),
-
-              // Primary Action Button
-              Container(
-                width: double.infinity,
-                height: 54,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    colors: [
-                      AppTheme.primary,
-                      AppTheme.primaryAccent,
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ElevatedButton(
-                  onPressed: authState.isLoading ? null : _submitOtp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: authState.isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Text(
-                          'Verify & Proceed',
-                          style: GoogleFonts.outfit(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Resend Timer Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Didn't get the code? ",
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: const Color(0xFF94A3B8),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: _isCooldownActive ? null : _resendOtp,
-                    borderRadius: BorderRadius.circular(6),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      child: Text(
-                        _isCooldownActive
-                            ? 'Resend in ${_cooldownSeconds}s'
-                            : 'Resend OTP',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: _isCooldownActive
-                              ? const Color(0xFF64748B)
-                              : AppTheme.cyanAccent,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Back Button
-              TextButton.icon(
-                onPressed: () => ref.read(authProvider.notifier).logout(),
-                icon: const Icon(Icons.arrow_back_rounded, size: 16),
-                label: Text(
-                  'Back to Sign In',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF94A3B8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              const SizedBox(height: 3),
+              Text(
+                'Secure sign-in',
+                style: GoogleFonts.dmSans(
+                  color: _ink,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 9,
+            vertical: 6,
+          ),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _line),
+          ),
+          child: Text(
+            'OTP',
+            style: GoogleFonts.spaceGrotesk(
+              color: _navy,
+              fontSize: 8,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .8,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecurityHeader({
+    required String username,
+    required bool compact,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: compact ? 64 : 74,
+          height: compact ? 64 : 74,
+          decoration: BoxDecoration(
+            color: _surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: _line),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D17202A),
+                blurRadius: 18,
+                offset: Offset(0, 7),
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: Image.asset(
+              'assets/images/konoha_logo.png',
+              width: compact ? 35 : 40,
+              height: compact ? 35 : 40,
+              errorBuilder: (_, _, _) => const Icon(
+                Icons.verified_user_outlined,
+                color: _navy,
+                size: 34,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Security Verification',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.dmSans(
+            color: _ink,
+            fontSize: compact ? 25 : 29,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.7,
+            height: 1.05,
+          ),
+        ),
+        const SizedBox(height: 9),
+        Text(
+          'Enter the 6-digit code sent to',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.dmSans(
+            color: _muted,
+            fontSize: 13,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          username.isEmpty ? 'your registered account' : username,
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.spaceGrotesk(
+            color: _blue,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOtpFields() {
+    return AnimatedBuilder(
+      animation: _shakeAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(_shakeAnimation.value, 0),
+          child: child,
+        );
+      },
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(_otpLength, (index) {
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: index == _otpLength - 1 ? 0 : 7,
+              ),
+              child: _buildOtpBox(index),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildOtpBox(int index) {
+    return AnimatedBuilder(
+      animation: _focusNodes[index],
+      builder: (context, _) {
+        final isFocused = _focusNodes[index].hasFocus;
+        final hasText = _controllers[index].text.isNotEmpty;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 58,
+          decoration: BoxDecoration(
+            color: isFocused ? _surface : _soft,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: isFocused
+                  ? _blue
+                  : hasText
+                      ? const Color(0xFF9BB3E8)
+                      : _line,
+              width: isFocused ? 2 : 1,
+            ),
+            boxShadow: isFocused
+                ? const [
+                    BoxShadow(
+                      color: Color(0x16356AE6),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: TextField(
+            controller: _controllers[index],
+            focusNode: _focusNodes[index],
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            textInputAction: TextInputAction.next,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(1),
+              FilteringTextInputFormatter.digitsOnly,
+            ],
+            style: GoogleFonts.dmSans(
+              color: _ink,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+            decoration: const InputDecoration(
+              counterText: '',
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+            onChanged: (value) => _onDigitEntered(index, value),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildError(dynamic authState) {
+    if (authState.errorMessage == null || authState.isLoading) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 13,
+        vertical: 11,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCEDEA),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: const Color(0xFFE7C6C1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 17,
+            color: _red,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              authState.errorMessage!,
+              style: GoogleFonts.dmSans(
+                color: _red,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerifyButton(dynamic authState) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: FilledButton(
+        onPressed: authState.isLoading ? null : _submitOtp,
+        style: FilledButton.styleFrom(
+          backgroundColor: _navy,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: _navy.withValues(alpha: .55),
+          disabledForegroundColor: Colors.white70,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(13),
+          ),
+        ),
+        child: authState.isLoading
+            ? const SizedBox(
+                width: 21,
+                height: 21,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: Colors.white,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Verify & Proceed',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildResendRow() {
+    final active = _isCooldownActive;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "Didn't get the code?",
+          style: GoogleFonts.dmSans(
+            color: _muted,
+            fontSize: 12.5,
+          ),
+        ),
+        const SizedBox(width: 6),
+        InkWell(
+          onTap: active ? null : _resendOtp,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 3,
+            ),
+            child: Text(
+              active
+                  ? 'Resend in ${_cooldownSeconds}s'
+                  : 'Resend OTP',
+              style: GoogleFonts.dmSans(
+                color: active ? _muted : _blue,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecurityNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: _line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.privacy_tip_outlined,
+            size: 17,
+            color: Color(0xFF278B68),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Your verification code is used only to complete this secure sign-in.',
+              style: GoogleFonts.dmSans(
+                color: _muted,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return TextButton.icon(
+      onPressed: () => ref.read(authProvider.notifier).logout(),
+      icon: const Icon(
+        Icons.arrow_back_rounded,
+        size: 16,
+      ),
+      label: Text(
+        'Back to Sign In',
+        style: GoogleFonts.dmSans(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      style: TextButton.styleFrom(
+        foregroundColor: _muted,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 15,
+          vertical: 11,
         ),
       ),
     );

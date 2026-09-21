@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
-import '../theme/app_theme.dart';
 import '../utils/vtop_helpers.dart';
 import '../widgets/last_synced_badge.dart';
-import '../widgets/mesh_ambient_background.dart';
 
 class MarksScreen extends ConsumerStatefulWidget {
   const MarksScreen({super.key});
@@ -16,8 +15,20 @@ class MarksScreen extends ConsumerStatefulWidget {
   ConsumerState<MarksScreen> createState() => _MarksScreenState();
 }
 
-class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProviderStateMixin {
+class _MarksScreenState extends ConsumerState<MarksScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
+  static const _paper = Color(0xFFF4F2ED);
+  static const _surface = Color(0xFFFFFEFB);
+  static const _ink = Color(0xFF17202A);
+  static const _navy = Color(0xFF172B4D);
+  static const _blue = Color(0xFF356AE6);
+  static const _orange = Color(0xFFE47543);
+  static const _green = Color(0xFF278B68);
+  static const _muted = Color(0xFF6E7681);
+  static const _line = Color(0xFFE2DED5);
+  static const _soft = Color(0xFFF0EEE8);
 
   @override
   void initState() {
@@ -31,223 +42,382 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
     super.dispose();
   }
 
+  TextStyle get _labelStyle => GoogleFonts.spaceGrotesk(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.0,
+      );
+
+  TextStyle get _bodyStyle => GoogleFonts.dmSans();
+
   @override
   Widget build(BuildContext context) {
     final marksAsync = ref.watch(marksProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: _paper,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(98),
+        preferredSize: const Size.fromHeight(132),
         child: AppBar(
-          titleSpacing: 0,
-          toolbarHeight: 48,
-          backgroundColor: AppTheme.surface.withValues(alpha: 0.95),
+          backgroundColor: _paper,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
-          scrolledUnderElevation: 1.0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-          title: Text(
-            'Marks & Assessments',
-            style: GoogleFonts.outfit(fontSize: 17, fontWeight: FontWeight.bold),
-          ),
-          actions: const [],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(42),
-            child: Container(
-              height: 36,
-              margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF24344D)),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                indicator: BoxDecoration(
-                  color: AppTheme.primary,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: 0.35),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                labelColor: Colors.white,
-                unselectedLabelColor: const Color(0xFF94A3B8),
-                labelStyle: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.bold),
-                unselectedLabelStyle: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w500),
-                tabs: const [
-                  Tab(text: 'Theory Assessments'),
-                  Tab(text: 'Lab / Practicals'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: MeshAmbientBackground(
-        child: Column(
-          children: [
-            LastSyncedBadge(
-              lastSynced: StorageService.getMemoryTimestamp('marks'),
-              isRefreshing: marksAsync.isLoading,
-              onRefresh: () => ref.refresh(marksProvider.future),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            ),
-            Expanded(
-              child: marksAsync.when(
-          data: (marksList) {
-            if (marksList.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
+          scrolledUnderElevation: 0,
+          automaticallyImplyLeading: false,
+          titleSpacing: 0,
+          toolbarHeight: 82,
+          title: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            child: Row(
+              children: [
+                _BackButton(onTap: () => Navigator.of(context).maybePop()),
+                const SizedBox(width: 14),
+                Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppTheme.primary.withValues(alpha: 0.2),
-                              AppTheme.cyanAccent.withValues(alpha: 0.05),
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                      Text('ACADEMICS', style: _labelStyle.copyWith(color: _orange)),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Marks & Assessments',
+                        style: GoogleFonts.dmSans(
+                          color: _ink,
+                          fontSize: 23,
+                          fontWeight: FontWeight.w800,
+                          height: 1.05,
                         ),
-                        child: const Icon(Icons.analytics_outlined, size: 40, color: AppTheme.cyanAccent),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No Marks Released',
-                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'No marks uploaded for this semester yet.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)),
                       ),
                     ],
                   ),
                 ),
-              );
-            }
-
-            final theoryMarks = <dynamic>[];
-            final labMarks = <dynamic>[];
-
-            for (var item in marksList) {
-              final isLab = VtopHelpers.isLabCourse(
-                courseType: item['course_type']?.toString(),
-                courseSlot: item['slot']?.toString(),
-              );
-              if (isLab) {
-                labMarks.add(item);
-              } else {
-                theoryMarks.add(item);
-              }
-            }
-
-            return TabBarView(
-              controller: _tabController,
-              children: [
-                _buildMarksList(theoryMarks, isLabTab: false),
-                _buildMarksList(labMarks, isLabTab: true),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _line),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    color: _navy,
+                    size: 20,
+                  ),
+                ),
               ],
-            );
-          },
-          loading: () => _buildSkeletonLoading(),
-          error: (err, stack) => Center(
+            ),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(50),
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.error.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.error_outline_rounded, size: 40, color: AppTheme.error),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _soft,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _line),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: _muted,
+                  labelStyle: GoogleFonts.spaceGrotesk(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .2,
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Failed to Load Marks',
-                    style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  unselectedLabelStyle: GoogleFonts.spaceGrotesk(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    err.toString(),
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(fontSize: 12, color: Colors.white54, height: 1.3),
+                  indicator: BoxDecoration(
+                    color: _navy,
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: () => ref.refresh(marksProvider.future),
-                    icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: const Text('Try Again'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ],
+                  tabs: const [
+                    Tab(text: 'THEORY'),
+                    Tab(text: 'LAB / PRACTICAL'),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-            ),
-          ],
-        ),
       ),
-    );
-  }
-
-  Widget _buildSkeletonLoading() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
         children: [
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
+          LastSyncedBadge(
+            lastSynced: StorageService.getMemoryTimestamp('marks'),
+            isRefreshing: marksAsync.isLoading,
+            onRefresh: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await refreshMarks(ref);
+              } catch (e) {
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Could not update marks: $e')),
+                  );
+                }
+              }
+            },
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
           ),
-          SizedBox(height: 16),
-          Text('Loading marks...', style: TextStyle(color: Colors.white54, fontSize: 13)),
+          Expanded(
+            child: marksAsync.when(
+              data: (marksList) {
+                if (marksList.isEmpty) return _buildNoMarks();
+
+                final theoryMarks = <dynamic>[];
+                final labMarks = <dynamic>[];
+
+                for (final item in marksList) {
+                  final isLab = VtopHelpers.isLabCourse(
+                    courseType: item['course_type']?.toString(),
+                    courseSlot: item['slot']?.toString(),
+                  );
+                  if (isLab) {
+                    labMarks.add(item);
+                  } else {
+                    theoryMarks.add(item);
+                  }
+                }
+
+                return TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildMarksList(theoryMarks, isLabTab: false),
+                    _buildMarksList(labMarks, isLabTab: true),
+                  ],
+                );
+              },
+              loading: _buildSkeletonLoading,
+              error: (err, stack) => _buildError(err),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildMarksList(List<dynamic> list, {required bool isLabTab}) {
+  Widget _buildNoMarks() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        try {
+          await refreshMarks(ref);
+        } catch (e) {
+          if (mounted) {
+            messenger.showSnackBar(
+              SnackBar(content: Text('Could not update marks: $e')),
+            );
+          }
+        }
+      },
+      color: _blue,
+      backgroundColor: _surface,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * .55,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: _surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _line),
+                      ),
+                      child: const Icon(
+                        Icons.analytics_outlined,
+                        color: _blue,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'No Marks Released',
+                      style: GoogleFonts.dmSans(
+                        color: _ink,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'No marks have been uploaded for this semester yet.\nPull down to refresh.',
+                      textAlign: TextAlign.center,
+                      style: _bodyStyle.copyWith(
+                        color: _muted,
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError(Object err) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        try {
+          await refreshMarks(ref);
+        } catch (_) {}
+      },
+      color: _blue,
+      backgroundColor: _surface,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * .55,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFCEDEA),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFE9C8C0)),
+                      ),
+                      child: const Icon(
+                        Icons.error_outline_rounded,
+                        color: _orange,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to Load Marks',
+                      style: GoogleFonts.dmSans(
+                        color: _ink,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      err.toString(),
+                      textAlign: TextAlign.center,
+                      style: _bodyStyle.copyWith(
+                        color: _muted,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        try {
+                          await refreshMarks(ref);
+                        } catch (_) {}
+                      },
+                      icon: const Icon(Icons.refresh_rounded, size: 17),
+                      label: const Text('Try Again'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _navy,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 11,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: _blue,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Loading marks...',
+            style: _bodyStyle.copyWith(
+              color: _muted,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarksList(
+    List<dynamic> list, {
+    required bool isLabTab,
+  }) {
     if (list.isEmpty) {
       return RefreshIndicator(
-        onRefresh: () async => ref.refresh(marksProvider.future),
-        color: AppTheme.cyanAccent,
-        backgroundColor: AppTheme.surface,
+        onRefresh: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          try {
+            await refreshMarks(ref);
+          } catch (e) {
+            if (mounted) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Could not update marks: $e')),
+              );
+            }
+          }
+        },
+        color: _blue,
+        backgroundColor: _surface,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             SizedBox(
-              height: MediaQuery.of(context).size.height * 0.5,
+              height: MediaQuery.of(context).size.height * .5,
               child: Center(
                 child: Text(
-                  isLabTab ? 'No lab assessments found.' : 'No theory assessments found.',
-                  style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8)),
+                  isLabTab
+                      ? 'No lab assessments found.'
+                      : 'No theory assessments found.',
+                  style: _bodyStyle.copyWith(
+                     fontSize: 13,
+                     color: _muted,
+                  ),
                 ),
               ),
             ),
@@ -257,12 +427,23 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
     }
 
     return RefreshIndicator(
-      onRefresh: () async => ref.refresh(marksProvider.future),
-      color: AppTheme.cyanAccent,
-      backgroundColor: AppTheme.surface,
+      onRefresh: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        try {
+          await refreshMarks(ref);
+        } catch (e) {
+          if (mounted) {
+            messenger.showSnackBar(
+              SnackBar(content: Text('Could not update marks: $e')),
+            );
+          }
+        }
+      },
+      color: _blue,
+      backgroundColor: _surface,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         itemCount: list.length,
         itemBuilder: (context, index) {
           final subject = list[index];
@@ -273,252 +454,361 @@ class _MarksScreenState extends ConsumerState<MarksScreen> with SingleTickerProv
           final details = (subject['details'] as List<dynamic>?) ?? [];
 
           double totalWeightage = 0;
-          for (var d in details) {
-            final weight = double.tryParse(d['weightage_mark']?.toString() ?? '') ?? 0;
-            totalWeightage += weight;
+          for (final d in details) {
+            totalWeightage +=
+                double.tryParse(d['weightage_mark']?.toString() ?? '') ?? 0;
           }
 
-          final themeColor = isLabTab ? const Color(0xFF10B981) : AppTheme.primaryAccent;
+          return _buildCourseCard(
+            courseTitle: courseTitle.toString(),
+            courseCode: courseCode.toString(),
+            faculty: faculty.toString(),
+            slot: slot.toString(),
+            details: details,
+            totalWeightage: totalWeightage,
+            isLabTab: isLabTab,
+            index: index,
+          );
+        },
+      ),
+    );
+  }
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isLabTab
-                    ? const Color(0xFF10B981).withValues(alpha: 0.25)
-                    : const Color(0xFF24344D),
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  childrenPadding: EdgeInsets.zero,
-                  backgroundColor: Colors.transparent,
-                  collapsedBackgroundColor: Colors.transparent,
-                  title: Row(
+  Widget _buildCourseCard({
+    required String courseTitle,
+    required String courseCode,
+    required String faculty,
+    required String slot,
+    required List<dynamic> details,
+    required double totalWeightage,
+    required bool isLabTab,
+    required int index,
+  }) {
+    final accent = isLabTab ? _green : _blue;
+    final accentSoft = isLabTab
+        ? const Color(0xFFE8F4EF)
+        : const Color(0xFFEAF0FD);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C17202A),
+            blurRadius: 14,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            dividerColor: Colors.transparent,
+            splashColor: accent.withValues(alpha: .05),
+            highlightColor: Colors.transparent,
+          ),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.fromLTRB(15, 8, 12, 8),
+            childrenPadding: EdgeInsets.zero,
+            backgroundColor: _surface,
+            collapsedBackgroundColor: _surface,
+            shape: const RoundedRectangleBorder(),
+            collapsedShape: const RoundedRectangleBorder(),
+            iconColor: _muted,
+            collapsedIconColor: _muted,
+            title: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 4,
+                  height: 46,
+                  margin: const EdgeInsets.only(right: 12, top: 1),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: themeColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          courseCode,
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isLabTab ? AppTheme.cyanAccent : AppTheme.primaryAccent,
-                          ),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 5,
+                        children: [
+                          if (courseCode.isNotEmpty)
+                            _MetaChip(
+                              text: courseCode,
+                              color: accent,
+                              background: accentSoft,
+                            ),
+                          if (slot.isNotEmpty)
+                            _MetaChip(
+                              text: slot,
+                              color: _muted,
+                              background: _soft,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        courseTitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          color: _ink,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          height: 1.18,
                         ),
                       ),
-                      if (slot.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            slot,
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: isLabTab ? AppTheme.cyanAccent : Colors.white70,
+                      if (faculty.isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.person_outline_rounded,
+                              size: 13,
+                              color: _muted,
                             ),
-                          ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                faculty,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _bodyStyle.copyWith(
+                                  color: _muted,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                ),
+                if (totalWeightage > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 4, top: 2),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          courseTitle,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                          totalWeightage.toStringAsFixed(1),
+                          style: GoogleFonts.dmSans(
+                            color: accent,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        if (faculty.isNotEmpty) ...[
-                          const SizedBox(height: 1),
-                          Text(
-                            faculty,
-                            style: GoogleFonts.inter(
-                              fontSize: 10.5,
-                              color: const Color(0xFF94A3B8),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        Text(
+                          'WEIGHTAGE',
+                          style: _labelStyle.copyWith(
+                            color: _muted,
+                            fontSize: 7.5,
+                            letterSpacing: .7,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (totalWeightage > 0)
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              totalWeightage.toStringAsFixed(1),
-                              style: GoogleFonts.outfit(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.cyanAccent,
-                              ),
-                            ),
-                            Text(
-                              'Weightage',
-                              style: GoogleFonts.inter(
-                                fontSize: 9.5,
-                                color: const Color(0xFF94A3B8),
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54, size: 20),
-                    ],
+              ],
+            ),
+            children: [
+              Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8F6F1),
+                  border: Border(
+                    top: BorderSide(color: _line),
                   ),
-                  children: [
-                    const Divider(height: 1, color: Color(0xFF1E293B)),
-                    if (details.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          'No individual assessment marks released yet.',
-                          style: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 11),
+                ),
+                padding: const EdgeInsets.fromLTRB(15, 14, 15, 16),
+                child: details.isEmpty
+                    ? Text(
+                        'No individual assessment marks released yet.',
+                        style: _bodyStyle.copyWith(
+                          color: _muted,
+                          fontSize: 12,
                         ),
                       )
-                    else
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        color: const Color(0xFF0F172A),
-                        child: Column(
-                          children: [
-                            // Header Row
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: Text(
-                                    'ASSESSMENT',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF64748B),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    'SCORED / MAX',
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF64748B),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    'WEIGHTAGE',
-                                    textAlign: TextAlign.right,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF64748B),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const Divider(color: Color(0xFF1E293B), height: 12),
-                            // Data Rows
-                            ...details.map((d) {
-                              final title = d['mark_title'] ?? 'Assessment';
-                              final scored = d['scored_mark'] ?? '-';
-                              final maxM = d['max_mark'] ?? '-';
-                              final weight = d['weightage_mark'] ?? '-';
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 4,
-                                      child: Text(
-                                        title,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 3,
-                                      child: Text(
-                                        '$scored / $maxM',
-                                        textAlign: TextAlign.center,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11.5,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 3,
-                                      child: Text(
-                                        weight,
-                                        textAlign: TextAlign.right,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.cyanAccent,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
+                    : _buildDetailsTable(
+                        details,
+                        accent,
                       ),
-                  ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    )
+        .animate(delay: (30 * index).ms)
+        .fadeIn(duration: 300.ms)
+        .slideY(begin: .035, end: 0);
+  }
+
+  Widget _buildDetailsTable(List<dynamic> details, Color accent) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Text(
+                'ASSESSMENT',
+                style: _labelStyle.copyWith(
+                  color: _muted,
+                  fontSize: 8.5,
                 ),
               ),
             ),
-          )
-              .animate(delay: (30 * index).ms)
-              .fadeIn(duration: 300.ms)
-              .slideY(begin: 0.04, end: 0);
-        },
+            Expanded(
+              flex: 3,
+              child: Text(
+                'SCORED / MAX',
+                textAlign: TextAlign.center,
+                style: _labelStyle.copyWith(
+                  color: _muted,
+                  fontSize: 8.5,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 3,
+              child: Text(
+                'WEIGHTAGE',
+                textAlign: TextAlign.right,
+                style: _labelStyle.copyWith(
+                  color: _muted,
+                  fontSize: 8.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        const Divider(height: 1, color: _line),
+        const SizedBox(height: 5),
+        ...details.map((d) {
+          final title = d['mark_title'] ?? 'Assessment';
+          final scored = d['scored_mark'] ?? '-';
+          final maxM = d['max_mark'] ?? '-';
+          final weight = d['weightage_mark'] ?? '-';
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    title.toString(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: _bodyStyle.copyWith(
+                      color: _ink,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    '$scored / $maxM',
+                    textAlign: TextAlign.center,
+                    style: _bodyStyle.copyWith(
+                      color: _navy,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    weight.toString(),
+                    textAlign: TextAlign.right,
+                    style: GoogleFonts.dmSans(
+                      color: accent,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _BackButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _BackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFEFB),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2DED5)),
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            color: Color(0xFF172B4D),
+            size: 19,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final String text;
+  final Color color;
+  final Color background;
+
+  const _MetaChip({
+    required this.text,
+    required this.color,
+    required this.background,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.spaceGrotesk(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .45,
+        ),
       ),
     );
   }

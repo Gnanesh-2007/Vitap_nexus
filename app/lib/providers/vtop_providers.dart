@@ -64,7 +64,7 @@ class VtopDataState<T> {
 // SEMESTER RESOLVER HELPER
 // ============================================================================
 
-Future<String> _resolveSemesterId(Ref ref, AuthState auth) async {
+Future<String> _resolveSemesterId(dynamic ref, AuthState auth) async {
   if (auth.activeSemesterId != null && auth.activeSemesterId!.isNotEmpty) {
     return auth.activeSemesterId!;
   }
@@ -238,6 +238,8 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
               .then((c) => StorageService.setCache('courses', c)).catchError((_) {}),
           apiService.fetchDigitalAssignments(username: auth.username!, password: auth.password!, semSubId: semId)
               .then((a) => StorageService.setCache('assignments', a)).catchError((_) {}),
+          apiService.fetchExamSchedule(username: auth.username!, password: auth.password!, semSubId: semId)
+              .then((e) => StorageService.setCache('exam_schedule', e)).catchError((_) {}),
         ],
       ]));
 
@@ -482,20 +484,20 @@ final gradesProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 });
 
 /// Exam Schedule Provider — returns cached exam schedule instantly (0ms)
-final examScheduleProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+final examScheduleProvider = FutureProvider<List<dynamic>>((ref) async {
   final mem = StorageService.getMemoryCache('exam_schedule');
-  if (mem is Map && mem.isNotEmpty) {
-    return Map<String, dynamic>.from(mem);
+  if (mem is List && mem.isNotEmpty) {
+    return List<dynamic>.from(mem);
   }
 
   final disk = await StorageService.getCache('exam_schedule');
-  if (disk is Map && disk.isNotEmpty) {
-    return Map<String, dynamic>.from(disk);
+  if (disk is List && disk.isNotEmpty) {
+    return List<dynamic>.from(disk);
   }
 
   final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
-    return {};
+    return [];
   }
 
   try {
@@ -505,14 +507,105 @@ final examScheduleProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       password: auth.password!,
       semSubId: semId,
     );
-    await StorageService.setCache('exam_schedule', fresh);
-    return fresh;
+    final result = fresh is List ? fresh : <dynamic>[];
+    await StorageService.setCache('exam_schedule', result);
+    return List<dynamic>.from(result);
   } catch (e) {
     debugPrint('examScheduleProvider network error (falling back to cache): $e');
     final fallback = await StorageService.getCache('exam_schedule');
-    if (fallback is Map && fallback.isNotEmpty) {
-      return Map<String, dynamic>.from(fallback);
+    if (fallback is List && fallback.isNotEmpty) {
+      return List<dynamic>.from(fallback);
     }
     rethrow;
   }
 });
+
+// ============================================================================
+// 3. SINGLE-FEATURE REFRESH FUNCTIONS (PULL-TO-REFRESH)
+// Only fetches latest data for the specific screen/feature
+// ============================================================================
+
+/// Forces a network fetch for ONLY attendance data, updating cache & UI
+Future<List<dynamic>> refreshAttendance(dynamic ref) async {
+  final AuthState auth = (ref is WidgetRef ? ref.read(authProvider) : (ref as Ref).read(authProvider));
+  if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
+    throw Exception('Not authenticated');
+  }
+  final semId = await _resolveSemesterId(ref, auth);
+  final fresh = await apiService.fetchAttendance(
+    username: auth.username!,
+    password: auth.password!,
+    semSubId: semId,
+  );
+  await StorageService.setCache('attendance', fresh);
+  if (ref is WidgetRef) {
+    ref.invalidate(attendanceProvider);
+  } else if (ref is Ref) {
+    ref.invalidate(attendanceProvider);
+  }
+  return fresh;
+}
+
+/// Forces a network fetch for ONLY marks data, updating cache & UI
+Future<List<dynamic>> refreshMarks(dynamic ref) async {
+  final AuthState auth = (ref is WidgetRef ? ref.read(authProvider) : (ref as Ref).read(authProvider));
+  if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
+    throw Exception('Not authenticated');
+  }
+  final semId = await _resolveSemesterId(ref, auth);
+  final fresh = await apiService.fetchMarks(
+    username: auth.username!,
+    password: auth.password!,
+    semSubId: semId,
+  );
+  await StorageService.setCache('marks', fresh);
+  if (ref is WidgetRef) {
+    ref.invalidate(marksProvider);
+  } else if (ref is Ref) {
+    ref.invalidate(marksProvider);
+  }
+  return fresh;
+}
+
+/// Forces a network fetch for ONLY exam schedule data, updating cache & UI
+Future<List<dynamic>> refreshExamSchedule(dynamic ref) async {
+  final AuthState auth = (ref is WidgetRef ? ref.read(authProvider) : (ref as Ref).read(authProvider));
+  if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
+    throw Exception('Not authenticated');
+  }
+  final semId = await _resolveSemesterId(ref, auth);
+  final fresh = await apiService.fetchExamSchedule(
+    username: auth.username!,
+    password: auth.password!,
+    semSubId: semId,
+  );
+  final result = fresh is List ? fresh : <dynamic>[];
+  await StorageService.setCache('exam_schedule', result);
+  if (ref is WidgetRef) {
+    ref.invalidate(examScheduleProvider);
+  } else if (ref is Ref) {
+    ref.invalidate(examScheduleProvider);
+  }
+  return result;
+}
+
+/// Forces a network fetch for ONLY timetable data, updating cache & UI
+Future<Map<String, dynamic>> refreshTimetable(dynamic ref) async {
+  final AuthState auth = (ref is WidgetRef ? ref.read(authProvider) : (ref as Ref).read(authProvider));
+  if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
+    throw Exception('Not authenticated');
+  }
+  final semId = await _resolveSemesterId(ref, auth);
+  final fresh = await apiService.fetchTimetable(
+    username: auth.username!,
+    password: auth.password!,
+    semSubId: semId,
+  );
+  await StorageService.setCache('timetable', fresh);
+  if (ref is WidgetRef) {
+    ref.invalidate(timetableProvider);
+  } else if (ref is Ref) {
+    ref.invalidate(timetableProvider);
+  }
+  return fresh;
+}
