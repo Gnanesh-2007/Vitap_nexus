@@ -153,33 +153,34 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   // ── Top Navigation Bar ──
   Widget _buildTopBar(DateTime? lastSyncedTime, bool isRefreshing) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(
-              Icons.arrow_back_rounded,
-              color: _navy,
-              size: 24,
-            ),
-            splashRadius: 22,
-          ),
-          const SizedBox(width: 4),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  'EXAMINATIONS',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                    color: _orange,
+                  ),
+                ),
+                const SizedBox(height: 3),
                 Text(
                   'Exam Schedule',
                   style: GoogleFonts.dmSans(
                     color: _ink,
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
+                    height: 1.05,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   'Last Synced: ${_formatLastSynced(lastSyncedTime)}',
                   style: GoogleFonts.dmSans(
@@ -191,23 +192,37 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
               ],
             ),
           ),
-          IconButton(
-            onPressed: isRefreshing ? null : _onRefresh,
-            icon: isRefreshing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(_navy),
-                    ),
-                  )
-                : const Icon(
-                    Icons.refresh_rounded,
-                    color: _navy,
-                    size: 24,
-                  ),
-            splashRadius: 22,
+          Material(
+            color: _surface,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: isRefreshing ? null : _onRefresh,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _line),
+                ),
+                child: isRefreshing
+                    ? const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(_navy),
+                          ),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.refresh_rounded,
+                        color: _navy,
+                        size: 20,
+                      ),
+              ),
+            ),
           ),
         ],
       ),
