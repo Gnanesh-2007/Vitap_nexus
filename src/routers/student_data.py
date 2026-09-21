@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import List
@@ -289,8 +290,18 @@ async def get_biometric(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     try:
+        raw_date = request.date.strip()
+        formatted_date = raw_date
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d-%b-%Y", "%d-%B-%Y", "%d.%m.%Y", "%d/%m/%Y"):
+            try:
+                dt = datetime.strptime(raw_date, fmt)
+                formatted_date = dt.strftime("%d/%m/%Y")
+                break
+            except ValueError:
+                pass
+
         biometric_logs = await client.get_biometric(
-            date=request.date
+            date=formatted_date
         )
 
         return biometric_logs

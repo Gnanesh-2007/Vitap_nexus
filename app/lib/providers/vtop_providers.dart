@@ -227,8 +227,12 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
         apiService.fetchBiometric(
           username: auth.username!,
           password: auth.password!,
-          date: '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
-        ).then((b) => StorageService.setCache('biometric', b)).catchError((_) {}),
+          date: '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}',
+        ).then((b) {
+          final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+          StorageService.setCache('biometric', b);
+          StorageService.setCache('biometric_$dateKey', b);
+        }).catchError((_) {}),
         apiService.fetchPendingPayments(username: auth.username!, password: auth.password!)
             .then((p) => StorageService.setCache('payments', p)).catchError((_) {}),
         apiService.fetchPaymentReceipts(username: auth.username!, password: auth.password!)

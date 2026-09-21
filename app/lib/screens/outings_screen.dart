@@ -30,8 +30,8 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
 
   bool _isSubmitting = false;
 
-  late Future<Map<String, dynamic>> _generalOutingsFuture;
-  late Future<Map<String, dynamic>> _weekendOutingsFuture;
+  late Future<dynamic> _generalOutingsFuture;
+  late Future<dynamic> _weekendOutingsFuture;
 
   // Editorial campus theme
   static const _paper = Color(0xFFF4F2ED);
@@ -63,6 +63,20 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
       username: auth.username ?? '',
       password: auth.password ?? '',
     );
+  }
+
+  List<Map<String, dynamic>> _extractRequests(dynamic data) {
+    if (data == null) return [];
+    if (data is List) {
+      return data.whereType<Map<String, dynamic>>().toList();
+    }
+    if (data is Map) {
+      final reqs = data['requests'] ?? data['root'] ?? data['data'];
+      if (reqs is List) {
+        return reqs.whereType<Map<String, dynamic>>().toList();
+      }
+    }
+    return [];
   }
 
   @override
@@ -394,15 +408,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
             Icons.directions_walk_rounded,
           ),
           const SizedBox(height: 10),
-          FutureBuilder<Map<String, dynamic>>(
+          FutureBuilder<dynamic>(
             future: _generalOutingsFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return _buildSkeletonOutings();
               }
 
-              final requests =
-                  (snapshot.data?['requests'] as List<dynamic>?) ?? [];
+              final requests = _extractRequests(snapshot.data);
 
               if (requests.isEmpty) {
                 return _buildEmpty(
@@ -424,15 +437,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
             Icons.weekend_rounded,
           ),
           const SizedBox(height: 10),
-          FutureBuilder<Map<String, dynamic>>(
+          FutureBuilder<dynamic>(
             future: _weekendOutingsFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return _buildSkeletonOutings();
               }
 
-              final requests =
-                  (snapshot.data?['requests'] as List<dynamic>?) ?? [];
+              final requests = _extractRequests(snapshot.data);
 
               if (requests.isEmpty) {
                 return _buildEmpty(
@@ -577,7 +589,8 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
 
   Widget _buildOutingCard(Map<String, dynamic> req, bool isWeekend) {
     final status = req['status']?.toString() ?? 'Pending';
-    final isApproved = status.toLowerCase().contains('approved');
+    final isApproved = status.toLowerCase().contains('approved') ||
+        status.toLowerCase().contains('accepted');
     final isPending = status.toLowerCase().contains('pending') ||
         status.toLowerCase().contains('applied');
 
@@ -585,6 +598,34 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
         req['booking_id']?.toString() ??
         req['appl_id']?.toString() ??
         '';
+
+    final place = req['place_of_visit']?.toString() ??
+        req['out_place']?.toString() ??
+        req['place']?.toString() ??
+        'Campus Outing';
+
+    final outDate = req['from_date']?.toString() ??
+        req['out_date']?.toString() ??
+        req['date']?.toString() ??
+        '';
+
+    final outTime = req['from_time']?.toString() ??
+        req['out_time']?.toString() ??
+        req['time']?.toString() ??
+        '';
+
+    final inDate = req['to_date']?.toString() ??
+        req['in_date']?.toString();
+
+    final inTime = req['to_time']?.toString() ??
+        req['in_time']?.toString();
+
+    final purpose = req['purpose_of_visit']?.toString() ??
+        req['reason']?.toString() ??
+        '';
+
+    final hostel = req['hostel_block']?.toString();
+    final room = req['room_number']?.toString();
 
     final statusColor = isApproved
         ? _green
@@ -634,15 +675,31 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
               ),
               const SizedBox(width: 11),
               Expanded(
-                child: Text(
-                  req['out_place'] ?? req['place'] ?? 'Outing',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dmSans(
-                    color: _ink,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      place,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        color: _ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (hostel != null && hostel.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Block: $hostel ${room != null && room.isNotEmpty ? '• Room $room' : ''}',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 8.5,
+                          color: _muted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
@@ -687,7 +744,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Out: ${req['out_date'] ?? ''} ${req['out_time'] ?? ''}',
+                    'Out: $outDate $outTime'.trim(),
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 9.5,
@@ -696,7 +753,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
                     ),
                   ),
                 ),
-                if (req['in_date'] != null) ...[
+                if (inDate != null && inDate.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   const Icon(
                     Icons.home_rounded,
@@ -706,7 +763,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
                   const SizedBox(width: 5),
                   Expanded(
                     child: Text(
-                      'In: ${req['in_date'] ?? ''} ${req['in_time'] ?? ''}',
+                      'In: $inDate ${inTime ?? ''}'.trim(),
                       textAlign: TextAlign.right,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.spaceGrotesk(
@@ -720,8 +777,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
               ],
             ),
           ),
-          if (req['purpose_of_visit'] != null ||
-              req['reason'] != null) ...[
+          if (purpose.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
               'PURPOSE',
@@ -734,7 +790,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
             ),
             const SizedBox(height: 3),
             Text(
-              '${req['purpose_of_visit'] ?? req['reason'] ?? ''}',
+              purpose,
               style: GoogleFonts.dmSans(
                 fontSize: 11.5,
                 color: _muted,

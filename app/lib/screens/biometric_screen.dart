@@ -43,20 +43,22 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
   Future<List<dynamic>> _getBiometricData({
     bool forceRefresh = false,
   }) async {
+    final dateStr = DateFormat('dd/MM/yyyy').format(_selectedDate);
+    final cacheKey = 'biometric_${DateFormat('yyyy-MM-dd').format(_selectedDate)}';
+
     if (!forceRefresh) {
-      final mem = StorageService.getMemoryCache('biometric');
+      final mem = StorageService.getMemoryCache(cacheKey);
       if (mem is List && mem.isNotEmpty) {
         return List<dynamic>.from(mem);
       }
 
-      final disk = await StorageService.getCache('biometric');
+      final disk = await StorageService.getCache(cacheKey);
       if (disk is List && disk.isNotEmpty) {
         return List<dynamic>.from(disk);
       }
     }
 
     final auth = ref.read(authProvider);
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
     try {
       final fresh = await apiService.fetchBiometric(
@@ -66,7 +68,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
       );
 
       if (fresh.isNotEmpty) {
-        await StorageService.setCache('biometric', fresh);
+        await StorageService.setCache(cacheKey, fresh);
         return fresh;
       }
     } catch (e) {
@@ -75,8 +77,8 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
         'Checking offline cache...',
       );
 
-      final fallback = StorageService.getMemoryCache('biometric') ??
-          await StorageService.getCache('biometric');
+      final fallback = StorageService.getMemoryCache(cacheKey) ??
+          await StorageService.getCache(cacheKey);
 
       if (fallback is List && fallback.isNotEmpty) {
         return List<dynamic>.from(fallback);
@@ -85,8 +87,8 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
       rethrow;
     }
 
-    final fallback = StorageService.getMemoryCache('biometric') ??
-        await StorageService.getCache('biometric');
+    final fallback = StorageService.getMemoryCache(cacheKey) ??
+        await StorageService.getCache(cacheKey);
 
     if (fallback is List && fallback.isNotEmpty) {
       return List<dynamic>.from(fallback);
@@ -124,11 +126,14 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
     }
   }
 
-  bool _isEntry(String direction, int index) {
-    final normalized = direction.trim().toUpperCase();
+  bool _isEntry(String direction, String location, int index) {
+    final normalizedDir = direction.trim().toUpperCase();
+    if (normalizedDir == 'IN' || normalizedDir == 'ENTRY') return true;
+    if (normalizedDir == 'OUT' || normalizedDir == 'EXIT') return false;
 
-    if (normalized == 'IN' || normalized == 'ENTRY') return true;
-    if (normalized == 'OUT' || normalized == 'EXIT') return false;
+    final locUpper = location.toUpperCase();
+    if (locUpper.contains('ENTRY') || locUpper.contains(' IN')) return true;
+    if (locUpper.contains('EXIT') || locUpper.contains(' OUT')) return false;
 
     return index.isEven;
   }
@@ -136,7 +141,10 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
   int _entryCount(List<dynamic> logs) {
     return logs.asMap().entries.where((entry) {
       final direction = entry.value['direction']?.toString() ?? '';
-      return _isEntry(direction, entry.key);
+      final location = entry.value['location']?.toString() ??
+          entry.value['punch_location']?.toString() ??
+          '';
+      return _isEntry(direction, location, entry.key);
     }).length;
   }
 
@@ -503,13 +511,17 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
   }
 
   Widget _buildPunchCard(dynamic log, int index) {
-    final time = log['punch_time']?.toString() ?? 'Punch';
-    final location =
-        log['punch_location']?.toString() ?? 'Turnstile Gate';
+    final time = log['in_time']?.toString() ??
+        log['punch_time']?.toString() ??
+        log['time']?.toString() ??
+        'Punch';
+    final location = log['location']?.toString() ??
+        log['punch_location']?.toString() ??
+        'Turnstile Gate';
     final direction = log['direction']?.toString() ??
         (index.isEven ? 'IN' : 'OUT');
 
-    final isEntry = _isEntry(direction, index);
+    final isEntry = _isEntry(direction, location, index);
     final color = isEntry ? _green : _orange;
     final background =
         isEntry ? const Color(0xFFE8F4EF) : const Color(0xFFF9ECE7);

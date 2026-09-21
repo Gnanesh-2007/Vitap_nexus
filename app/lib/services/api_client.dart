@@ -749,7 +749,7 @@ class ApiClient {
   // OUTINGS
   // ============================================================
 
-  Future<Map<String, dynamic>> fetchGeneralOutings({
+  Future<dynamic> fetchGeneralOutings({
     required String username,
     required String password,
   }) async {
@@ -761,10 +761,10 @@ class ApiClient {
       },
     );
 
-    return response.data as Map<String, dynamic>;
+    return response.data;
   }
 
-  Future<Map<String, dynamic>> fetchWeekendOutings({
+  Future<dynamic> fetchWeekendOutings({
     required String username,
     required String password,
   }) async {
@@ -776,7 +776,7 @@ class ApiClient {
       },
     );
 
-    return response.data as Map<String, dynamic>;
+    return response.data;
   }
 
   Future<String> submitGeneralOuting({
