@@ -140,6 +140,174 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                   ''');
                 } catch (_) {}
               }
+
+              // Inject mobile sidebar popup styles and touch handling
+              try {
+                await controller.runJavaScript('''
+                  (function() {
+                    var styleId = 'vtop-mobile-sidebar-fix';
+                    if (!document.getElementById(styleId)) {
+                      var style = document.createElement('style');
+                      style.id = styleId;
+                      style.innerHTML = `
+                        .main-sidebar, .sidebar, .sidebar-menu {
+                          overflow: visible !important;
+                          position: absolute !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .main-sidebar {
+                          width: 50px !important;
+                          overflow: visible !important;
+                          z-index: 99999 !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .sidebar {
+                          overflow: visible !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .sidebar-menu {
+                          overflow: visible !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .sidebar-menu > li {
+                          position: relative !important;
+                          overflow: visible !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .sidebar-menu > li > a {
+                          cursor: pointer !important;
+                          -webkit-tap-highlight-color: rgba(255,255,255,0.2) !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu,
+                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.active > .treeview-menu {
+                          display: block !important;
+                          position: absolute !important;
+                          left: 50px !important;
+                          top: 0 !important;
+                          min-width: 250px !important;
+                          max-width: 320px !important;
+                          background: #2c3b41 !important;
+                          border: 1px solid #1a2226 !important;
+                          border-radius: 0 8px 8px 0 !important;
+                          box-shadow: 4px 6px 20px rgba(0,0,0,0.5) !important;
+                          padding: 6px 0 !important;
+                          margin: 0 !important;
+                          z-index: 999999 !important;
+                          pointer-events: auto !important;
+                          max-height: 80vh !important;
+                          overflow-y: auto !important;
+                          -webkit-overflow-scrolling: touch !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu > li > a {
+                          display: block !important;
+                          padding: 12px 18px !important;
+                          color: #e0e0e0 !important;
+                          font-size: 13.5px !important;
+                          line-height: 1.4 !important;
+                          border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+                          text-decoration: none !important;
+                          pointer-events: auto !important;
+                        }
+                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu > li > a:hover,
+                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu > li > a:active {
+                          background: #1e282c !important;
+                          color: #ffffff !important;
+                        }
+                        .sidebar-open .main-sidebar {
+                          transform: translate(0, 0) !important;
+                          width: 240px !important;
+                          z-index: 99999 !important;
+                          box-shadow: 4px 0 20px rgba(0,0,0,0.4) !important;
+                        }
+                        .sidebar-toggle {
+                          padding: 14px !important;
+                          display: block !important;
+                          cursor: pointer !important;
+                        }
+                      `;
+                      document.head.appendChild(style);
+                    }
+
+                    function bindVtopSidebar() {
+                      var items = document.querySelectorAll('.sidebar-menu > li');
+                      items.forEach(function(item) {
+                        var a = item.querySelector(':scope > a');
+                        if (a && !a._boundVtopMobile) {
+                          a._boundVtopMobile = true;
+                          a.addEventListener('click', function(e) {
+                            var submenu = item.querySelector(':scope > .treeview-menu');
+                            if (submenu) {
+                              var isCurrentlyOpen = item.classList.contains('menu-open') || submenu.style.display === 'block';
+                              
+                              items.forEach(function(other) {
+                                if (other !== item) {
+                                  other.classList.remove('menu-open');
+                                  var s = other.querySelector(':scope > .treeview-menu');
+                                  if (s) s.style.display = 'none';
+                                }
+                              });
+
+                              if (!isCurrentlyOpen) {
+                                item.classList.add('menu-open');
+                                submenu.style.display = 'block';
+                                submenu.style.visibility = 'visible';
+                              } else {
+                                item.classList.remove('menu-open');
+                                submenu.style.display = 'none';
+                              }
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }
+                          });
+                        }
+                      });
+
+                      var subLinks = document.querySelectorAll('.sidebar-menu .treeview-menu a');
+                      subLinks.forEach(function(link) {
+                        if (!link._boundSubClick) {
+                          link._boundSubClick = true;
+                          link.addEventListener('click', function(e) {
+                            setTimeout(function() {
+                              var openParents = document.querySelectorAll('.sidebar-menu > li.menu-open');
+                              openParents.forEach(function(p) {
+                                p.classList.remove('menu-open');
+                                var sub = p.querySelector('.treeview-menu');
+                                if (sub) sub.style.display = 'none';
+                              });
+                            }, 400);
+                          });
+                        }
+                      });
+
+                      var toggles = document.querySelectorAll('.sidebar-toggle, [data-toggle="offcanvas"], [data-toggle="push-menu"]');
+                      toggles.forEach(function(toggle) {
+                        if (!toggle._boundToggleClick) {
+                          toggle._boundToggleClick = true;
+                          toggle.addEventListener('click', function(e) {
+                            var body = document.body;
+                            if (body.classList.contains('sidebar-collapse')) {
+                              body.classList.remove('sidebar-collapse');
+                              body.classList.add('sidebar-open');
+                            } else {
+                              body.classList.add('sidebar-collapse');
+                              body.classList.remove('sidebar-open');
+                            }
+                          });
+                        }
+                      });
+                    }
+
+                    document.addEventListener('click', function(e) {
+                      if (!e.target.closest('.main-sidebar')) {
+                        var openItems = document.querySelectorAll('.sidebar-menu > li.menu-open');
+                        openItems.forEach(function(item) {
+                          item.classList.remove('menu-open');
+                          var s = item.querySelector('.treeview-menu');
+                          if (s) s.style.display = 'none';
+                        });
+                      }
+                    });
+
+                    bindVtopSidebar();
+                    setInterval(bindVtopSidebar, 1000);
+                  })();
+                ''');
+              } catch (_) {}
             },
             onWebResourceError: (error) {
               if (error.isForMainFrame == true && mounted) {
