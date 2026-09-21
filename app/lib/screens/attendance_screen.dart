@@ -115,6 +115,30 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     );
   }
 
+  void _showAttendanceDetailModal(
+    BuildContext context,
+    Map<String, dynamic> course,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AttendanceDetailModal(
+        course: course,
+        onOpenCalculator: (attended, total, name) {
+          Navigator.of(ctx).pop();
+          _showCalculatorSheet(
+            context,
+            initialAttended: attended,
+            initialTotal: total,
+            courseName: name,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final attendanceAsync = ref.watch(attendanceProvider);
@@ -585,6 +609,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
 
         return _buildCourseCard(
           index: index,
+          course: course is Map<String, dynamic>
+              ? course
+              : Map<String, dynamic>.from(course as Map),
           courseName: courseName,
           courseCode: courseCode,
           slot: slot,
@@ -604,6 +631,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
 
   Widget _buildCourseCard({
     required int index,
+    required Map<String, dynamic> course,
     required String courseName,
     required String courseCode,
     required String slot,
@@ -620,7 +648,6 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(17, 16, 17, 15),
       decoration: BoxDecoration(
         color: _surface,
         borderRadius: BorderRadius.circular(20),
@@ -631,9 +658,17 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
           width: 1,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _showAttendanceDetailModal(context, course),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(17, 16, 17, 15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -833,7 +868,10 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
           ),
         ],
       ),
-    )
+    ),
+  ),
+),
+)
         .animate(delay: (35 * index).ms)
         .fadeIn(duration: 280.ms)
         .slideY(
@@ -1237,6 +1275,893 @@ class _AttendanceCalculatorModalState
           ),
         ),
       ],
+    );
+  }
+}
+
+// ============================================================
+// ATTENDANCE DETAIL MODAL (SUMMARY & DAY-WISE TABS)
+// ============================================================
+
+class _AttendanceDetailModal extends ConsumerStatefulWidget {
+  final Map<String, dynamic> course;
+  final void Function(int attended, int total, String courseName) onOpenCalculator;
+
+  const _AttendanceDetailModal({
+    required this.course,
+    required this.onOpenCalculator,
+  });
+
+  @override
+  ConsumerState<_AttendanceDetailModal> createState() =>
+      _AttendanceDetailModalState();
+}
+
+class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  List<dynamic>? _dayWiseList;
+  bool _isLoadingDayWise = false;
+  String? _dayWiseError;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && _dayWiseList == null && !_isLoadingDayWise) {
+        _loadDayWise(forceRefresh: false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDayWise({bool forceRefresh = false}) async {
+    final courseId = widget.course['course_id']?.toString() ?? '';
+    final courseType = widget.course['course_type_code']?.toString() ??
+        widget.course['course_type']?.toString() ??
+        '';
+
+    if (courseId.isEmpty) {
+      setState(() {
+        _dayWiseError = 'Course ID unavailable to fetch records.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingDayWise = true;
+      _dayWiseError = null;
+    });
+
+    try {
+      final list = await getAttendanceDetail(
+        ref: ref,
+        courseId: courseId,
+        courseType: courseType,
+        forceRefresh: forceRefresh,
+      );
+      if (mounted) {
+        setState(() {
+          _dayWiseList = list;
+          _isLoadingDayWise = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dayWiseError = e.toString().replaceFirst('Exception: ', '');
+          _isLoadingDayWise = false;
+        });
+      }
+    }
+  }
+
+  Color _getStatusColor(double percentage) {
+    if (percentage >= 85) return _success;
+    if (percentage >= 75) return _blue;
+    if (percentage >= 65) return _warning;
+    return _danger;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final course = widget.course;
+    final courseName = course['course_name']?.toString() ?? 'Course';
+    final courseCode = course['course_code']?.toString() ?? '';
+    final slot = course['course_slot']?.toString() ?? '';
+    final faculty = course['faculty']?.toString() ?? '';
+    final courseType = course['course_type']?.toString() ?? course['course_type_code']?.toString() ?? '';
+    final debarStatus = course['debar_status']?.toString() ?? 'Eligible';
+
+    final attended = int.tryParse(course['attended_classes']?.toString() ?? '0') ?? 0;
+    final total = int.tryParse(course['total_classes']?.toString() ?? '0') ?? 0;
+
+    final rawPercentage = course['attendance_percentage']?.toString().replaceAll('%', '').trim() ?? '0';
+    final percentage = double.tryParse(rawPercentage) ?? (total > 0 ? (attended / total) * 100 : 0.0);
+
+    final rawRecentPercentage = course['attendance_between_percentage']?.toString().replaceAll('%', '').trim() ?? rawPercentage;
+    final recentPercentage = double.tryParse(rawRecentPercentage) ?? percentage;
+
+    final statusColor = _getStatusColor(percentage);
+    final isEligible = !debarStatus.toLowerCase().contains('debar') && percentage >= 75;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border(top: BorderSide(color: _line, width: 1)),
+      ),
+      child: Column(
+        children: [
+          // Drag handle
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _line,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ATTENDANCE DETAILS',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: _orange,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        courseName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: _ink,
+                          letterSpacing: -.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded, color: _inkSoft, size: 22),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Segmented Tabs
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              height: 42,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: _background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _line),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(
+                  color: _navy,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                labelColor: Colors.white,
+                unselectedLabelColor: _inkSoft,
+                labelStyle: GoogleFonts.spaceGrotesk(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .5,
+                ),
+                unselectedLabelStyle: GoogleFonts.spaceGrotesk(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: .5,
+                ),
+                dividerColor: Colors.transparent,
+                tabs: const [
+                  Tab(text: 'Summary'),
+                  Tab(text: 'Day-wise'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Tab views
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildSummaryTab(
+                  context,
+                  courseName: courseName,
+                  courseCode: courseCode,
+                  slot: slot,
+                  faculty: faculty,
+                  courseType: courseType,
+                  debarStatus: debarStatus,
+                  attended: attended,
+                  total: total,
+                  percentage: percentage,
+                  recentPercentage: recentPercentage,
+                  statusColor: statusColor,
+                  isEligible: isEligible,
+                ),
+                _buildDayWiseTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryTab(
+    BuildContext context, {
+    required String courseName,
+    required String courseCode,
+    required String slot,
+    required String faculty,
+    required String courseType,
+    required String debarStatus,
+    required int attended,
+    required int total,
+    required double percentage,
+    required double recentPercentage,
+    required Color statusColor,
+    required bool isEligible,
+  }) {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      children: [
+        // Top Overview Banner
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _background,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _line),
+          ),
+          child: Row(
+            children: [
+              // Left Visual Card
+              Container(
+                width: 108,
+                height: 118,
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: .3),
+                    width: 1.5,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: .12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isEligible ? Icons.verified_rounded : Icons.warning_rounded,
+                        color: statusColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${percentage.toStringAsFixed(1)}%',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: statusColor,
+                        letterSpacing: -.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      percentage >= 75 ? 'ELIGIBLE' : 'DEBAR RISK',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 7.5,
+                        fontWeight: FontWeight.w800,
+                        color: statusColor,
+                        letterSpacing: .8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+
+              // Right 3 stacked mini-cards
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildStatMiniCard(
+                      label: 'Overall Attendance',
+                      value: '${percentage.toStringAsFixed(1)}%',
+                      color: statusColor,
+                    ),
+                    const SizedBox(height: 7),
+                    _buildStatMiniCard(
+                      label: 'Recent Attendance',
+                      value: '${recentPercentage.toStringAsFixed(1)}%',
+                      color: _getStatusColor(recentPercentage),
+                    ),
+                    const SizedBox(height: 7),
+                    _buildStatMiniCard(
+                      label: 'Attended Classes',
+                      value: '$attended / $total',
+                      color: _ink,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Course Specifications Card
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'COURSE SPECIFICATIONS',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w800,
+                  color: _inkSoft,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _buildSpecRow('Course Name', courseName),
+              _buildDivider(),
+              _buildSpecRow('Course Code', courseCode.isNotEmpty ? courseCode : 'N/A'),
+              _buildDivider(),
+              _buildSpecRow('Course Slot', slot.isNotEmpty ? slot : 'N/A'),
+              _buildDivider(),
+              _buildSpecRow('Faculty', faculty.isNotEmpty ? faculty : 'N/A'),
+              _buildDivider(),
+              _buildSpecRow('Course Type', courseType.isNotEmpty ? courseType : 'Regular'),
+              _buildDivider(),
+              _buildSpecRow(
+                'Debar Status',
+                debarStatus,
+                isBadge: true,
+                badgeColor: isEligible ? _success : _danger,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Calculator Launcher Button
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton.icon(
+            onPressed: () => widget.onOpenCalculator(attended, total, courseName),
+            icon: const Icon(Icons.calculate_rounded, size: 19),
+            label: Text(
+              'Open Bunk & Attendance Calculator',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .4,
+              ),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: _navy,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatMiniCard({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: _line),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _inkSoft,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecRow(
+    String label,
+    String value, {
+    bool isBadge = false,
+    Color? badgeColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 105,
+            child: Text(
+              label,
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _muted,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: isBadge
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: (badgeColor ?? _success).withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: (badgeColor ?? _success).withValues(alpha: .3),
+                        ),
+                      ),
+                      child: Text(
+                        value,
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: badgeColor ?? _success,
+                          letterSpacing: .4,
+                        ),
+                      ),
+                    ),
+                  )
+                : Text(
+                    value,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      height: 1,
+      color: _line.withValues(alpha: .6),
+      margin: const EdgeInsets.symmetric(vertical: 2),
+    );
+  }
+
+  Widget _buildDayWiseTab() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row with Refresh icon
+          Row(
+            children: [
+              Text(
+                'Day-wise Attendance',
+                style: GoogleFonts.dmSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                ),
+              ),
+              const Spacer(),
+              if (_dayWiseList != null)
+                Text(
+                  '${_dayWiseList!.length} Sessions',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: _muted,
+                  ),
+                ),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: _isLoadingDayWise ? null : () => _loadDayWise(forceRefresh: true),
+                icon: _isLoadingDayWise
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: _navy),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 20, color: _navy),
+                tooltip: 'Refresh Day-wise',
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Content body
+          Expanded(
+            child: _buildDayWiseContent(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayWiseContent() {
+    if (_isLoadingDayWise && _dayWiseList == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(_navy),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'FETCHING DAY-WISE RECORDS...',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: _inkSoft,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_dayWiseError != null && (_dayWiseList == null || _dayWiseList!.isEmpty)) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _danger.withValues(alpha: .1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline_rounded, color: _danger, size: 26),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Failed to load day-wise data',
+                style: GoogleFonts.dmSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _dayWiseError!,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(fontSize: 11.5, color: _muted),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: () => _loadDayWise(forceRefresh: true),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Try Again'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _navy,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final list = _dayWiseList ?? [];
+    if (list.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.event_busy_rounded, color: _muted.withValues(alpha: .5), size: 42),
+            const SizedBox(height: 10),
+            Text(
+              'No day-wise records available yet.',
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _muted,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _loadDayWise(forceRefresh: true),
+              icon: const Icon(Icons.refresh_rounded, size: 15),
+              label: const Text('Fetch Now'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _navy,
+                side: const BorderSide(color: _line),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          // Table Header
+          Container(
+            color: _background,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 38,
+                  child: Text(
+                    'SNo.',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      color: _inkSoft,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Date',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      color: _inkSoft,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Day / Time',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      color: _inkSoft,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 68,
+                  child: Text(
+                    'Status',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      color: _inkSoft,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _line),
+
+          // Table Rows
+          Expanded(
+            child: ListView.separated(
+              physics: const BouncingScrollPhysics(),
+              itemCount: list.length,
+              separatorBuilder: (context, index) => const Divider(height: 1, color: _line),
+              itemBuilder: (context, index) {
+                final item = list[index] is Map ? list[index] : <String, dynamic>{};
+                final serial = item['serial']?.toString() ?? '${index + 1}';
+                final date = item['date']?.toString() ?? '';
+                final dayTime = item['day_time']?.toString() ?? item['slot']?.toString() ?? '';
+                final status = item['status']?.toString() ?? '';
+                final remark = item['remark']?.toString() ?? '';
+
+                final isPresent = status.toLowerCase().contains('present') || status.toLowerCase() == 'p';
+                final isAbsent = status.toLowerCase().contains('absent') || status.toLowerCase() == 'a';
+                final isOD = status.toLowerCase().contains('duty') || status.toLowerCase() == 'od';
+
+                Color pillBg = _background;
+                Color pillText = _inkSoft;
+                Color pillBorder = _line;
+
+                if (isPresent) {
+                  pillBg = _success.withValues(alpha: .12);
+                  pillText = _success;
+                  pillBorder = _success.withValues(alpha: .3);
+                } else if (isAbsent) {
+                  pillBg = _danger.withValues(alpha: .12);
+                  pillText = _danger;
+                  pillBorder = _danger.withValues(alpha: .3);
+                } else if (isOD) {
+                  pillBg = _warning.withValues(alpha: .12);
+                  pillText = _warning;
+                  pillBorder = _warning.withValues(alpha: .3);
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 38,
+                        child: Text(
+                          serial,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: _muted,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              date,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: _ink,
+                              ),
+                            ),
+                            if (remark.isNotEmpty)
+                              Text(
+                                remark,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 9.5,
+                                  color: _muted,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        flex: 4,
+                        child: Text(
+                          dayTime,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _inkSoft,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 68,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: pillBg,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: pillBorder),
+                          ),
+                          child: Text(
+                            status.isNotEmpty ? status : 'N/A',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: pillText,
+                              letterSpacing: .3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

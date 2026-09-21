@@ -609,3 +609,39 @@ Future<Map<String, dynamic>> refreshTimetable(dynamic ref) async {
   }
   return fresh;
 }
+
+/// Fetches per-course day-wise attendance detail with cache support (0ms if cached)
+Future<List<dynamic>> getAttendanceDetail({
+  required dynamic ref,
+  required String courseId,
+  required String courseType,
+  bool forceRefresh = false,
+}) async {
+  final cacheKey = 'att_detail_${courseId}_$courseType';
+  if (!forceRefresh) {
+    final mem = StorageService.getMemoryCache(cacheKey);
+    if (mem is List && mem.isNotEmpty) {
+      return List<dynamic>.from(mem);
+    }
+    final disk = await StorageService.getCache(cacheKey);
+    if (disk is List && disk.isNotEmpty) {
+      return List<dynamic>.from(disk);
+    }
+  }
+
+  final AuthState auth = (ref is WidgetRef ? ref.read(authProvider) : (ref as Ref).read(authProvider));
+  if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
+    throw Exception('Not authenticated');
+  }
+
+  final semId = await _resolveSemesterId(ref, auth);
+  final fresh = await apiService.fetchAttendanceDetail(
+    username: auth.username!,
+    password: auth.password!,
+    semSubId: semId,
+    courseId: courseId,
+    courseType: courseType,
+  );
+  await StorageService.setCache(cacheKey, fresh);
+  return fresh;
+}

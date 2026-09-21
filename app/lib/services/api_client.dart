@@ -108,6 +108,7 @@ class ApiClient {
     '/student/all_data',
     '/student/profile',
     '/student/attendance',
+    '/student/attendance_detail',
     '/student/timetable',
     '/student/exam_schedule',
     '/student/marks',
@@ -581,6 +582,35 @@ class ApiClient {
     );
 
     return response.data as List<dynamic>;
+  }
+
+  // ============================================================
+  // ATTENDANCE DETAIL (PER COURSE / DAY-WISE)
+  // ============================================================
+
+  Future<List<dynamic>> fetchAttendanceDetail({
+    required String username,
+    required String password,
+    required String semSubId,
+    required String courseId,
+    required String courseType,
+  }) async {
+    final response = await dio.post(
+      '/student/attendance_detail',
+      data: {
+        'registration_number': username,
+        'password': password,
+        'sem_sub_id': semSubId,
+        'course_id': courseId,
+        'course_type': courseType,
+      },
+    );
+
+    final data = response.data;
+    if (data is List) {
+      return data;
+    }
+    return [];
   }
 
   // ============================================================

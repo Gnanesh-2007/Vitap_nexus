@@ -3,6 +3,7 @@ from typing import List, Optional
 
 # Import models from your client library for responses
 from vitap_vtop_client.attendance import AttendanceModel
+from vitap_vtop_client.attendance.model.attendance_model import AttendanceDetailModel
 from vitap_vtop_client.profile import StudentProfileModel
 from vitap_vtop_client.timetable import TimetableModel
 from vitap_vtop_client.grade_history import GradeHistoryModel
@@ -18,6 +19,12 @@ class BaseVtopRequest(BaseModel):
 class AttendanceRequest(BaseVtopRequest):
     """Request model for fetching attendance."""
     sem_sub_id: str
+
+class AttendanceDetailRequest(BaseVtopRequest):
+    """Request model for fetching per-course attendance detail."""
+    sem_sub_id: str
+    course_id: str
+    course_type: str
 
 class BiometricRequest(BaseVtopRequest):
     """Request model for fetching biometric data."""

@@ -361,11 +361,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   const SizedBox(height: 18),
 
                   // 3. COURSE LIST ACCORDIONS
-                  ...filteredCourses.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final course = entry.value;
-                    return _buildCourseCard(course);
-                  }),
+                  ...filteredCourses.map((course) => _buildCourseCard(course)),
                   const SizedBox(height: 24),
                 ],
               ),

@@ -34,7 +34,6 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
   static const _red = Color(0xFFC84C43);
   static const _muted = Color(0xFF6E7681);
   static const _line = Color(0xFFE2DED5);
-  static const _soft = Color(0xFFF0EEE8);
 
   @override
   void initState() {

@@ -9,6 +9,7 @@ from src.routers.auth import get_vtop_client_from_header
 from src.models.api_models import (
     BaseVtopRequest,
     AttendanceRequest,
+    AttendanceDetailRequest,
     BiometricRequest,
     TimetableRequest,
     ExamScheduleRequest,
@@ -31,6 +32,7 @@ from src.models.api_models import (
 from vitap_vtop_client.client import VtopClient
 
 from vitap_vtop_client.attendance import AttendanceModel
+from vitap_vtop_client.attendance.model.attendance_model import AttendanceDetailModel
 from vitap_vtop_client.profile import StudentProfileModel
 from vitap_vtop_client.timetable import TimetableModel
 from vitap_vtop_client.biometric import BiometricModel
@@ -235,6 +237,34 @@ async def get_attendance(
         )
 
         return attendance_data
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+@router.post(
+    "/attendance_detail",
+    response_model=List[AttendanceDetailModel],
+)
+async def get_attendance_detail(
+    request: AttendanceDetailRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        request.sem_sub_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
+        attendance_detail = await client.get_attendance_detail(
+            sem_sub_id=request.sem_sub_id,
+            course_id=request.course_id,
+            course_type=request.course_type,
+        )
+
+        return attendance_detail
 
     except VitapVtopClientError as e:
         handle_client_exception(e)
