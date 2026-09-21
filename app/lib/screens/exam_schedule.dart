@@ -18,16 +18,17 @@ class ExamScheduleScreen extends ConsumerStatefulWidget {
 class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   int _selectedCategoryIndex = 0;
 
-  // Dark sleek theme palette matching reference design
-  static const _bg = Color(0xFF0D0F12);
-  static const _cardBg = Color(0xFF1A1C20);
-  static const _pillActiveBg = Color(0xFF38433C);
-  static const _pillInactiveBg = Color(0xFF1E2126);
-  static const _badgeBg = Color(0xFF282B31);
-  static const _reportingBg = Color(0xFF141619);
-  static const _muted = Color(0xFF8E9299);
-  static const _green = Color(0xFF34C759);
+  // Editorial campus theme palette
+  static const _paper = Color(0xFFF4F2ED);
+  static const _surface = Color(0xFFFFFEFB);
+  static const _ink = Color(0xFF17202A);
+  static const _navy = Color(0xFF172B4D);
   static const _blue = Color(0xFF356AE6);
+  static const _orange = Color(0xFFE47543);
+  static const _green = Color(0xFF278B68);
+  static const _muted = Color(0xFF6E7681);
+  static const _line = Color(0xFFE2DED5);
+  static const _soft = Color(0xFFF0EEE8);
 
   Future<void> _onRefresh() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -126,7 +127,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
     final lastSyncedTime = StorageService.getMemoryTimestamp('exam_schedule');
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: _paper,
       body: SafeArea(
         child: Column(
           children: [
@@ -134,8 +135,8 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _onRefresh,
-                color: Colors.white,
-                backgroundColor: _cardBg,
+                color: _navy,
+                backgroundColor: _surface,
                 child: examAsync.when(
                   data: (groups) => _buildContent(groups),
                   loading: () => _buildLoading(),
@@ -159,7 +160,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
             onPressed: () => Navigator.of(context).maybePop(),
             icon: const Icon(
               Icons.arrow_back_rounded,
-              color: Colors.white,
+              color: _navy,
               size: 24,
             ),
             splashRadius: 22,
@@ -172,7 +173,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                 Text(
                   'Exam Schedule',
                   style: GoogleFonts.dmSans(
-                    color: Colors.white,
+                    color: _ink,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
@@ -184,7 +185,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                   style: GoogleFonts.dmSans(
                     color: _muted,
                     fontSize: 11.5,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -198,12 +199,12 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(_navy),
                     ),
                   )
                 : const Icon(
                     Icons.refresh_rounded,
-                    color: Colors.white,
+                    color: _navy,
                     size: 24,
                   ),
             splashRadius: 22,
@@ -229,8 +230,9 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: _cardBg,
+                      color: _soft,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _line),
                     ),
                     child: const Icon(
                       Icons.event_available_rounded,
@@ -243,8 +245,8 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                     'No exam schedule available',
                     style: GoogleFonts.dmSans(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      color: _ink,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -281,8 +283,9 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
             decoration: BoxDecoration(
-              color: _cardBg,
+              color: _surface,
               borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _line),
             ),
             child: Center(
               child: Text(
@@ -332,20 +335,32 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 11,
+                  horizontal: 22,
+                  vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: isSelected ? _pillActiveBg : _pillInactiveBg,
+                  color: isSelected ? _navy : _surface,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isSelected ? _navy : _line,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: _navy.withValues(alpha: 0.16),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Text(
                   formattedTitle,
                   style: GoogleFonts.dmSans(
                     color: isSelected ? Colors.white : _muted,
-                    fontSize: 13.5,
+                    fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    letterSpacing: 0.4,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ),
@@ -356,7 +371,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
     );
   }
 
-  // ── Structured Exam Card matching Reference Screenshot ──
+  // ── Structured Exam Card in Campus Editorial Theme ──
   Widget _buildExamCard(Map<String, dynamic> exam, int idx) {
     final courseCode = (exam['course_code'] ?? '').toString().trim();
     final courseName = (exam['course_name'] ?? 'Course').toString().trim();
@@ -377,20 +392,40 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
 
     // Status: Completed / Today / Upcoming
     final status = _computeStatus(examDate);
+    final isCompleted = status == 'Completed';
     final isToday = status == 'Today';
-    final isUpcoming = status == 'Upcoming';
-    final statusDotColor = isToday
-        ? _green
-        : (isUpcoming ? _blue : const Color(0xFF9E9E9E));
-    final statusTextColor = isToday
-        ? _green
-        : (isUpcoming ? Colors.white : const Color(0xFFB0B4BC));
+
+    final Color statusDotColor;
+    final Color statusBgColor;
+    final Color statusTextColor;
+
+    if (isCompleted) {
+      statusDotColor = _green;
+      statusBgColor = const Color(0xFFE8F4EF);
+      statusTextColor = _green;
+    } else if (isToday) {
+      statusDotColor = _blue;
+      statusBgColor = const Color(0xFFEAF0FD);
+      statusTextColor = _blue;
+    } else {
+      statusDotColor = _orange;
+      statusBgColor = const Color(0xFFF9ECE7);
+      statusTextColor = _orange;
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(20),
+        color: _surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _line),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0617202A),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,18 +437,19 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
               if (dateBadgeText.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
+                    horizontal: 12,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _badgeBg,
-                    borderRadius: BorderRadius.circular(20),
+                    color: _soft,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _line),
                   ),
                   child: Text(
                     dateBadgeText,
-                    style: GoogleFonts.dmSans(
-                      color: const Color(0xFFE0E2E7),
-                      fontSize: 12,
+                    style: GoogleFonts.spaceGrotesk(
+                      color: _navy,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -422,12 +458,12 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                 const SizedBox.shrink(),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
+                  horizontal: 10,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _badgeBg,
-                  borderRadius: BorderRadius.circular(20),
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -443,10 +479,11 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                     const SizedBox(width: 6),
                     Text(
                       status,
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.spaceGrotesk(
                         color: statusTextColor,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ],
@@ -454,7 +491,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 15),
 
           // Course Name & Code
           Text(
@@ -462,8 +499,8 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.dmSans(
-              color: Colors.white,
-              fontSize: 18.5,
+              color: _ink,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               height: 1.25,
             ),
@@ -472,14 +509,15 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
             const SizedBox(height: 4),
             Text(
               courseCode,
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.spaceGrotesk(
                 color: _muted,
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
               ),
             ),
           ],
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           // 2x2 Details Grid (Time, Venue, Seat Location, Seat Number)
           Row(
@@ -495,7 +533,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                       label: 'Time',
                       value: examTime.isNotEmpty ? examTime : '—',
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 14),
                     _buildFieldMetric(
                       icon: Icons.event_seat_rounded,
                       label: 'Seat Location',
@@ -516,7 +554,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                       label: 'Venue',
                       value: venue.isNotEmpty ? venue : '—',
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 14),
                     _buildFieldMetric(
                       icon: Icons.tag_rounded,
                       label: 'Seat Number',
@@ -538,23 +576,24 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                 vertical: 10,
               ),
               decoration: BoxDecoration(
-                color: _reportingBg,
+                color: _soft,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _line),
               ),
               child: Row(
                 children: [
                   const Icon(
                     Icons.access_time_rounded,
-                    size: 14,
-                    color: _muted,
+                    size: 15,
+                    color: _navy,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Reporting: $reportingTime',
-                    style: GoogleFonts.dmSans(
-                      color: const Color(0xFFD0D4DC),
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
+                    style: GoogleFonts.spaceGrotesk(
+                      color: _ink,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -581,19 +620,20 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
             const SizedBox(width: 5),
             Text(
               label,
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.spaceGrotesk(
                 color: _muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           value,
           style: GoogleFonts.dmSans(
-            color: Colors.white,
+            color: _ink,
             fontSize: 13.5,
             fontWeight: FontWeight.w700,
             height: 1.25,
@@ -614,7 +654,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
             height: 32,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: AlwaysStoppedAnimation<Color>(_navy),
             ),
           ),
           const SizedBox(height: 16),
@@ -647,12 +687,12 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E1C1C),
+                      color: const Color(0xFFFCEDEA),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: const Icon(
                       Icons.error_outline_rounded,
-                      color: Color(0xFFE57373),
+                      color: Color(0xFFC84C43),
                       size: 30,
                     ),
                   ),
@@ -662,8 +702,8 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                     textAlign: TextAlign.center,
                     style: GoogleFonts.dmSans(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      color: _ink,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -682,10 +722,10 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                     icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: Text(
                       'Try Again',
-                      style: GoogleFonts.dmSans(fontWeight: FontWeight.w700),
+                      style: GoogleFonts.dmSans(fontWeight: FontWeight.w800),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _cardBg,
+                      backgroundColor: _navy,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
