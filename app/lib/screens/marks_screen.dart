@@ -70,8 +70,6 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
             child: Row(
               children: [
-                _BackButton(onTap: () => Navigator.of(context).maybePop()),
-                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -747,37 +745,6 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
           );
         }),
       ],
-    );
-  }
-}
-
-class _BackButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _BackButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFEFB),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2DED5)),
-          ),
-          child: const Icon(
-            Icons.arrow_back_rounded,
-            color: Color(0xFF172B4D),
-            size: 19,
-          ),
-        ),
-      ),
     );
   }
 }
