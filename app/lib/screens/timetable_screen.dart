@@ -326,109 +326,76 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
     List<dynamic> daySchedule,
   ) {
     if (daySchedule.isEmpty) {
-      return RefreshIndicator(
-        color: _navy,
-        backgroundColor: _surface,
-        onRefresh: () async {
-          final messenger = ScaffoldMessenger.of(context);
-          try {
-            await refreshTimetable(ref);
-          } catch (e) {
-            if (mounted) {
-              messenger.showSnackBar(
-                SnackBar(content: Text('Could not update schedule: $e')),
-              );
-            }
-          }
-        },
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            SizedBox(
-              height: MediaQuery.of(context).size.height * .48,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(30),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 68,
-                        height: 68,
-                        decoration: BoxDecoration(
-                          color: _cream,
-                          borderRadius: BorderRadius.circular(21),
-                        ),
-                        child: const Icon(
-                          Icons.free_breakfast_outlined,
-                          size: 29,
-                          color: _inkSoft,
-                        ),
+      return ListView(
+        physics: const BouncingScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * .48,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(30),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        color: _cream,
+                        borderRadius: BorderRadius.circular(21),
                       ),
-                      const SizedBox(height: 17),
-                      Text(
-                        'No classes scheduled',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                          color: _ink,
-                        ),
+                      child: const Icon(
+                        Icons.free_breakfast_outlined,
+                        size: 29,
+                        color: _inkSoft,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Enjoy your free day on $selectedDay.\nPull down to refresh.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11.5,
-                          color: _muted,
-                        ),
+                    ),
+                    const SizedBox(height: 17),
+                    Text(
+                      'No classes scheduled',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        color: _ink,
                       ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 300.ms),
-              ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Enjoy your free day on $selectedDay.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 11.5,
+                        color: _muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(duration: 300.ms),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
-    return RefreshIndicator(
-      color: _navy,
-      backgroundColor: _surface,
-      onRefresh: () async {
-        final messenger = ScaffoldMessenger.of(context);
-        try {
-          await refreshTimetable(ref);
-        } catch (e) {
-          if (mounted) {
-            messenger.showSnackBar(
-              SnackBar(content: Text('Could not update schedule: $e')),
-            );
-          }
-        }
-      },
-      child: ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-        itemCount: daySchedule.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _buildAgendaHeader(
-              selectedDay,
-              daySchedule.length,
-            );
-          }
-
-          final item = daySchedule[index - 1];
-
-          return _buildClassCard(
-            item,
+    return ListView.builder(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+      itemCount: daySchedule.length + 1,
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _buildAgendaHeader(
             selectedDay,
-            index - 1,
+            daySchedule.length,
           );
-        },
-      ),
+        }
+
+        final item = daySchedule[index - 1];
+        return _buildClassCard(
+          item,
+          selectedDay,
+          index - 1,
+        );
+      },
     );
   }
 
@@ -823,96 +790,79 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
   }
 
   Widget _buildError(String error) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        try {
-          await refreshTimetable(ref);
-        } catch (_) {}
-      },
-      color: _navy,
-      backgroundColor: _surface,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.6,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: _orange.withValues(alpha: .10),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
-                        Icons.cloud_off_rounded,
-                        size: 28,
-                        color: _orange,
-                      ),
-                    ),
-                    const SizedBox(height: 17),
-                    Text(
-                      'Couldn’t load timetable',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: _ink,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      error,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11.5,
-                        color: _muted,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: 21),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        try {
-                          await refreshTimetable(ref);
-                        } catch (_) {}
-                      },
-                      icon: const Icon(
-                        Icons.refresh_rounded,
-                        size: 17,
-                      ),
-                      label: Text(
-                        'TRY AGAIN',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _navy,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 19,
-                          vertical: 13,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: _orange.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                size: 28,
+                color: _orange,
+              ),
+            ),
+            const SizedBox(height: 17),
+            Text(
+              'Couldn’t load timetable',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: _ink,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 11.5,
+                color: _muted,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 21),
+            ElevatedButton.icon(
+              onPressed: () async {
+                try {
+                  await refreshTimetable(ref);
+                } catch (_) {}
+              },
+              icon: const Icon(
+                Icons.refresh_rounded,
+                size: 17,
+              ),
+              label: Text(
+                'TRY AGAIN',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _navy,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 19,
+                  vertical: 13,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

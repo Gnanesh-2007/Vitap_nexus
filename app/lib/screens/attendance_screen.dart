@@ -351,28 +351,12 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
       }
     }
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        final messenger = ScaffoldMessenger.of(context);
-        try {
-          await refreshAttendance(ref);
-        } catch (e) {
-          if (mounted) {
-            messenger.showSnackBar(
-              SnackBar(content: Text('Could not update attendance: $e')),
-            );
-          }
-        }
-      },
-      color: _navy,
-      backgroundColor: _surface,
-      child: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildAttendanceList(theoryList, isLabTab: false),
-          _buildAttendanceList(labList, isLabTab: true),
-        ],
-      ),
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _buildAttendanceList(theoryList, isLabTab: false),
+        _buildAttendanceList(labList, isLabTab: true),
+      ],
     );
   }
 
@@ -506,25 +490,68 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     required bool isLabTab,
   }) {
     if (list.isEmpty) {
-      return Center(
-        child: Text(
-          isLabTab
-              ? 'No lab courses found'
-              : 'No theory courses found',
-          style: GoogleFonts.dmSans(
-            color: _muted,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+      return RefreshIndicator(
+        onRefresh: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          try {
+            await refreshAttendance(ref);
+          } catch (e) {
+            if (mounted) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Could not update attendance: $e')),
+              );
+            }
+          }
+        },
+        color: _navy,
+        backgroundColor: _surface,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
           ),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.45,
+              child: Center(
+                child: Text(
+                  isLabTab
+                      ? 'No lab courses found'
+                      : 'No theory courses found',
+                  style: GoogleFonts.dmSans(
+                    color: _muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 110),
-      itemCount: list.length,
-      itemBuilder: (context, index) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        try {
+          await refreshAttendance(ref);
+        } catch (e) {
+          if (mounted) {
+            messenger.showSnackBar(
+              SnackBar(content: Text('Could not update attendance: $e')),
+            );
+          }
+        }
+      },
+      color: _navy,
+      backgroundColor: _surface,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 110),
+        itemCount: list.length,
+        itemBuilder: (context, index) {
         final course = list[index];
 
         final courseName = course['course_name'] ?? 'Course';
@@ -571,8 +598,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
           isLab: isLabTab,
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildCourseCard({
     required int index,

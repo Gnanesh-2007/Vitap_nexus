@@ -244,27 +244,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Scaffold(
       backgroundColor: _paper,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: _navy,
-          backgroundColor: _paperBright,
-          onRefresh: () async {
-            await ref
-                .read(dashboardProvider.notifier)
-                .refresh();
-          },
-          child: ListView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              18,
-              20,
-              40,
+        child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            20,
+            18,
+            20,
+            40,
+          ),
+          children: [
+            _buildHeader(
+              authState,
+              studentName,
             ),
-            children: [
-              _buildHeader(
-                authState,
-                studentName,
-              ),
 
               const SizedBox(height: 8),
 
@@ -350,9 +342,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
   // ============================================================
   // HEADER
