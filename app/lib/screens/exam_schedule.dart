@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/vtop_providers.dart';
+import '../services/storage_service.dart';
+import '../widgets/last_synced_badge.dart';
 
 class ExamScheduleScreen extends ConsumerStatefulWidget {
   const ExamScheduleScreen({super.key});
@@ -34,11 +36,12 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
       );
 
   Future<void> _onRefresh() async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await refreshExamSchedule(ref);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Could not update exam schedule: $e')),
         );
       }
@@ -55,6 +58,12 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
         child: Column(
           children: [
             _buildTopBar(),
+            LastSyncedBadge(
+              lastSynced: StorageService.getMemoryTimestamp('exam_schedule'),
+              isRefreshing: examAsync.isLoading,
+              onRefresh: _onRefresh,
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            ),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _onRefresh,
