@@ -1385,8 +1385,14 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
     final rawPercentage = course['attendance_percentage']?.toString().replaceAll('%', '').trim() ?? '0';
     final percentage = double.tryParse(rawPercentage) ?? (total > 0 ? (attended / total) * 100 : 0.0);
 
-    final rawRecentPercentage = course['attendance_between_percentage']?.toString().replaceAll('%', '').trim() ?? rawPercentage;
-    final recentPercentage = double.tryParse(rawRecentPercentage) ?? percentage;
+    final rawRecent = course['attendance_between_percentage']
+        ?.toString()
+        .replaceAll('%', '')
+        .trim();
+    final parsedRecent =
+        (rawRecent != null && rawRecent.isNotEmpty) ? double.tryParse(rawRecent) : null;
+    final recentPercentage =
+        (parsedRecent != null && parsedRecent > 0) ? parsedRecent : percentage;
 
     final statusColor = _getStatusColor(percentage);
     final isEligible = !debarStatus.toLowerCase().contains('debar') && percentage >= 75;
@@ -1548,7 +1554,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
       children: [
         // Top Overview Banner
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: _background,
             borderRadius: BorderRadius.circular(20),
@@ -1558,8 +1564,8 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
             children: [
               // Left Visual Card
               Container(
-                width: 108,
-                height: 118,
+                width: 96,
+                height: 112,
                 decoration: BoxDecoration(
                   color: _surface,
                   borderRadius: BorderRadius.circular(16),
@@ -1568,12 +1574,12 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                     width: 1.5,
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: .12),
                         shape: BoxShape.circle,
@@ -1581,33 +1587,38 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                       child: Icon(
                         isEligible ? Icons.verified_rounded : Icons.warning_rounded,
                         color: statusColor,
-                        size: 20,
+                        size: 19,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${percentage.toStringAsFixed(1)}%',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: statusColor,
-                        letterSpacing: -.5,
+                    const SizedBox(height: 5),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '${percentage.toStringAsFixed(1)}%',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: statusColor,
+                          letterSpacing: -.5,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       percentage >= 75 ? 'ELIGIBLE' : 'DEBAR RISK',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.spaceGrotesk(
-                        fontSize: 7.5,
+                        fontSize: 7,
                         fontWeight: FontWeight.w800,
                         color: statusColor,
-                        letterSpacing: .8,
+                        letterSpacing: .6,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
 
               // Right 3 stacked mini-cards
               Expanded(
@@ -1618,13 +1629,13 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                       value: '${percentage.toStringAsFixed(1)}%',
                       color: statusColor,
                     ),
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 6),
                     _buildStatMiniCard(
                       label: 'Recent Attendance',
                       value: '${recentPercentage.toStringAsFixed(1)}%',
                       color: _getStatusColor(recentPercentage),
                     ),
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 6),
                     _buildStatMiniCard(
                       label: 'Attended Classes',
                       value: '$attended / $total',
@@ -1715,27 +1726,31 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _line),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.dmSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: _inkSoft,
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.dmSans(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: _inkSoft,
+              ),
             ),
           ),
+          const SizedBox(width: 6),
           Text(
             value,
             style: GoogleFonts.spaceGrotesk(
-              fontSize: 12.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w900,
               color: color,
             ),

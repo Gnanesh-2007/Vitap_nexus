@@ -111,15 +111,14 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
     }
   }
 
-  Future<void> _launchExternal() async {
-    if (_portalUrl != null) {
-      try {
-        await launchUrl(
-          Uri.parse(_portalUrl!),
-          mode: LaunchMode.externalApplication,
-        );
-      } catch (_) {}
-    }
+  Future<void> _launchExternal({String? url}) async {
+    final target = url ?? _portalUrl ?? 'https://vtop.vitap.ac.in/vtop/login';
+    try {
+      await launchUrl(
+        Uri.parse(target),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {}
   }
 
   @override
@@ -140,7 +139,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
   Widget _buildHeader() {
     return Container(
       color: _paper,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       child: Row(
         children: [
           _headerButton(
@@ -157,52 +156,56 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
               }
             },
           ),
-          const SizedBox(width: 13),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'ACADEMIC PORTAL',
                   style: GoogleFonts.spaceGrotesk(
                     color: _orange,
-                    fontSize: 8.5,
+                    fontSize: 8,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 1.15,
+                    letterSpacing: 1.1,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text(
-                      'VTOP Portal',
-                      style: GoogleFonts.dmSans(
-                        color: _ink,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
+                    Flexible(
+                      child: Text(
+                        'VTOP Portal',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          color: _ink,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     _sessionBadge(),
                   ],
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 6),
           _headerButton(
             icon: Icons.refresh_rounded,
             onPressed: _initLoggedSession,
-            tooltip: 'Re-authenticate & Reload',
+            tooltip: 'Reload',
           ),
-          if (_portalUrl != null) ...[
-            const SizedBox(width: 7),
-            _headerButton(
-              icon: Icons.open_in_new_rounded,
-              onPressed: _launchExternal,
-              tooltip: 'Open externally',
-            ),
-          ],
+          const SizedBox(width: 6),
+          _headerButton(
+            icon: Icons.open_in_new_rounded,
+            onPressed: () => _launchExternal(),
+            tooltip: 'Open in Browser',
+          ),
         ],
       ),
     );
@@ -450,28 +453,50 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              SizedBox(
-                height: 45,
-                child: ElevatedButton.icon(
-                  onPressed: _initLoggedSession,
-                  icon: const Icon(Icons.refresh_rounded, size: 17),
-                  label: Text(
-                    'Try Again',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _initLoggedSession,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: Text(
+                      'Try Again',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _navy,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(11),
+                      ),
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _navy,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _launchExternal(url: 'https://vtop.vitap.ac.in/vtop/login'),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: Text(
+                      'Open VTOP',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _navy,
+                      side: const BorderSide(color: _line),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(11),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
