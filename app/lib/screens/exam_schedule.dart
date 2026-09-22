@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../utils/download_helper.dart';
 
 class ExamScheduleScreen extends ConsumerStatefulWidget {
   const ExamScheduleScreen({super.key});
@@ -29,6 +31,44 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   static const _muted = Color(0xFF6E7681);
   static const _line = Color(0xFFE2DED5);
   static const _soft = Color(0xFFF0EEE8);
+
+  Future<void> _downloadSchedule(List<dynamic> groups) async {
+    final auth = ref.read(authProvider);
+    final dash = ref.read(dashboardProvider);
+    final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
+    final studentName = profile['student_name'] ?? auth.username ?? 'Student';
+    final regNo = auth.username ?? '';
+
+    final allExams = <dynamic>[];
+    for (var g in groups) {
+      if (g is Map && g['exams'] is List) {
+        allExams.addAll(g['exams'] as List);
+      }
+    }
+
+    if (allExams.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: _orange,
+          content: Text('No exam records to download.', style: GoogleFonts.dmSans(color: Colors.white)),
+        ),
+      );
+      return;
+    }
+
+    final html = DownloadHelper.generateExamScheduleHtml(
+      studentName: studentName,
+      regNo: regNo,
+      exams: allExams,
+    );
+
+    await DownloadHelper.saveFile(
+      context: context,
+      fileName: 'VITAP_Exam_Schedule_$regNo.html',
+      content: html,
+      mimeType: 'text/html',
+    );
+  }
 
   Future<void> _onRefresh() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -131,7 +171,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildTopBar(lastSyncedTime, examAsync.isLoading),
+            _buildTopBar(lastSyncedTime, examAsync.isLoading, examAsync.value ?? []),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _onRefresh,
@@ -151,7 +191,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   }
 
   // ── Top Navigation Bar ──
-  Widget _buildTopBar(DateTime? lastSyncedTime, bool isRefreshing) {
+  Widget _buildTopBar(DateTime? lastSyncedTime, bool isRefreshing, List<dynamic> groups) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       child: Row(
@@ -192,6 +232,28 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
               ],
             ),
           ),
+          Material(
+            color: _surface,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: () => _downloadSchedule(groups),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _line),
+                ),
+                child: const Icon(
+                  Icons.download_rounded,
+                  color: _navy,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Material(
             color: _surface,
             borderRadius: BorderRadius.circular(12),

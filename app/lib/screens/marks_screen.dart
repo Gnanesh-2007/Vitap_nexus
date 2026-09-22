@@ -3,9 +3,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
 import '../utils/vtop_helpers.dart';
+import '../utils/download_helper.dart';
 
 class MarksScreen extends ConsumerStatefulWidget {
   const MarksScreen({super.key});
@@ -39,6 +41,70 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _downloadMarks(dynamic marksData) async {
+    final auth = ref.read(authProvider);
+    final dash = ref.read(dashboardProvider);
+    final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
+    final studentName = profile['student_name'] ?? auth.username ?? 'Student';
+    final regNo = auth.username ?? '';
+
+    final list = marksData is List ? marksData : [];
+    if (list.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: _orange,
+          content: Text('No marks records to download.', style: GoogleFonts.dmSans(color: Colors.white)),
+        ),
+      );
+      return;
+    }
+
+    final rows = list.map((item) {
+      final code = item['course_code'] ?? item['code'] ?? '';
+      final title = item['course_name'] ?? item['course_title'] ?? item['title'] ?? '';
+      final type = item['course_type'] ?? '';
+      final total = item['total_marks'] ?? item['total'] ?? item['grand_total'] ?? 'N/A';
+      return '<tr><td style="padding:10px;border-bottom:1px solid #EEE;"><b>$code</b><br><small style="color:#666;">$title ($type)</small></td><td style="padding:10px;border-bottom:1px solid #EEE;"><b>$total</b></td></tr>';
+    }).join('\n');
+
+    final html = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Marks Report - $regNo</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; color: #17202A; }
+    .card { border: 1px solid #E2DED5; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th { background: #F4F2ED; padding: 10px; text-align: left; font-size: 12px; color: #172B4D; border-bottom: 2px solid #E2DED5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="color:#172B4D;margin:0;">VIT-AP UNIVERSITY • MARKS REPORT</h2>
+    <p style="color:#6E7681;margin-top:4px;">Student: <b>$studentName</b> ($regNo)</p>
+    <table>
+      <thead>
+        <tr><th>Course</th><th>Total / Score</th></tr>
+      </thead>
+      <tbody>
+        $rows
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>
+''';
+
+    await DownloadHelper.saveFile(
+      context: context,
+      fileName: 'VITAP_Marks_Report_$regNo.html',
+      content: html,
+      mimeType: 'text/html',
+    );
   }
 
   TextStyle get _labelStyle => GoogleFonts.spaceGrotesk(
@@ -108,6 +174,28 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                     ],
                   ),
                 ),
+                Material(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _downloadMarks(marksAsync.value),
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _line),
+                      ),
+                      child: const Icon(
+                        Icons.download_rounded,
+                        color: _navy,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Material(
                   color: _surface,
                   borderRadius: BorderRadius.circular(12),

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
+import '../utils/download_helper.dart';
 
 class PaymentsScreen extends ConsumerStatefulWidget {
   const PaymentsScreen({super.key});
@@ -694,23 +695,11 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: _green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          content: Text(
-            'Receipt $receiptNo downloaded successfully '
-            '(${(receiptHtml.length / 1024).toStringAsFixed(1)} KB)',
-            style: GoogleFonts.dmSans(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
+      await DownloadHelper.saveFile(
+        context: context,
+        fileName: 'VITAP_Payment_Receipt_$receiptNo.html',
+        content: receiptHtml,
+        mimeType: 'text/html',
       );
     } catch (e) {
       if (!mounted) return;

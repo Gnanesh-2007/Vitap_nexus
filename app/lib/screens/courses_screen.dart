@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/download_helper.dart';
 
 class CoursesScreen extends ConsumerStatefulWidget {
   const CoursesScreen({super.key});
@@ -193,14 +194,12 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       if (!mounted) return;
       setState(() => _isDownloading = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppTheme.success,
-          content: Text(
-            'Downloaded "$filename" (${(bytes.length / 1024).toStringAsFixed(1)} KB)',
-            style: GoogleFonts.dmSans(color: Colors.white),
-          ),
-        ),
+      final cleanName = filename.isNotEmpty ? filename : 'Course_Material.pdf';
+      await DownloadHelper.saveFile(
+        context: context,
+        fileName: cleanName,
+        content: bytes,
+        mimeType: 'application/pdf',
       );
     } catch (e) {
       if (!mounted) return;

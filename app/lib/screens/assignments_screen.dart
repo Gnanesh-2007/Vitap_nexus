@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/download_helper.dart';
 
 class AssignmentsScreen extends ConsumerStatefulWidget {
   const AssignmentsScreen({super.key});
@@ -128,25 +129,12 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       if (!mounted) return;
       setState(() => _isDownloading = false);
 
-      final kb = (bytes.length / 1024).toStringAsFixed(1);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppTheme.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Downloaded $type for "$title" ($kb KB)',
-                  style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500),
-                ),
-              ),
-            ],
-          ),
-        ),
+      final cleanTitle = title.replaceAll(RegExp(r'[^\w\s\.-]'), '_');
+      await DownloadHelper.saveFile(
+        context: context,
+        fileName: 'Assignment_${cleanTitle}_$type.pdf',
+        content: bytes,
+        mimeType: 'application/pdf',
       );
     } catch (e) {
       if (!mounted) return;
