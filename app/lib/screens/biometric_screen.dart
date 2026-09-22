@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 
 class BiometricScreen extends ConsumerStatefulWidget {
   const BiometricScreen({super.key});
@@ -732,7 +733,10 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                   ),
                   const SizedBox(height: 7),
                   Text(
-                    error.toString(),
+                    ErrorFormatter.format(
+                      error,
+                      fallback: 'Unable to load biometric attendance logs. Please check your connection.',
+                    ),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.dmSans(
                       color: _muted,

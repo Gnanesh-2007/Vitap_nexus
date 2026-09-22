@@ -1410,7 +1410,11 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _dayWiseError = e.toString().replaceFirst('Exception: ', '');
+          _dayWiseError = ErrorFormatter.format(
+            e,
+            fallback:
+                'Unable to load day-wise attendance. Please check your connection and try again.',
+          );
           _isLoadingDayWise = false;
         });
       }

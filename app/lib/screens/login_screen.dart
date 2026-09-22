@@ -472,7 +472,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               color: _ink,
             ),
             decoration: _inputDecoration(
-              hint: 'e.g. 24BCE8650',
+              hint: 'e.g. username',
               icon: Icons.person_outline_rounded,
             ),
             validator: (value) {

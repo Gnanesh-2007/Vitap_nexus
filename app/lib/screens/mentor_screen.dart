@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 
 class MentorScreen extends ConsumerStatefulWidget {
   const MentorScreen({super.key});
@@ -665,7 +666,10 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                   ),
                   const SizedBox(height: 7),
                   Text(
-                    error.toString(),
+                    ErrorFormatter.format(
+                      error,
+                      fallback: 'Unable to load mentor details. Please check your connection and try again.',
+                    ),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.dmSans(
                       color: _muted,

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 
 class GradesScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -997,7 +998,10 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                   ),
                   const SizedBox(height: 7),
                   Text(
-                    error.toString(),
+                    ErrorFormatter.format(
+                      error,
+                      fallback: 'Unable to load grade history. Please check your connection and try again.',
+                    ),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.dmSans(
                       color: _muted,

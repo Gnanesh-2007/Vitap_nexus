@@ -225,7 +225,10 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                snapshot.error.toString(),
+                                ErrorFormatter.format(
+                                  snapshot.error,
+                                  fallback: 'Unable to load assignments. Please check your connection and try again.',
+                                ),
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.mutedLight, height: 1.4),
                               ),

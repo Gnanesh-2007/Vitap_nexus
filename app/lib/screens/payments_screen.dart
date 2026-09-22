@@ -703,8 +703,12 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     final paymentStatus = receiptMap['payment_status']?.toString() ?? 'Paid';
 
     try {
-      final profile = (dash.data?['profile'] as Map<String, dynamic>?) ??
-          await apiService.fetchProfile(username, password);
+      Map<String, dynamic> profile = {};
+      try {
+        profile = (dash.data?['profile'] as Map<String, dynamic>?) ??
+            await apiService.fetchProfile(username, password);
+      } catch (_) {}
+
       final studentName = profile['student_name']?.toString() ?? auth.username ?? 'Student';
       final regNo = profile['registration_number']?.toString() ??
           profile['application_number']?.toString() ??
@@ -960,7 +964,10 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                   ),
                   const SizedBox(height: 7),
                   Text(
-                    error.toString(),
+                    ErrorFormatter.format(
+                      error,
+                      fallback: 'Unable to load payment records. Please check your connection and try again.',
+                    ),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.dmSans(
                       color: _muted,

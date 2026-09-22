@@ -7,6 +7,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../utils/error_formatter.dart';
 import '../utils/vtop_embed_helper.dart';
 
 class VtopWebViewScreen extends ConsumerStatefulWidget {
@@ -328,7 +329,10 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = e.toString();
+          _errorMessage = ErrorFormatter.format(
+            e,
+            fallback: 'Unable to connect to VTOP Portal. Please check your connection and try again.',
+          );
         });
       }
     }

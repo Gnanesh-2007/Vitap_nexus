@@ -698,10 +698,11 @@ class DownloadHelper {
   }
 
   /// Converts official VTOP receipt HTML markup into authentic PDF bytes
-  static Future<Uint8List> convertOfficialReceiptHtmlToPdf(String receiptHtml) async {
-    var html = receiptHtml.trim();
-    if (!html.contains('<html') && !html.contains('<body')) {
-      html = '''
+  static Future<Uint8List?> convertOfficialReceiptHtmlToPdf(String receiptHtml) async {
+    try {
+      var html = receiptHtml.trim();
+      if (!html.contains('<html') && !html.contains('<body')) {
+        html = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -721,13 +722,17 @@ class DownloadHelper {
 </body>
 </html>
 ''';
-    }
+      }
 
-    // ignore: deprecated_member_use
-    return await Printing.convertHtml(
-      html: html,
-      format: PdfPageFormat.a4,
-    );
+      // ignore: deprecated_member_use
+      return await Printing.convertHtml(
+        html: html,
+        format: PdfPageFormat.a4,
+      );
+    } catch (e) {
+      debugPrint('convertOfficialReceiptHtmlToPdf error: $e');
+      return null;
+    }
   }
 
   /// Generates clean Official Outing Gate Pass Slip HTML document

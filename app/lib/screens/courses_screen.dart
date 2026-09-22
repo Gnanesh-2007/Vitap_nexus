@@ -281,7 +281,12 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               }
 
               if (snapshot.hasError) {
-                return _buildError(snapshot.error.toString());
+                return _buildError(
+                  ErrorFormatter.format(
+                    snapshot.error,
+                    fallback: 'Unable to load registered courses. Please check your connection and try again.',
+                  ),
+                );
               }
 
               final data = snapshot.data ?? {};
