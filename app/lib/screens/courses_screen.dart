@@ -958,6 +958,8 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                 _currentCourseDetail?['syllabus_download_path']?.toString() ?? '';
             final coursePlanPath =
                 _currentCourseDetail?['course_plan_download_path']?.toString() ?? '';
+            final downloadGeneralPath =
+                _currentCourseDetail?['download_general_materials_path']?.toString() ?? '';
             final downloadAllPath =
                 _currentCourseDetail?['download_all_path']?.toString() ?? '';
             final lectures =
@@ -1079,42 +1081,42 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                           physics: const BouncingScrollPhysics(),
                           children: [
                             // Quick Action Buttons
-                            Row(
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
                               children: [
                                 if (syllabusPath.isNotEmpty)
-                                  Expanded(
-                                    child: _buildActionButton(
-                                      icon: Icons.menu_book_outlined,
-                                      label: 'Syllabus',
-                                      color: _blue,
-                                      onTap: () => _downloadMaterial(
-                                          syllabusPath, '$courseCode-Syllabus.pdf'),
-                                    ),
+                                  _buildActionButton(
+                                    icon: Icons.menu_book_outlined,
+                                    label: 'Syllabus',
+                                    color: _blue,
+                                    onTap: () => _downloadMaterial(
+                                        syllabusPath, '$courseCode-Syllabus.pdf'),
                                   ),
-                                if (syllabusPath.isNotEmpty && coursePlanPath.isNotEmpty)
-                                  const SizedBox(width: 8),
                                 if (coursePlanPath.isNotEmpty)
-                                  Expanded(
-                                    child: _buildActionButton(
-                                      icon: Icons.calendar_today_outlined,
-                                      label: 'Course Plan',
-                                      color: _green,
-                                      onTap: () => _downloadMaterial(
-                                          coursePlanPath, '$courseCode-CoursePlan.pdf'),
-                                    ),
+                                  _buildActionButton(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: 'Course Plan',
+                                    color: _green,
+                                    onTap: () => _downloadMaterial(
+                                        coursePlanPath, '$courseCode-CoursePlan.pdf'),
                                   ),
-                                if (downloadAllPath.isNotEmpty) ...[
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _buildActionButton(
-                                      icon: Icons.folder_zip_outlined,
-                                      label: 'Download All',
-                                      color: _orange,
-                                      onTap: () => _downloadMaterial(
-                                          downloadAllPath, '$courseCode-Materials.zip'),
-                                    ),
+                                if (downloadGeneralPath.isNotEmpty)
+                                  _buildActionButton(
+                                    icon: Icons.library_books_outlined,
+                                    label: 'Ref Materials',
+                                    color: const Color(0xFF6575C5),
+                                    onTap: () => _downloadMaterial(
+                                        downloadGeneralPath, '$courseCode-GeneralRef.zip'),
                                   ),
-                                ],
+                                if (downloadAllPath.isNotEmpty)
+                                  _buildActionButton(
+                                    icon: Icons.folder_zip_outlined,
+                                    label: 'Download All',
+                                    color: _orange,
+                                    onTap: () => _downloadMaterial(
+                                        downloadAllPath, '$courseCode-Materials.zip'),
+                                  ),
                               ],
                             ),
                             const SizedBox(height: 18),
@@ -1182,27 +1184,23 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       onTap: _isDownloading ? null : onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
           color: _soft,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _line),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 15, color: color),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.dmSans(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
-                ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _ink,
               ),
             ),
           ],
@@ -1213,9 +1211,11 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
 
   Widget _buildLectureItem(dynamic lec) {
     final slNo = lec['sl_no']?.toString() ?? '';
-    final date = lec['class_date']?.toString() ?? '';
-    final topic = lec['topic']?.toString() ?? 'Lecture Session';
-    final materials = (lec['materials'] as List<dynamic>?) ?? [];
+    final date = (lec['formatted_date'] ?? lec['date'] ?? lec['class_date'] ?? '').toString();
+    final topic = (lec['topic'] ?? 'Lecture Session').toString();
+    
+    final rawMaterials = lec['reference_materials'] ?? lec['materials'] ?? [];
+    final List<dynamic> materials = rawMaterials is List ? rawMaterials : [];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1274,9 +1274,12 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               spacing: 6,
               runSpacing: 6,
               children: materials.map((m) {
-                final matTitle = m['material_title']?.toString() ?? 'Download PDF';
-                final downloadPath = m['download_path']?.toString() ?? '';
-                final filename = m['filename']?.toString() ?? '$matTitle.pdf';
+                final matTitle = (m['label'] ?? m['material_title'] ?? m['title'] ?? 'Reference Material').toString();
+                final downloadPath = (m['download_path'] ?? '').toString();
+                final cleanExt = matTitle.toLowerCase().endsWith('.pdf') ? '' : '.pdf';
+                final filename = (m['filename'] ?? '$matTitle$cleanExt').toString();
+
+                if (downloadPath.isEmpty) return const SizedBox.shrink();
 
                 return InkWell(
                   onTap: () => _downloadMaterial(downloadPath, filename),
@@ -1293,12 +1296,16 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                       children: [
                         const Icon(Icons.download_rounded, size: 13, color: _blue),
                         const SizedBox(width: 4),
-                        Text(
-                          matTitle,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _blue,
+                        Flexible(
+                          child: Text(
+                            matTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: _blue,
+                            ),
                           ),
                         ),
                       ],
