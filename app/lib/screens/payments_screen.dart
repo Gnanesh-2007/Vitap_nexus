@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,6 +22,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
   late TabController _tabController;
   late Future<List<dynamic>> _pendingPaymentsFuture;
   late Future<List<dynamic>> _receiptsFuture;
+  String? _downloadingReceiptNo;
 
   static const _paper = Color(0xFFF4F2ED);
   static const _surface = Color(0xFFFFFEFB);
@@ -557,6 +556,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
         receipt['receipt_date']?.toString() ??
         '';
     final amount = receipt['amount']?.toString() ?? '0';
+    final isThisDownloading = _downloadingReceiptNo == receiptNo;
 
     return Container(
       padding: const EdgeInsets.all(15),
@@ -639,7 +639,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
           ),
           const SizedBox(width: 8),
           InkWell(
-            onTap: () => _downloadReceipt(receipt),
+            onTap: isThisDownloading ? null : () => _downloadReceipt(receipt),
             borderRadius: BorderRadius.circular(9),
             child: Container(
               padding: const EdgeInsets.symmetric(
@@ -653,25 +653,34 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                   color: const Color(0xFFC9D7F7),
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.download_rounded,
-                    color: _blue,
-                    size: 15,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Receipt (PDF)',
-                    style: GoogleFonts.dmSans(
-                      color: _blue,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
+              child: isThisDownloading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _blue,
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.download_rounded,
+                          color: _blue,
+                          size: 15,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Receipt (PDF)',
+                          style: GoogleFonts.dmSans(
+                            color: _blue,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
@@ -702,6 +711,8 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     final campusCode = receiptMap['campus_code']?.toString() ?? 'AMR';
     final paymentStatus = receiptMap['payment_status']?.toString() ?? 'Paid';
 
+    setState(() => _downloadingReceiptNo = receiptNo);
+
     try {
       Map<String, dynamic> profile = {};
       try {
@@ -716,29 +727,8 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
       final appNo = profile['application_number']?.toString() ?? username;
       final programName = profile['program_name']?.toString() ?? profile['branch_name']?.toString();
 
-      // 1. Fetch official receipt from VTOP server
-      Uint8List? pdfBytes;
-      try {
-        final receiptHtml = await apiService.downloadPaymentReceipt(
-          username: username,
-          password: password,
-          receiptNo: receiptNo,
-          applicationNumber: appNo,
-        );
-
-        if (receiptHtml.isNotEmpty &&
-            (receiptHtml.contains('<table') ||
-                receiptHtml.contains('<div') ||
-                receiptHtml.contains('<html') ||
-                receiptHtml.contains('RECEIPT'))) {
-          pdfBytes = await DownloadHelper.convertOfficialReceiptHtmlToPdf(receiptHtml);
-        }
-      } catch (fetchErr) {
-        debugPrint('Official VTOP HTML fetch/conversion error: $fetchErr');
-      }
-
-      // 2. Fallback to official structured layout PDF if direct HTML conversion failed
-      pdfBytes ??= await DownloadHelper.generateOfficialPaymentReceiptPdfBytes(
+      // Generate official VIT-AP payment receipt PDF document
+      final pdfBytes = await DownloadHelper.generateOfficialPaymentReceiptPdfBytes(
         studentName: studentName,
         regNo: regNo,
         receiptNo: receiptNo,
@@ -782,6 +772,10 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
           ),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _downloadingReceiptNo = null);
+      }
     }
   }
 

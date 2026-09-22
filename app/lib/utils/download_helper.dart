@@ -25,7 +25,7 @@ class DownloadHelper {
   static Future<String?> saveFile({
     required BuildContext context,
     required String fileName,
-    required dynamic content, // String or List<int>
+    required dynamic content, // String, Uint8List, List<int>, or List<dynamic>
     String? mimeType,
     bool openImmediately = false,
   }) async {
@@ -33,75 +33,62 @@ class DownloadHelper {
       final sanitizedName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
 
       Uint8List bytes;
-      if (content is String) {
-        bytes = Uint8List.fromList(utf8.encode(content));
-      } else if (content is Uint8List) {
+      if (content is Uint8List) {
         bytes = content;
       } else if (content is List<int>) {
         bytes = Uint8List.fromList(content);
+      } else if (content is List) {
+        bytes = Uint8List.fromList(content.map((e) => (e as num).toInt()).toList());
+      } else if (content is String) {
+        bytes = Uint8List.fromList(utf8.encode(content));
       } else {
         throw Exception('Unsupported file content format');
       }
 
-      String? savedPath;
+      // 1. Always write to accessible local storage first so openFile & shareFile are 100% reliable
+      Directory? dir;
+      if (!kIsWeb) {
+        if (Platform.isAndroid) {
+          try {
+            dir = await getExternalStorageDirectory();
+          } catch (_) {}
+        } else if (!Platform.isIOS) {
+          try {
+            dir = await getDownloadsDirectory();
+          } catch (_) {}
+        }
+      }
+      dir ??= await getApplicationDocumentsDirectory();
+      final localFilePath = '${dir.path}/$sanitizedName';
+      final file = File(localFilePath);
+      await file.writeAsBytes(bytes, flush: true);
 
-      // 1. Prompt system Save-As picker so the file is explicitly placed in user's Downloads/Files
+      // 2. Also register in public Downloads/Documents via FileSaver
       try {
-        savedPath = await FileSaver.instance.saveAs(
+        await FileSaver.instance.saveFile(
           name: sanitizedName,
           bytes: bytes,
-          mimeType: mimeType != null ? MimeType.other : MimeType.pdf,
+          mimeType: sanitizedName.toLowerCase().endsWith('.pdf')
+              ? MimeType.pdf
+              : (mimeType != null ? MimeType.other : MimeType.pdf),
           customMimeType: mimeType,
         );
       } catch (fsErr) {
-        debugPrint('FileSaver saveAs error: $fsErr');
-        try {
-          savedPath = await FileSaver.instance.saveFile(
-            name: sanitizedName,
-            bytes: bytes,
-            mimeType: mimeType != null ? MimeType.other : MimeType.pdf,
-            customMimeType: mimeType,
-          );
-        } catch (_) {}
+        debugPrint('FileSaver.saveFile error: $fsErr');
       }
 
-      // 2. Also write to accessible storage directory as fallback/direct path
-      if (savedPath == null || savedPath.isEmpty) {
-        Directory? dir;
-        if (!kIsWeb) {
-          if (Platform.isAndroid) {
-            try {
-              // App-specific external storage or app documents (always readable/writable without MANAGE_EXTERNAL_STORAGE permission)
-              dir = await getExternalStorageDirectory();
-            } catch (_) {}
-            dir ??= await getApplicationDocumentsDirectory();
-          } else if (Platform.isIOS) {
-            dir = await getApplicationDocumentsDirectory();
-          } else {
-            try {
-              dir = await getDownloadsDirectory();
-            } catch (_) {}
-            dir ??= await getApplicationDocumentsDirectory();
-          }
-        }
-        dir ??= await getApplicationDocumentsDirectory();
-        savedPath = '${dir.path}/$sanitizedName';
-        final file = File(savedPath);
-        await file.writeAsBytes(bytes);
-      }
-
-      if (openImmediately && savedPath.isNotEmpty) {
-        await openFile(savedPath);
+      if (openImmediately) {
+        await openFile(localFilePath);
       }
 
       if (context.mounted) {
         _showDownloadSuccessBanner(
           context: context,
-          filePath: savedPath,
+          filePath: localFilePath,
           fileName: sanitizedName,
         );
       }
-      return savedPath;
+      return localFilePath;
     } catch (e) {
       if (context.mounted) {
         final friendlyMsg = ErrorFormatter.format(e, fallback: 'Unable to save the file. Please check storage permissions or try again.');
