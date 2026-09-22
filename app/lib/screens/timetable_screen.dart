@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/vtop_providers.dart';
+import '../theme/app_theme.dart';
 import '../utils/vtop_helpers.dart';
 
 class TimetableScreen extends ConsumerStatefulWidget {
@@ -38,18 +39,19 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
 
   late TabController _tabController;
 
-  static const Color _background = Color(0xFFF4F2ED);
-  static const Color _surface = Color(0xFFFFFEFB);
-  static const Color _ink = Color(0xFF17202A);
-  static const Color _inkSoft = Color(0xFF59636E);
-  static const Color _muted = Color(0xFF8B939B);
-  static const Color _line = Color(0xFFDCD9D2);
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _background => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _inkSoft => _palette.inkSoft;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
 
-  static const Color _navy = Color(0xFF172B4D);
-  static const Color _blue = Color(0xFF356AE6);
-  static const Color _orange = Color(0xFFE47543);
-  static const Color _green = Color(0xFF23835B);
-  static const Color _cream = Color(0xFFEAE5DA);
+  Color get _navy => _palette.navy;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _green => _palette.green;
+  Color get _cream => _palette.soft;
 
   @override
   void initState() {

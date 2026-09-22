@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
+import '../theme/app_theme.dart';
 import '../utils/vtop_helpers.dart';
 import 'grades_screen.dart';
 import 'outings_screen.dart';
@@ -75,20 +76,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   // ============================================================
-  // EDITORIAL CAMPUS THEME
+  // EDITORIAL CAMPUS THEME (Zero-Neon, Dynamic Dark/Light Slate)
   // ============================================================
-  static const Color _paper = Color(0xFFF4F2ED);
-  static const Color _surface = Color(0xFFFFFEFB);
-  static const Color _ink = Color(0xFF17202A);
-  static const Color _inkSoft = Color(0xFF56616D);
-  static const Color _inkMuted = Color(0xFF8A929A);
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _paper => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _inkSoft => _palette.inkSoft;
+  Color get _inkMuted => _palette.inkMuted;
 
-  static const Color _navy = Color(0xFF172B4D);
-  static const Color _blue = Color(0xFF356AE6);
-  static const Color _orange = Color(0xFFE47543);
-  static const Color _green = Color(0xFF278B68);
-  static const Color _line = Color(0xFFE2DED5);
-  static const Color _soft = Color(0xFFF0EEE8);
+  Color get _navy => _palette.navy;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _green => _palette.green;
+  Color get _line => _palette.line;
+  Color get _soft => _palette.soft;
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -100,43 +102,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   // Non-duplicate Quick Access items
   List<_QuickItem> _getQuickAccessItems() {
     final baseItems = [
-      const _QuickItem(
+      _QuickItem(
         label: 'Biometric',
         icon: Icons.fingerprint_rounded,
         accent: _navy,
         action: 'biometric',
       ),
-      const _QuickItem(
+      _QuickItem(
         label: 'VTOP Portal',
         icon: Icons.language_rounded,
         accent: _navy,
         action: 'direct_vtop',
       ),
-      const _QuickItem(
+      _QuickItem(
         label: 'Exams',
         icon: Icons.event_note_rounded,
         accent: _orange,
         action: 'exams',
       ),
-      const _QuickItem(
+      _QuickItem(
         label: 'Calendar',
         icon: Icons.calendar_month_rounded,
         accent: _blue,
         action: 'calendar',
       ),
-      const _QuickItem(
+      _QuickItem(
         label: 'Outing',
         icon: Icons.directions_walk_rounded,
         accent: _green,
         action: 'outings',
       ),
-      const _QuickItem(
+      _QuickItem(
         label: 'Assignments',
         icon: Icons.assignment_outlined,
         accent: _orange,
         action: 'assignments',
       ),
-      const _QuickItem(
+      _QuickItem(
         label: 'Course Page',
         icon: Icons.menu_book_rounded,
         accent: _blue,
@@ -147,7 +149,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     if (!_isQuickAccessExpanded) {
       return [
         ...baseItems,
-        const _QuickItem(
+        _QuickItem(
           label: 'More',
           icon: Icons.grid_view_rounded,
           accent: _navy,
@@ -158,43 +160,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       // Inline expanded items - strictly NO DUPLICATES!
       return [
         ...baseItems,
-        const _QuickItem(
+        _QuickItem(
           label: 'Grades',
           icon: Icons.bar_chart_rounded,
           accent: _blue,
           action: 'grades',
         ),
-        const _QuickItem(
+        _QuickItem(
           label: 'Mentor',
           icon: Icons.person_outline_rounded,
           accent: _green,
           action: 'mentor',
         ),
-        const _QuickItem(
+        _QuickItem(
           label: 'Payments',
           icon: Icons.account_balance_wallet_outlined,
           accent: _orange,
           action: 'payments',
         ),
-        const _QuickItem(
+        _QuickItem(
           label: 'Profile',
           icon: Icons.badge_outlined,
           accent: _navy,
           action: 'profile',
         ),
-        const _QuickItem(
+        _QuickItem(
           label: 'Attendance',
           icon: Icons.pie_chart_rounded,
           accent: _orange,
           action: 'attendance',
         ),
-        const _QuickItem(
+        _QuickItem(
           label: 'Marks',
           icon: Icons.assignment_turned_in_rounded,
           accent: _green,
           action: 'marks',
         ),
-        const _QuickItem(
+        _QuickItem(
           label: 'Less',
           icon: Icons.keyboard_arrow_up_rounded,
           accent: _navy,
@@ -1892,6 +1894,7 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -1902,12 +1905,12 @@ class _ErrorView extends StatelessWidget {
               width: 62,
               height: 62,
               decoration: BoxDecoration(
-                color: const Color(0xFFD94B4B).withValues(alpha: .10),
+                color: palette.red.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.sync_problem_rounded,
-                color: Color(0xFFD94B4B),
+                color: palette.red,
                 size: 28,
               ),
             ),
@@ -1918,7 +1921,7 @@ class _ErrorView extends StatelessWidget {
               style: GoogleFonts.dmSans(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF17202A),
+                color: palette.ink,
               ),
             ),
             const SizedBox(height: 8),
@@ -1928,15 +1931,15 @@ class _ErrorView extends StatelessWidget {
               style: GoogleFonts.dmSans(
                 fontSize: 11.5,
                 height: 1.45,
-                color: const Color(0xFF8A929A),
+                color: palette.inkMuted,
               ),
             ),
             const SizedBox(height: 22),
             ElevatedButton.icon(
               onPressed: onRetry,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF172B4D),
-                foregroundColor: Colors.white,
+                backgroundColor: palette.isDark ? palette.soft : const Color(0xFF172B4D),
+                foregroundColor: palette.ink,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -1944,11 +1947,13 @@ class _ErrorView extends StatelessWidget {
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: palette.line),
                 ),
               ),
-              icon: const Icon(
+              icon: Icon(
                 Icons.refresh_rounded,
                 size: 17,
+                color: palette.ink,
               ),
               label: Text(
                 'TRY AGAIN',
@@ -1956,6 +1961,7 @@ class _ErrorView extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1,
+                  color: palette.ink,
                 ),
               ),
             ),

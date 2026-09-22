@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
 import '../utils/download_helper.dart';
 import '../utils/error_formatter.dart';
 
@@ -52,18 +53,19 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   late Future<dynamic> _weekendOutingsFuture;
 
   // Editorial campus palette
-  static const _paper = Color(0xFFF4F2ED);
-  static const _surface = Color(0xFFFFFEFB);
-  static const _ink = Color(0xFF17202A);
-  static const _inkSoft = Color(0xFF56616D);
-  static const _navy = Color(0xFF172B4D);
-  static const _blue = Color(0xFF356AE6);
-  static const _orange = Color(0xFFE47543);
-  static const _green = Color(0xFF278B68);
-  static const _red = Color(0xFFC84C43);
-  static const _muted = Color(0xFF6E7681);
-  static const _line = Color(0xFFE2DED5);
-  static const _soft = Color(0xFFEAE7DF);
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _paper => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _inkSoft => _palette.inkSoft;
+  Color get _navy => _palette.navy;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _green => _palette.green;
+  Color get _red => _palette.red;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
+  Color get _soft => _palette.soft;
 
   @override
   void initState() {

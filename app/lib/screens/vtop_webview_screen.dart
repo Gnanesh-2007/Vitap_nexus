@@ -7,6 +7,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
 import '../utils/vtop_embed_helper.dart';
 
@@ -30,15 +31,16 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
   static const String _officialVtopUrl = 'https://vtop.vitap.ac.in/vtop/';
 
   // Editorial campus theme
-  static const _paper = Color(0xFFF4F2ED);
-  static const _surface = Color(0xFFFFFEFB);
-  static const _ink = Color(0xFF17202A);
-  static const _navy = Color(0xFF172B4D);
-  static const _orange = Color(0xFFE47543);
-  static const _green = Color(0xFF278B68);
-  static const _red = Color(0xFFC84C43);
-  static const _muted = Color(0xFF6E7681);
-  static const _line = Color(0xFFE2DED5);
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _paper => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _navy => _palette.navy;
+  Color get _orange => _palette.orange;
+  Color get _green => _palette.green;
+  Color get _red => _palette.red;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
 
   @override
   void initState() {

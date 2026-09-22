@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../theme/app_theme.dart';
 import 'attendance_screen.dart';
 import 'dashboard_screen.dart';
 import 'marks_screen.dart';
@@ -19,13 +20,6 @@ class _MainNavScreenState extends State<MainNavScreen> {
   int _currentIndex = 0;
   final List<int> _tabRevisions = [0, 0, 0, 0, 0];
   late final List<Widget> _screens;
-
-  static const Color _background = Color(0xFFF4F2ED);
-  static const Color _surface = Color(0xFFFFFEFB);
-  static const Color _muted = Color(0xFF89919A);
-  static const Color _line = Color(0xFFE2DED5);
-  static const Color _navy = Color(0xFF172B4D);
-  static const Color _orange = Color(0xFFE47543);
 
   static const _navItems = [
     _NavTabItem(Icons.home_outlined, Icons.home_rounded, 'Home', 'HOME'),
@@ -97,6 +91,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
     return PopScope(
       canPop: _currentIndex == 0,
       onPopInvokedWithResult: (didPop, result) {
@@ -107,21 +102,21 @@ class _MainNavScreenState extends State<MainNavScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: _background,
+        backgroundColor: palette.paper,
         body: IndexedStack(
           index: _currentIndex,
           children: List.generate(_navItems.length, (i) => _getScreen(i)),
         ),
-        bottomNavigationBar: _buildNavigationBar(),
+        bottomNavigationBar: _buildNavigationBar(palette),
       ),
     );
   }
 
-  Widget _buildNavigationBar() {
+  Widget _buildNavigationBar(AppPalette palette) {
     return Container(
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: _line, width: 1)),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(top: BorderSide(color: palette.line, width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -131,7 +126,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
             children: List.generate(
               _navItems.length,
               (index) => Expanded(
-                child: _buildNavItem(index, _navItems[index]),
+                child: _buildNavItem(index, _navItems[index], palette),
               ),
             ),
           ),
@@ -140,8 +135,13 @@ class _MainNavScreenState extends State<MainNavScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, _NavTabItem item) {
+  Widget _buildNavItem(int index, _NavTabItem item, AppPalette palette) {
     final selected = _currentIndex == index;
+    final selectedBg = palette.isDark
+        ? palette.soft
+        : const Color(0xFFE8EEF9);
+    final activeColor = palette.isDark ? palette.navy : const Color(0xFF172B4D);
+    final unselectedColor = palette.inkMuted;
 
     return Semantics(
       button: true,
@@ -155,7 +155,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
           curve: Curves.easeOutCubic,
           margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFE8EEF9) : Colors.transparent,
+            color: selected ? selectedBg : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Stack(
@@ -178,7 +178,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
                       selected ? item.activeIcon : item.icon,
                       key: ValueKey('${index}_$selected'),
                       size: selected ? 22 : 21,
-                      color: selected ? _navy : _muted,
+                      color: selected ? activeColor : unselectedColor,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -189,7 +189,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
                       fontWeight:
                           selected ? FontWeight.w800 : FontWeight.w600,
                       letterSpacing: selected ? .65 : .45,
-                      color: selected ? _navy : _muted,
+                      color: selected ? activeColor : unselectedColor,
                     ),
                     child: Text(
                       item.shortLabel,
@@ -207,7 +207,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
                   width: selected ? 18 : 0,
                   height: 2.5,
                   decoration: BoxDecoration(
-                    color: _orange,
+                    color: palette.orange,
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),

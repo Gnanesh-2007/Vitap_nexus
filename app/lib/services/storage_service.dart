@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -506,5 +507,20 @@ class StorageService {
     }
     if (diff.inDays < 2) return 'Yesterday, ${DateFormat('h:mm a').format(dt)}';
     return DateFormat('MMM d, h:mm a').format(dt);
+  }
+
+  static const String _keyThemeMode = 'app_theme_mode';
+
+  static ThemeMode getThemeMode() {
+    final val = _prefs?.getString(_keyThemeMode);
+    if (val == 'dark') return ThemeMode.dark;
+    if (val == 'light') return ThemeMode.light;
+    return ThemeMode.system;
+  }
+
+  static Future<void> setThemeMode(ThemeMode mode) async {
+    final prefs = await _getPrefs();
+    final str = mode == ThemeMode.dark ? 'dark' : (mode == ThemeMode.light ? 'light' : 'system');
+    await prefs.setString(_keyThemeMode, str);
   }
 }

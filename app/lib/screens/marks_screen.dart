@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
 import '../utils/vtop_helpers.dart';
 
@@ -19,16 +20,17 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  static const _paper = Color(0xFFF4F2ED);
-  static const _surface = Color(0xFFFFFEFB);
-  static const _ink = Color(0xFF17202A);
-  static const _navy = Color(0xFF172B4D);
-  static const _blue = Color(0xFF356AE6);
-  static const _orange = Color(0xFFE47543);
-  static const _green = Color(0xFF278B68);
-  static const _muted = Color(0xFF6E7681);
-  static const _line = Color(0xFFE2DED5);
-  static const _soft = Color(0xFFF0EEE8);
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _paper => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _navy => _palette.navy;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _green => _palette.green;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
+  Color get _soft => _palette.soft;
 
   @override
   void initState() {

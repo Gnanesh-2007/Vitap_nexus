@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
 import '../utils/vtop_helpers.dart';
 
@@ -16,29 +17,29 @@ class AttendanceScreen extends ConsumerStatefulWidget {
 }
 
 // ============================================================
-// VITAP NEXUS — EDITORIAL ATTENDANCE DESIGN
-// Same new visual system as Login + Dashboard.
+// VITAP NEXUS — EDITORIAL ATTENDANCE DESIGN (Zero-Neon Dark/Light)
 // ============================================================
-
-const Color _background = Color(0xFFF4F2ED);
-const Color _surface = Color(0xFFFFFEFB);
-const Color _ink = Color(0xFF17202A);
-const Color _inkSoft = Color(0xFF59636E);
-const Color _muted = Color(0xFF8B939B);
-const Color _line = Color(0xFFDCD9D2);
-
-const Color _navy = Color(0xFF172B4D);
-const Color _blue = Color(0xFF356AE6);
-const Color _orange = Color(0xFFE47543);
-const Color _cream = Color(0xFFEAE5DA);
-
-const Color _success = Color(0xFF23835B);
-const Color _warning = Color(0xFFD28A18);
-const Color _danger = Color(0xFFD94B4B);
 
 class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _background => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _inkSoft => _palette.inkSoft;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
+
+  Color get _navy => _palette.navy;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _cream => _palette.soft;
+
+  Color get _success => _palette.green;
+  Color get _warning => _palette.orange;
+  Color get _danger => _palette.red;
 
   @override
   void initState() {

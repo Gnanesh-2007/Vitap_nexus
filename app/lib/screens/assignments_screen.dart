@@ -159,29 +159,44 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     return s.contains('submitted') || s.contains('uploaded') || s.contains('completed');
   }
 
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _paper => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _inkSoft => _palette.inkSoft;
+  Color get _navy => _palette.navy;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _green => _palette.green;
+  Color get _red => _palette.red;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
+  Color get _soft => _palette.soft;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: _paper,
       appBar: AppBar(
         title: Text(
           'Digital Assignments',
-          style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: -0.4),
+          style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: -0.4, color: _ink),
         ),
-        backgroundColor: AppTheme.background,
+        backgroundColor: _paper,
+        iconTheme: IconThemeData(color: _ink),
         elevation: 0,
         scrolledUnderElevation: 3.0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: _ink),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: const [],
         bottom: _isDownloading
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(3),
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(3),
                 child: LinearProgressIndicator(
-                  backgroundColor: AppTheme.cardBorder,
-                  color: AppTheme.cyanAccent,
+                  backgroundColor: _line,
+                  color: _blue,
                   minHeight: 3,
                 ),
               )
@@ -197,8 +212,8 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
             if (snapshot.hasError) {
               return RefreshIndicator(
                 onRefresh: () async => _loadAssignments(forceRefresh: true),
-                color: AppTheme.cyanAccent,
-                backgroundColor: AppTheme.surface,
+                color: _blue,
+                backgroundColor: _surface,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
@@ -213,15 +228,15 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                               Container(
                                 padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.error.withValues(alpha: 0.12),
+                                  color: _red.withValues(alpha: 0.12),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.error),
+                                child: Icon(Icons.error_outline_rounded, size: 48, color: _red),
                               ),
                               const SizedBox(height: 18),
                               Text(
                                 'Failed to Load Assignments',
-                                style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.ink),
+                                style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: _ink),
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -230,7 +245,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                                   fallback: 'Unable to load assignments. Please check your connection and try again.',
                                 ),
                                 textAlign: TextAlign.center,
-                                style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.mutedLight, height: 1.4),
+                                style: GoogleFonts.dmSans(fontSize: 12, color: _muted, height: 1.4),
                               ),
                               const SizedBox(height: 24),
                               ElevatedButton.icon(
@@ -238,7 +253,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                                 icon: const Icon(Icons.refresh_rounded, size: 18),
                                 label: const Text('Retry'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppTheme.primary,
+                                  backgroundColor: _blue,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -266,8 +281,8 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
             if (courses.isEmpty) {
               return RefreshIndicator(
                 onRefresh: () async => _loadAssignments(forceRefresh: true),
-                color: AppTheme.cyanAccent,
-                backgroundColor: AppTheme.surface,
+                color: _blue,
+                backgroundColor: _surface,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
@@ -282,22 +297,22 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                               Container(
                                 padding: const EdgeInsets.all(24),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.surface,
+                                  color: _surface,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                                  border: Border.all(color: _blue.withValues(alpha: 0.3)),
                                 ),
-                                child: const Icon(Icons.assignment_turned_in_rounded, size: 48, color: AppTheme.cyanAccent),
+                                child: Icon(Icons.assignment_turned_in_rounded, size: 48, color: _blue),
                               ),
                               const SizedBox(height: 20),
                               Text(
                                 'No Assignments Found',
-                                style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.ink),
+                                style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.bold, color: _ink),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 'No digital assignments have been posted for the active semester yet.',
                                 textAlign: TextAlign.center,
-                                style: GoogleFonts.dmSans(fontSize: 13, color: AppTheme.muted, height: 1.4),
+                                style: GoogleFonts.dmSans(fontSize: 13, color: _muted, height: 1.4),
                               ),
                             ],
                           ),
@@ -341,8 +356,8 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
 
             return RefreshIndicator(
               onRefresh: () async => _loadAssignments(),
-              color: AppTheme.cyanAccent,
-              backgroundColor: AppTheme.surface,
+              color: _blue,
+              backgroundColor: _surface,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -375,8 +390,8 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
             title: 'Total DA',
             value: total.toString(),
             icon: Icons.assignment_outlined,
-            color: AppTheme.primary,
-            bgGradient: const [AppTheme.surface, AppTheme.surface],
+            color: _blue,
+            bgGradient: [_surface, _surface],
           ),
         ),
         const SizedBox(width: 10),
@@ -385,8 +400,8 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
             title: 'Submitted',
             value: submitted.toString(),
             icon: Icons.check_circle_outline_rounded,
-            color: AppTheme.success,
-            bgGradient: const [AppTheme.surface, AppTheme.surface],
+            color: _green,
+            bgGradient: [_surface, _surface],
           ),
         ),
         const SizedBox(width: 10),
@@ -395,8 +410,8 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
             title: 'Pending',
             value: pending.toString(),
             icon: Icons.hourglass_top_rounded,
-            color: AppTheme.warning,
-            bgGradient: const [AppTheme.surface, AppTheme.surface],
+            color: _orange,
+            bgGradient: [_surface, _surface],
           ),
         ),
       ],
@@ -413,12 +428,12 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: _surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: color.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.ink.withValues(alpha: 0.06),
+            color: _ink.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -441,12 +456,12 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           const SizedBox(height: 12),
           Text(
             value,
-            style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.ink, height: 1.0),
+            style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.bold, color: _ink, height: 1.0),
           ),
           const SizedBox(height: 4),
           Text(
             title,
-            style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: AppTheme.muted),
+            style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: _muted),
           ),
         ],
       ),
@@ -459,22 +474,22 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: AppTheme.surface,
+            color: _surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.cardBorder),
+            border: Border.all(color: _line),
           ),
           child: TextField(
-            style: GoogleFonts.dmSans(color: AppTheme.ink, fontSize: 13),
+            style: GoogleFonts.dmSans(color: _ink, fontSize: 13),
             onChanged: (val) => setState(() => _searchQuery = val),
             decoration: InputDecoration(
               hintText: 'Search course code, name, or faculty...',
-              hintStyle: GoogleFonts.dmSans(color: AppTheme.mutedLight, fontSize: 13),
-              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 20),
+              hintStyle: GoogleFonts.dmSans(color: _muted, fontSize: 13),
+              prefixIcon: Icon(Icons.search_rounded, color: _muted, size: 20),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear_rounded, size: 18, color: AppTheme.mutedLight),
+                      icon: Icon(Icons.clear_rounded, size: 18, color: _muted),
                       onPressed: () => setState(() => _searchQuery = ''),
                     )
                   : null,
@@ -496,10 +511,10 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppTheme.navy : AppTheme.surface,
+                      color: isSelected ? (_palette.isDark ? _palette.soft : _navy) : _surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isSelected ? AppTheme.navy : AppTheme.cardBorder,
+                        color: isSelected ? (_palette.isDark ? _palette.line : _navy) : _line,
                       ),
                     ),
                     child: Text(
@@ -507,7 +522,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       style: GoogleFonts.dmSans(
                         fontSize: 12,
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                        color: isSelected ? Colors.white : AppTheme.muted,
+                        color: isSelected ? (_palette.isDark ? _ink : Colors.white) : _muted,
                       ),
                     ),
                   ),
@@ -542,14 +557,14 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: _surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isExpanded ? AppTheme.primary.withValues(alpha: 0.4) : AppTheme.cardBorder,
+          color: isExpanded ? _blue.withValues(alpha: 0.4) : _line,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.ink.withValues(alpha: 0.06),
+            color: _ink.withValues(alpha: 0.06),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -582,16 +597,16 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.primary.withValues(alpha: 0.2),
+                            color: _blue.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.4)),
+                            border: Border.all(color: _blue.withValues(alpha: 0.3)),
                           ),
                           child: Text(
                             code,
                             style: GoogleFonts.dmSans(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.cyanAccent,
+                              color: _blue,
                             ),
                           ),
                         ),
@@ -600,12 +615,12 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppTheme.background,
+                              color: _paper,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               type,
-                              style: GoogleFonts.dmSans(fontSize: 10.5, color: AppTheme.muted),
+                              style: GoogleFonts.dmSans(fontSize: 10.5, color: _muted),
                             ),
                           ),
                         ],
@@ -615,36 +630,36 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                           alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.cardBorder,
+                            color: _soft,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '${assignments.length} DA',
-                            style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.muted),
+                            style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: _muted),
                           ),
                         ),
                         const SizedBox(width: 6),
                         AnimatedRotation(
                           turns: isExpanded ? 0.5 : 0.0,
                           duration: const Duration(milliseconds: 250),
-                          child: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.mutedLight, size: 22),
+                          child: Icon(Icons.keyboard_arrow_down_rounded, color: _muted, size: 22),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
                     Text(
                       title,
-                      style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.ink),
+                      style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: _ink),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.person_outline_rounded, size: 14, color: Color(0xFF64748B)),
+                        Icon(Icons.person_outline_rounded, size: 14, color: _muted),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             faculty,
-                            style: GoogleFonts.dmSans(fontSize: 11.5, color: AppTheme.mutedLight),
+                            style: GoogleFonts.dmSans(fontSize: 11.5, color: _muted),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -659,11 +674,11 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
 
           // Assignments List Content
           if (isExpanded) ...[
-            const Divider(height: 1, color: AppTheme.cardBorder),
+            Divider(height: 1, color: _line),
             if (isLoading)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator(color: AppTheme.cyanAccent, strokeWidth: 2)),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator(color: _blue, strokeWidth: 2)),
               )
             else if (assignments.isEmpty)
               Padding(
@@ -671,11 +686,11 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                    Icon(Icons.info_outline_rounded, size: 16, color: _muted),
                     const SizedBox(width: 8),
                     Text(
                       'No ${_selectedFilter == 'All' ? '' : _selectedFilter.toLowerCase()} assignments available',
-                      style: GoogleFonts.dmSans(fontSize: 12, color: AppTheme.mutedLight),
+                      style: GoogleFonts.dmSans(fontSize: 12, color: _muted),
                     ),
                   ],
                 ),
@@ -711,10 +726,10 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceLight,
+        color: _soft,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isDone ? AppTheme.success.withValues(alpha: 0.3) : AppTheme.cardBorder,
+          color: isDone ? _green.withValues(alpha: 0.3) : _line,
         ),
       ),
       child: Column(
@@ -726,17 +741,17 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.dmSans(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppTheme.ink, height: 1.3),
+                  style: GoogleFonts.dmSans(fontSize: 13.5, fontWeight: FontWeight.w600, color: _ink, height: 1.3),
                 ),
               ),
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isDone ? AppTheme.success.withValues(alpha: 0.10) : AppTheme.warning.withValues(alpha: 0.10),
+                  color: isDone ? _green.withValues(alpha: 0.10) : _orange.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isDone ? AppTheme.success : AppTheme.warning,
+                    color: isDone ? _green : _orange,
                     width: 0.8,
                   ),
                 ),
@@ -745,7 +760,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   style: GoogleFonts.dmSans(
                     fontSize: 10.5,
                     fontWeight: FontWeight.bold,
-                    color: isDone ? AppTheme.success : AppTheme.warning,
+                    color: isDone ? _green : _orange,
                   ),
                 ),
               ),
@@ -755,7 +770,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppTheme.background,
+              color: _paper,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -797,8 +812,8 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       icon: const Icon(Icons.download_rounded, size: 14),
                       label: const Text('QP File'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primary,
-                        side: const BorderSide(color: AppTheme.primary),
+                        foregroundColor: _blue,
+                        side: BorderSide(color: _blue),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
@@ -813,7 +828,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       icon: const Icon(Icons.remove_red_eye_rounded, size: 14),
                       label: const Text('My Work'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.success,
+                        backgroundColor: _green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -835,9 +850,9 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       children: [
         Row(
           children: [
-            Icon(icon, size: 12, color: AppTheme.mutedLight),
+            Icon(icon, size: 12, color: _muted),
             const SizedBox(width: 4),
-            Text(label, style: GoogleFonts.dmSans(fontSize: 10, color: AppTheme.mutedLight)),
+            Text(label, style: GoogleFonts.dmSans(fontSize: 10, color: _muted)),
           ],
         ),
         const SizedBox(height: 2),
@@ -848,7 +863,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           style: GoogleFonts.dmSans(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppTheme.ink,
+            color: _ink,
           ),
         ),
       ],
@@ -862,26 +877,26 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 28),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: _surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppTheme.cardBorder),
+          border: Border.all(color: _line),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
+            SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                color: AppTheme.primary,
+                color: _blue,
               ),
             ),
             const SizedBox(width: 14),
             Text(
               'Loading assignments...',
               style: GoogleFonts.dmSans(
-                color: AppTheme.muted,
+                color: _muted,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),

@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
 import 'grades_screen.dart';
 import 'login_screen.dart';
@@ -24,17 +26,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isSyncing = false;
   List<Map<String, dynamic>> _localSemesters = [];
 
-  static const _paper = Color(0xFFF4F2ED);
-  static const _surface = Color(0xFFFFFEFB);
-  static const _ink = Color(0xFF17202A);
-  static const _navy = Color(0xFF172B4D);
-  static const _blue = Color(0xFF356AE6);
-  static const _orange = Color(0xFFE47543);
-  static const _green = Color(0xFF278B68);
-  static const _red = Color(0xFFC84C43);
-  static const _muted = Color(0xFF6E7681);
-  static const _line = Color(0xFFE2DED5);
-
   TextStyle get _micro => GoogleFonts.spaceGrotesk(
         fontSize: 9,
         fontWeight: FontWeight.w700,
@@ -48,8 +39,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _loadLocalSemesters() async {
-    // Use the semester list already saved by the existing auth flow.
-    // This does not change AuthState or Dashboard behaviour.
     final semesters = await StorageService.getAvailableSemesters();
 
     if (!mounted || semesters.isEmpty) return;
@@ -61,6 +50,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
     final profileAsync = ref.watch(profileProvider);
     final allDataAsync = ref.watch(allDataProvider);
     final authState = ref.watch(authProvider);
@@ -78,7 +68,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
 
     return Scaffold(
-      backgroundColor: _paper,
+      backgroundColor: palette.paper,
       body: SafeArea(
         child: profileAsync.when(
           data: (profileData) {
@@ -99,13 +89,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(
-                  child: _buildTopBar(),
+                  child: _buildTopBar(palette),
                 ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       _buildHero(
+                        palette: palette,
                         studentName: studentName.toString(),
                         appNo: appNo.toString(),
                         email: email.toString(),
@@ -113,53 +104,66 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         cgpa: cgpa,
                         creditsEarned: creditsEarned,
                       ),
-                      const SizedBox(height: 26),
+                      const SizedBox(height: 24),
+
+                      // PREFERENCES SECTION (Theme toggle)
+                      _buildSectionHeader(
+                        palette,
+                        'PREFERENCES',
+                        Icons.palette_outlined,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildPreferencesCard(palette),
+
+                      const SizedBox(height: 24),
 
                       _buildSectionHeader(
+                        palette,
                         'PERSONAL DETAILS',
                         Icons.person_outline_rounded,
                       ),
                       const SizedBox(height: 10),
                       _buildPersonalCard(
+                        palette: palette,
                         dob: dob.toString(),
                         bloodGroup: bloodGroup.toString(),
                       ),
 
                       if (mentor != null) ...[
-                        const SizedBox(height: 26),
+                        const SizedBox(height: 24),
                         _buildSectionHeader(
+                          palette,
                           'FACULTY MENTOR',
                           Icons.school_outlined,
                         ),
                         const SizedBox(height: 10),
-                        _buildMentorCard(mentor),
+                        _buildMentorCard(palette, mentor),
                       ],
 
                       const SizedBox(height: 28),
-                      _buildSyncButton(),
+                      _buildSyncButton(palette),
                       const SizedBox(height: 12),
-                      _buildLogoutButton(),
+                      _buildLogoutButton(palette),
                     ]),
                   ),
                 ),
               ],
             );
           },
-          loading: _buildSkeletonLoading,
-          error: (err, stack) => _buildErrorState(err),
+          loading: () => _buildSkeletonLoading(palette),
+          error: (err, stack) => _buildErrorState(palette, err),
         ),
       ),
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar(AppPalette palette) {
     final authState = ref.watch(authProvider);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
       child: Row(
         children: [
-          // Back button (if navigated from dashboard)
           if (Navigator.of(context).canPop())
             GestureDetector(
               onTap: () => Navigator.of(context).pop(),
@@ -167,13 +171,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: _surface,
+                  color: palette.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _line),
+                  border: Border.all(color: palette.line),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.arrow_back_rounded,
-                  color: _navy,
+                  color: palette.navy,
                   size: 20,
                 ),
               ),
@@ -183,13 +187,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: _surface,
+                color: palette.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _line),
+                border: Border.all(color: palette.line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.person_outline_rounded,
-                color: _navy,
+                color: palette.navy,
                 size: 20,
               ),
             ),
@@ -200,13 +204,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 Text(
                   'ACCOUNT',
-                  style: _micro.copyWith(color: _orange),
+                  style: _micro.copyWith(color: palette.orange),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   'Student Profile',
                   style: GoogleFonts.dmSans(
-                    color: _ink,
+                    color: palette.ink,
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     height: 1.05,
@@ -215,16 +219,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
-          // Semester selector is Profile-only.
           if (_localSemesters.isNotEmpty ||
               authState.availableSemesters.isNotEmpty)
-            _buildSemesterSelector(authState),
+            _buildSemesterSelector(palette, authState),
         ],
       ),
     );
   }
 
-  Widget _buildSemesterSelector(AuthState authState) {
+  Widget _buildSemesterSelector(AppPalette palette, AuthState authState) {
     final semesters = _localSemesters.isNotEmpty
         ? _localSemesters
         : authState.availableSemesters;
@@ -245,25 +248,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         constraints: const BoxConstraints(maxWidth: 210),
         padding: const EdgeInsets.only(left: 11, right: 7),
         decoration: BoxDecoration(
-          color: _surface,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _line),
+          border: Border.all(color: palette.line),
         ),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             value: selectedId,
             isExpanded: true,
             isDense: true,
-            dropdownColor: _surface,
-            icon: const Icon(
+            dropdownColor: palette.surface,
+            icon: Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: _muted,
+              color: palette.inkMuted,
               size: 18,
             ),
             style: GoogleFonts.dmSans(
               fontSize: 10.5,
               fontWeight: FontWeight.w700,
-              color: _ink,
+              color: palette.ink,
             ),
             items: semesters.map((sem) {
               final id = sem['id']?.toString() ?? '';
@@ -292,7 +295,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     name,
                   );
 
-              // Keep the local Profile dropdown in sync.
               if (mounted) {
                 setState(() {
                   _localSemesters = List<Map<String, dynamic>>.from(semesters);
@@ -307,7 +309,68 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Widget _buildPreferencesCard(AppPalette palette) {
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = themeMode == ThemeMode.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: (isDark ? palette.navy : palette.orange).withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+              color: isDark ? palette.navy : palette.orange,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Dark Appearance',
+                  style: GoogleFonts.dmSans(
+                    color: palette.ink,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isDark ? 'Matte Slate theme active' : 'Warm Paper theme active',
+                  style: GoogleFonts.dmSans(
+                    color: palette.inkSoft,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: isDark,
+            onChanged: (_) => ref.read(themeModeProvider.notifier).toggleTheme(),
+            activeColor: palette.blue,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHero({
+    required AppPalette palette,
     required String studentName,
     required String appNo,
     required String email,
@@ -315,18 +378,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required String cgpa,
     required String creditsEarned,
   }) {
+    final heroBg = palette.isDark ? palette.surface : const Color(0xFF172B4D);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
       decoration: BoxDecoration(
-        color: _navy,
+        color: heroBg,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x17172B4D),
-            blurRadius: 20,
-            offset: Offset(0, 9),
-          ),
-        ],
+        border: Border.all(color: palette.line),
       ),
       child: Column(
         children: [
@@ -335,6 +394,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: [
               Expanded(
                 child: _buildStatCard(
+                  palette: palette,
                   label: 'CGPA',
                   value: _showAcademicStats ? cgpa : '•••',
                   icon: Icons.auto_graph_rounded,
@@ -343,10 +403,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              _buildAvatar(base64Pfp),
+              _buildAvatar(palette, base64Pfp),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
+                  palette: palette,
                   label: 'CREDITS',
                   value: _showAcademicStats ? creditsEarned : '•••',
                   icon: Icons.school_outlined,
@@ -457,13 +518,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ).animate().fadeIn(duration: 350.ms).slideY(begin: .04, end: 0);
   }
 
-  Widget _buildAvatar(String? base64Pfp) {
+  Widget _buildAvatar(AppPalette palette, String? base64Pfp) {
     return Container(
       width: 88,
       height: 88,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: _surface,
+        color: palette.surface,
         shape: BoxShape.circle,
         border: Border.all(
           color: Colors.white.withValues(alpha: .25),
@@ -475,26 +536,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ? Image.memory(
                 base64Decode(base64Pfp),
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _avatarFallback(),
+                errorBuilder: (_, _, _) => _avatarFallback(palette),
               )
-            : _avatarFallback(),
+            : _avatarFallback(palette),
       ),
     );
   }
 
-  Widget _avatarFallback() {
+  Widget _avatarFallback(AppPalette palette) {
     return Container(
-      color: const Color(0xFFE8EDF5),
+      color: palette.soft,
       alignment: Alignment.center,
-      child: const Icon(
+      child: Icon(
         Icons.person_rounded,
         size: 45,
-        color: _navy,
+        color: palette.navy,
       ),
     );
   }
 
   Widget _buildStatCard({
+    required AppPalette palette,
     required String label,
     required String value,
     required IconData icon,
@@ -541,24 +603,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
+  Widget _buildSectionHeader(AppPalette palette, String title, IconData icon) {
     return Row(
       children: [
         Container(
           width: 30,
           height: 30,
           decoration: BoxDecoration(
-            color: _surface,
+            color: palette.surface,
             borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: _line),
+            border: Border.all(color: palette.line),
           ),
-          child: Icon(icon, size: 16, color: _blue),
+          child: Icon(icon, size: 16, color: palette.blue),
         ),
         const SizedBox(width: 9),
         Text(
           title,
           style: GoogleFonts.spaceGrotesk(
-            color: _ink,
+            color: palette.ink,
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.0,
@@ -568,7 +630,74 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Widget _buildPreferencesCard(AppPalette palette) {
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = themeMode == ThemeMode.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.line),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: (isDark ? palette.navy : palette.blue).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+              size: 19,
+              color: isDark ? palette.navy : palette.blue,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Dark Appearance',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: palette.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isDark ? 'Matte Slate (Zero Neon)' : 'Warm Editorial Paper',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    color: palette.inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: isDark,
+            activeColor: palette.blue,
+            activeTrackColor: palette.blue.withValues(alpha: 0.35),
+            inactiveThumbColor: palette.inkSoft,
+            inactiveTrackColor: palette.soft,
+            onChanged: (val) {
+              ref.read(themeModeProvider.notifier).toggleTheme();
+            },
+          ),
+        ],
+      ),
+    ).animate(delay: 50.ms).fadeIn(duration: 300.ms).slideY(begin: .025, end: 0);
+  }
+
   Widget _buildPersonalCard({
+    required AppPalette palette,
     required String dob,
     required String bloodGroup,
   }) {
@@ -577,8 +706,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (dob.isNotEmpty) {
       rows.add(
         _buildDetailRow(
+          palette: palette,
           icon: Icons.cake_outlined,
-          iconColor: _orange,
+          iconColor: palette.orange,
           label: 'Date of Birth',
           value: dob,
         ),
@@ -586,38 +716,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     if (bloodGroup.isNotEmpty) {
-      if (rows.isNotEmpty) rows.add(_buildDivider());
+      if (rows.isNotEmpty) rows.add(_buildDivider(palette));
       rows.add(
         _buildDetailRow(
+          palette: palette,
           icon: Icons.bloodtype_outlined,
-          iconColor: _red,
+          iconColor: palette.red,
           label: 'Blood Group',
           value: bloodGroup,
         ),
       );
     }
 
-    if (rows.isNotEmpty) rows.add(_buildDivider());
+    if (rows.isNotEmpty) rows.add(_buildDivider(palette));
     rows.add(
       _buildDetailRow(
+        palette: palette,
         icon: Icons.domain_outlined,
-        iconColor: _blue,
+        iconColor: palette.blue,
         label: 'Campus',
         value: 'VIT-AP University',
       ),
     );
 
-    return _buildInfoCard(rows)
+    return _buildInfoCard(palette, rows)
         .animate(delay: 70.ms)
         .fadeIn(duration: 300.ms)
         .slideY(begin: .025, end: 0);
   }
 
-  Widget _buildMentorCard(Map<String, dynamic> mentor) {
+  Widget _buildMentorCard(AppPalette palette, Map<String, dynamic> mentor) {
     final rows = <Widget>[
       _buildDetailRow(
+        palette: palette,
         icon: Icons.badge_outlined,
-        iconColor: _blue,
+        iconColor: palette.blue,
         label: 'Name',
         value: (mentor['mentor_name'] ??
                 mentor['faculty_name'] ??
@@ -627,11 +760,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ];
 
     if (mentor['mentor_email'] != null) {
-      rows.add(_buildDivider());
+      rows.add(_buildDivider(palette));
       rows.add(
         _buildDetailRow(
+          palette: palette,
           icon: Icons.alternate_email_rounded,
-          iconColor: _orange,
+          iconColor: palette.orange,
           label: 'Email',
           value: mentor['mentor_email'].toString(),
         ),
@@ -639,42 +773,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     if (mentor['cabin_number'] != null || mentor['cabin'] != null) {
-      rows.add(_buildDivider());
+      rows.add(_buildDivider(palette));
       rows.add(
         _buildDetailRow(
+          palette: palette,
           icon: Icons.meeting_room_outlined,
-          iconColor: _green,
+          iconColor: palette.green,
           label: 'Cabin',
           value: (mentor['cabin_number'] ?? mentor['cabin']).toString(),
         ),
       );
     }
 
-    return _buildInfoCard(rows)
+    return _buildInfoCard(palette, rows)
         .animate(delay: 120.ms)
         .fadeIn(duration: 300.ms)
         .slideY(begin: .025, end: 0);
   }
 
-  Widget _buildInfoCard(List<Widget> children) {
+  Widget _buildInfoCard(AppPalette palette, List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: _surface,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _line),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0817202A),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: palette.line),
       ),
       child: Column(children: children),
     );
   }
 
   Widget _buildDetailRow({
+    required AppPalette palette,
     required IconData icon,
     required Color iconColor,
     required String label,
@@ -701,7 +830,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Text(
                   label,
                   style: GoogleFonts.spaceGrotesk(
-                    color: _muted,
+                    color: palette.inkMuted,
                     fontSize: 8.5,
                     fontWeight: FontWeight.w700,
                     letterSpacing: .65,
@@ -713,7 +842,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.dmSans(
-                    color: _ink,
+                    color: palette.ink,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -726,17 +855,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildDivider() {
-    return const Divider(
+  Widget _buildDivider(AppPalette palette) {
+    return Divider(
       height: 1,
       thickness: 1,
       indent: 15,
       endIndent: 15,
-      color: _line,
+      color: palette.line,
     );
   }
 
-  Widget _buildSyncButton() {
+  Widget _buildSyncButton(AppPalette palette) {
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -760,9 +889,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
         style: FilledButton.styleFrom(
-          backgroundColor: _navy,
+          backgroundColor: palette.isDark ? palette.blue : const Color(0xFF172B4D),
           foregroundColor: Colors.white,
-          disabledBackgroundColor: _navy.withValues(alpha: .55),
+          disabledBackgroundColor: palette.blue.withValues(alpha: .55),
           disabledForegroundColor: Colors.white70,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(13),
@@ -773,6 +902,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _syncAllData() async {
+    final palette = AppPalette.of(context);
     setState(() => _isSyncing = true);
 
     try {
@@ -783,13 +913,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (!mounted) return;
       _showSnack(
         'All data synced successfully!',
-        _green,
+        palette.green,
       );
     } catch (e) {
       if (!mounted) return;
       _showSnack(
         ErrorFormatter.format(e, fallback: 'Data sync failed. Please try again.'),
-        _red,
+        palette.red,
         seconds: 3,
       );
     } finally {
@@ -821,27 +951,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildLogoutButton() {
+  Widget _buildLogoutButton(AppPalette palette) {
     return SizedBox(
       height: 52,
       child: OutlinedButton.icon(
-        onPressed: () => _handleLogout(context),
-        icon: const Icon(
+        onPressed: () => _handleLogout(context, palette),
+        icon: Icon(
           Icons.logout_rounded,
-          color: _red,
+          color: palette.red,
           size: 19,
         ),
         label: Text(
           'Logout from VTOP',
           style: GoogleFonts.dmSans(
-            color: _red,
+            color: palette.red,
             fontSize: 14,
             fontWeight: FontWeight.w800,
           ),
         ),
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFFE3B9B5)),
-          backgroundColor: const Color(0xFFFCF4F2),
+          side: BorderSide(color: palette.red.withValues(alpha: .3)),
+          backgroundColor: palette.red.withValues(alpha: .08),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(13),
           ),
@@ -862,11 +992,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Future<void> _handleLogout(BuildContext context) async {
+  Future<void> _handleLogout(BuildContext context, AppPalette palette) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _surface,
+        backgroundColor: palette.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
@@ -874,14 +1004,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         title: Text(
           'Confirm Logout',
           style: GoogleFonts.dmSans(
-            color: _ink,
+            color: palette.ink,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
           'Are you sure you want to log out from VITAP Nexus?',
           style: GoogleFonts.dmSans(
-            color: _muted,
+            color: palette.inkSoft,
             fontSize: 13,
             height: 1.4,
           ),
@@ -892,14 +1022,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Text(
               'Cancel',
               style: GoogleFonts.dmSans(
-                color: _muted,
+                color: palette.inkMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: _red,
+              backgroundColor: palette.red,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(9),
@@ -932,24 +1062,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Widget _buildSkeletonLoading() {
+  Widget _buildSkeletonLoading(AppPalette palette) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 30,
             height: 30,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: _blue,
+              color: palette.blue,
             ),
           ),
           const SizedBox(height: 14),
           Text(
             'Loading profile...',
             style: GoogleFonts.dmSans(
-              color: _muted,
+              color: palette.inkMuted,
               fontSize: 13,
             ),
           ),
@@ -958,7 +1088,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildErrorState(Object err) {
+  Widget _buildErrorState(AppPalette palette, Object err) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -968,31 +1098,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Container(
               width: 64,
               height: 64,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFCEDEA),
+              decoration: BoxDecoration(
+                color: palette.red.withValues(alpha: .12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.error_outline_rounded,
                 size: 31,
-                color: _red,
+                color: palette.red,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               'Failed to load profile',
               style: GoogleFonts.dmSans(
-                color: _ink,
+                color: palette.ink,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 7),
             Text(
-              err.toString(),
+              ErrorFormatter.format(err, fallback: 'Unable to load profile. Please try again.'),
               textAlign: TextAlign.center,
               style: GoogleFonts.dmSans(
-                color: _muted,
+                color: palette.inkMuted,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -1000,7 +1130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 18),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: _navy,
+                backgroundColor: palette.isDark ? palette.blue : const Color(0xFF172B4D),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
