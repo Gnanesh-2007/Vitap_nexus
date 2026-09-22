@@ -50,6 +50,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _tickerTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) setState(() {});
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final dash = ref.read(dashboardProvider);
+      if (!dash.hasData) {
+        ref.read(dashboardProvider.notifier).reloadForCurrentUser();
+      }
+    });
   }
 
   @override
@@ -413,7 +420,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       );
     }
 
-    if (!dashboardState.hasData && (dashboardState.isLoading || dashboardState.isSyncing)) {
+    if (!dashboardState.hasData) {
+      if (dashboardState.error != null) {
+        return Scaffold(
+          backgroundColor: _paper,
+          body: SafeArea(
+            child: _ErrorView(
+              message: dashboardState.error!,
+              onRetry: () {
+                ref.read(dashboardProvider.notifier).refresh();
+              },
+            ),
+          ),
+        );
+      }
       return Scaffold(
         backgroundColor: _paper,
         body: SafeArea(

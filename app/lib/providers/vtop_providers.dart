@@ -105,7 +105,7 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
       if (previous?.username != next.username || previous?.isAuthenticated != next.isAuthenticated) {
         if (!next.isAuthenticated || next.username == null) {
           reset();
-        } else if (previous?.username != next.username) {
+        } else if (next.isAuthenticated) {
           reloadForCurrentUser();
         }
       }
@@ -169,8 +169,19 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
     final auth = _ref.read(authProvider);
     final currentUser = auth.username ?? StorageService.currentUsername;
 
-    // If state already loaded from memory for current user, return
-    if (state.hasData && currentUser != null) return;
+    if (!auth.isAuthenticated || currentUser == null) return;
+
+    final memData = StorageService.getMemoryCache('all_data', username: currentUser);
+    final memTs = StorageService.getMemoryTimestamp('all_data', username: currentUser);
+    if (memData is Map && memData.isNotEmpty) {
+      state = VtopDataState(
+        data: Map<String, dynamic>.from(memData),
+        isLoading: false,
+        isSyncing: false,
+        lastSynced: memTs,
+      );
+      return;
+    }
 
     final diskData = await StorageService.getCache('all_data', username: currentUser);
     final diskTs = await StorageService.getLastSynced('all_data', username: currentUser);
@@ -188,6 +199,7 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
 
     // ONLY IF NEVER CACHED BEFORE (FIRST LOGIN), SYNC INITIAL DATA
     if (auth.isAuthenticated && auth.username != null && auth.password != null) {
+      state = const VtopDataState(isLoading: true);
       await syncAll();
     }
   }
