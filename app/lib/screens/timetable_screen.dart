@@ -37,11 +37,8 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
   ];
 
   late TabController _tabController;
-  final Set<String> _expandedCardIds = {};
-  bool _isCompletedSectionExpanded = false;
 
   static const Color _background = Color(0xFFF4F2ED);
-  static const Color _paper = Color(0xFFF4F2ED);
   static const Color _surface = Color(0xFFFFFEFB);
   static const Color _ink = Color(0xFF17202A);
   static const Color _inkSoft = Color(0xFF59636E);
@@ -53,7 +50,6 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
   static const Color _orange = Color(0xFFE47543);
   static const Color _green = Color(0xFF23835B);
   static const Color _cream = Color(0xFFEAE5DA);
-  static const Color _soft = Color(0xFFF0EEE8);
 
   @override
   void initState() {
@@ -79,70 +75,96 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
     super.dispose();
   }
 
-  void _toggleCardExpanded(String cardId) {
-    setState(() {
-      if (_expandedCardIds.contains(cardId)) {
-        _expandedCardIds.remove(cardId);
-      } else {
-        _expandedCardIds.add(cardId);
+  DateTime? _parseTime(String timeStr, DateTime referenceDate) {
+    final cleanStr = timeStr.trim().toUpperCase();
+    final formats = [
+      'HH:mm',
+      'H:mm',
+      'hh:mm a',
+      'h:mm a',
+      'hh:mm',
+      'h:mm',
+    ];
+
+    for (final format in formats) {
+      try {
+        final parsed = DateFormat(format).parse(cleanStr);
+
+        return DateTime(
+          referenceDate.year,
+          referenceDate.month,
+          referenceDate.day,
+          parsed.hour,
+          parsed.minute,
+        );
+      } catch (_) {
+        continue;
       }
-    });
-  }
-
-  String _getCardId(Map<String, dynamic> item, String day) {
-    final code = item['course_code'] ?? '';
-    final slot = item['slot'] ?? '';
-    final time = item['time'] ?? '';
-    final name = item['course_name'] ?? item['course_title'] ?? '';
-    return '$day-$code-$slot-$time-$name';
-  }
-
-  double _calculateLiveProgress(String timeStr) {
-    try {
-      final range = VtopHelpers.parseTimeRange(timeStr);
-      final startMin = range['start']!;
-      final endMin = range['end']!;
-      if (endMin <= startMin) return 0.0;
-
-      final now = DateTime.now();
-      final currentMin = now.hour * 60 + now.minute;
-
-      if (currentMin < startMin) return 0.0;
-      if (currentMin >= endMin) return 1.0;
-
-      return (currentMin - startMin) / (endMin - startMin);
-    } catch (_) {
-      return 0.0;
     }
+
+    return null;
   }
 
-  String _getCountdownText(String timeStr) {
-    if (timeStr.isEmpty) return 'SCHEDULED';
+  Map<String, dynamic> _getClassTimingStatus(
+    String timeSlot,
+    String selectedDay,
+  ) {
+    final now = DateTime.now();
+    final today = DateFormat('EEEE').format(now);
+
+    if (selectedDay != today) {
+      return {
+        'status': 'UPCOMING',
+        'color': _blue,
+      };
+    }
+
     try {
-      final range = VtopHelpers.parseTimeRange(timeStr);
-      final startMin = range['start']!;
-      final endMin = range['end']!;
+      final parts = timeSlot
+          .split('-')
+          .map((e) => e.trim())
+          .toList();
 
-      final now = DateTime.now();
-      final currentMin = now.hour * 60 + now.minute;
-
-      if (currentMin >= startMin && currentMin <= endMin) {
-        final remaining = endMin - currentMin;
-        return '$remaining MINS LEFT';
-      } else if (currentMin < startMin) {
-        final diff = startMin - currentMin;
-        final h = diff ~/ 60;
-        final m = diff % 60;
-        if (h > 0) {
-          return 'IN ${h}H ${m}M';
-        } else {
-          return 'IN ${m}M';
-        }
-      } else {
-        return 'COMPLETED';
+      if (parts.length != 2) {
+        return {
+          'status': 'SCHEDULED',
+          'color': _blue,
+        };
       }
+
+      final startTime = _parseTime(parts[0], now);
+      final endTime = _parseTime(parts[1], now);
+
+      if (startTime == null || endTime == null) {
+        return {
+          'status': 'SCHEDULED',
+          'color': _blue,
+        };
+      }
+
+      if (now.isAfter(startTime) && now.isBefore(endTime)) {
+        return {
+          'status': 'LIVE NOW',
+          'color': _green,
+        };
+      }
+
+      if (now.isAfter(endTime)) {
+        return {
+          'status': 'COMPLETED',
+          'color': _muted,
+        };
+      }
+
+      return {
+        'status': 'UPCOMING',
+        'color': _orange,
+      };
     } catch (_) {
-      return 'SCHEDULED';
+      return {
+        'status': 'SCHEDULED',
+        'color': _blue,
+      };
     }
   }
 
@@ -337,169 +359,25 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
       );
     }
 
-    final todayName = DateFormat('EEEE').format(DateTime.now());
-    final isToday = selectedDay == todayName;
-
-    if (!isToday) {
-      // Standard schedule list for other days
-      return ListView.builder(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-        itemCount: daySchedule.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _buildAgendaHeader(
-              selectedDay,
-              daySchedule.length,
-            );
-          }
-
-          final item = daySchedule[index - 1] as Map<String, dynamic>;
-          return _buildClassCard(
-            item,
-            selectedDay,
-            index - 1,
-            isToday: false,
-          );
-        },
-      );
-    }
-
-    // Today's schedule: Group into Live, Upcoming, Completed
-    final now = DateTime.now();
-    final currentMinutes = now.hour * 60 + now.minute;
-
-    final List<Map<String, dynamic>> liveClasses = [];
-    final List<Map<String, dynamic>> upcomingClasses = [];
-    final List<Map<String, dynamic>> completedClasses = [];
-
-    for (var c in daySchedule) {
-      final item = c as Map<String, dynamic>;
-      final range = VtopHelpers.parseTimeRange(item['time']?.toString() ?? '');
-      final start = range['start']!;
-      final end = range['end']!;
-
-      if (currentMinutes >= start && currentMinutes <= end) {
-        liveClasses.add(item);
-      } else if (currentMinutes < start) {
-        upcomingClasses.add(item);
-      } else {
-        completedClasses.add(item);
-      }
-    }
-
-    return ListView(
+    return ListView.builder(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-      children: [
-        _buildAgendaHeader(selectedDay, daySchedule.length),
+      itemCount: daySchedule.length + 1,
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _buildAgendaHeader(
+            selectedDay,
+            daySchedule.length,
+          );
+        }
 
-        // 1. Live Now Section
-        if (liveClasses.isNotEmpty) ...[
-          _buildSubSectionTitle('HAPPENING NOW', _green),
-          const SizedBox(height: 8),
-          ...liveClasses.map((item) => _buildClassCard(
-                item,
-                selectedDay,
-                0,
-                isToday: true,
-                isLive: true,
-              )),
-          const SizedBox(height: 16),
-        ],
-
-        // 2. Upcoming Classes Section
-        if (upcomingClasses.isNotEmpty) ...[
-          _buildSubSectionTitle('UPCOMING CLASSES', _orange),
-          const SizedBox(height: 8),
-          ...upcomingClasses.map((item) => _buildClassCard(
-                item,
-                selectedDay,
-                0,
-                isToday: true,
-                isUpcoming: true,
-              )),
-          const SizedBox(height: 16),
-        ],
-
-        // 3. Completed Section (Moves completed classes here!)
-        if (completedClasses.isNotEmpty) ...[
-          InkWell(
-            onTap: () {
-              setState(() {
-                _isCompletedSectionExpanded = !_isCompletedSectionExpanded;
-              });
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _line),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, size: 16, color: _green),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Completed Classes (${completedClasses.length})',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: _inkSoft,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    _isCompletedSectionExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 18,
-                    color: _muted,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_isCompletedSectionExpanded) ...[
-            const SizedBox(height: 8),
-            ...completedClasses.map((item) => _buildClassCard(
-                  item,
-                  selectedDay,
-                  0,
-                  isToday: true,
-                  isCompleted: true,
-                )),
-          ],
-        ],
-      ],
-    );
-  }
-
-  Widget _buildSubSectionTitle(String title, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: color,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ],
+        final item = daySchedule[index - 1];
+        return _buildClassCard(
+          item,
+          selectedDay,
+          index - 1,
+        );
+      },
     );
   }
 
@@ -526,7 +404,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Day Agenda',
+                  'Today’s agenda',
                   style: GoogleFonts.dmSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
@@ -563,22 +441,15 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
   }
 
   Widget _buildClassCard(
-    Map<String, dynamic> item,
+    dynamic item,
     String selectedDay,
-    int index, {
-    bool isToday = false,
-    bool isLive = false,
-    bool isUpcoming = false,
-    bool isCompleted = false,
-  }) {
-    final cardId = _getCardId(item, selectedDay);
-    final isExpanded = _expandedCardIds.contains(cardId);
-
-    final courseName = item['course_name'] ?? item['course_title'] ?? 'Class';
+    int index,
+  ) {
+    final courseName = item['course_name'] ?? 'Class';
     final courseCode = item['course_code'] ?? '';
     final time = item['time'] ?? '';
     final slot = item['slot'] ?? '';
-    final venue = item['venue'] ?? item['room_no'] ?? 'TBA';
+    final venue = item['venue'] ?? 'TBA';
     final faculty = item['faculty'] ?? '';
     final courseType = item['course_type'] ?? '';
 
@@ -587,300 +458,143 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
       courseSlot: slot,
     );
 
-    final countdown = isToday ? _getCountdownText(time) : '';
-    final progress = isLive ? _calculateLiveProgress(time) : 0.0;
+    final statusInfo = _getClassTimingStatus(
+      time,
+      selectedDay,
+    );
+
+    final status = statusInfo['status'] as String;
+    final statusColor = statusInfo['color'] as Color;
+
+    final isLive = status == 'LIVE NOW';
+    final isCompleted = status == 'COMPLETED';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 11),
-      child: InkWell(
-        onTap: () => _toggleCardExpanded(cardId),
+      decoration: BoxDecoration(
+        color: _surface,
         borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: isCompleted ? _paper : _surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isLive ? _green.withValues(alpha: .5) : _line,
-              width: isLive ? 1.4 : 1,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 5,
-                    color: isCompleted
-                        ? _line
-                        : isLive
-                            ? _green
-                            : isLab
-                                ? _orange
-                                : _blue,
+        border: Border.all(
+          color: isLive
+              ? statusColor.withValues(alpha: .45)
+              : _line,
+          width: isLive ? 1.3 : 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 5,
+                color: isCompleted
+                    ? _line
+                    : isLive
+                        ? _green
+                        : isLab
+                            ? _orange
+                            : _blue,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    15,
+                    15,
+                    15,
+                    14,
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(15, 15, 15, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Top Meta Row
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              _timeBlock(
-                                time,
-                                isLive
-                                    ? _green
-                                    : (isCompleted ? _muted : _navy),
-                                isCompleted,
-                              ),
-                              const Spacer(),
-                              if (isLive) ...[
-                                _liveBadge(),
-                                const SizedBox(width: 6),
-                              ] else if (isUpcoming && countdown.isNotEmpty) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7,
-                                    vertical: 3.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _orange.withValues(alpha: .12),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    countdown,
-                                    style: GoogleFonts.spaceGrotesk(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: _orange,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                              ] else if (isCompleted) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _soft,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    'COMPLETED',
-                                    style: GoogleFonts.spaceGrotesk(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w800,
-                                      color: _muted,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              _courseTypeBadge(
-                                isLab ? 'LAB' : 'THEORY',
-                                isLab,
-                                isCompleted,
-                              ),
-                            ],
+                          _timeBlock(
+                            time,
+                            statusColor,
+                            isCompleted,
                           ),
-
-                          const SizedBox(height: 12),
-
-                          // Course Title
-                          Text(
-                            courseName,
-                            maxLines: isExpanded ? 4 : 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: isCompleted ? _inkSoft : _ink,
-                              height: 1.2,
+                          const Spacer(),
+                          if (isLive) _liveBadge(),
+                          const SizedBox(width: 7),
+                          _courseTypeBadge(
+                            isLab ? 'LAB' : 'THEORY',
+                            isLab,
+                            isCompleted,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        courseName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isCompleted
+                              ? _inkSoft
+                              : _ink,
+                          height: 1.2,
+                        ),
+                      ),
+                      if (courseCode.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          courseCode,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            color: _muted,
+                            letterSpacing: .7,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 13),
+                      Container(
+                        height: 1,
+                        color: _line,
+                      ),
+                      const SizedBox(height: 11),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _detail(
+                              Icons.location_on_outlined,
+                              venue,
+                              isCompleted ? _muted : _navy,
                             ),
                           ),
-
-                          // ========================================================
-                          // LIVE PROGRESS BAR
-                          // ========================================================
-                          if (isLive) ...[
-                            const SizedBox(height: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'CLASS PROGRESS',
-                                      style: GoogleFonts.spaceGrotesk(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
-                                        color: _green,
-                                        letterSpacing: 0.8,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${(progress * 100).toInt()}% • $countdown',
-                                      style: GoogleFonts.spaceGrotesk(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
-                                        color: _green,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 5),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(5),
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: 5,
-                                        width: double.infinity,
-                                        color: _green.withValues(alpha: 0.15),
-                                      ),
-                                      FractionallySizedBox(
-                                        widthFactor: progress.clamp(0.01, 1.0),
-                                        child: Container(
-                                          height: 5,
-                                          decoration: BoxDecoration(
-                                            color: _green,
-                                            borderRadius: BorderRadius.circular(5),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-
-                          if (courseCode.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              courseCode,
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w700,
-                                color: _muted,
-                                letterSpacing: .7,
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 13),
-                          Container(
-                            height: 1,
-                            color: _line,
-                          ),
-                          const SizedBox(height: 11),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _detail(
-                                  Icons.location_on_outlined,
-                                  venue,
-                                  isCompleted ? _muted : _navy,
-                                ),
-                              ),
-                              if (faculty.isNotEmpty) ...[
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _detail(
-                                    Icons.person_outline_rounded,
-                                    faculty,
-                                    _muted,
-                                  ),
-                                ),
-                              ],
-                              Icon(
-                                isExpanded
-                                    ? Icons.keyboard_arrow_up_rounded
-                                    : Icons.keyboard_arrow_down_rounded,
-                                size: 16,
-                                color: _muted,
-                              ),
-                            ],
-                          ),
-
-                          // Inline Expanded Extra Info
-                          if (isExpanded) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: _background,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: _line),
-                              ),
-                              child: Column(
-                                children: [
-                                  _inlineRow(Icons.access_time_rounded, 'Timings', time),
-                                  const Divider(height: 12, color: _line),
-                                  _inlineRow(Icons.location_on_outlined, 'Room', venue),
-                                  if (slot.isNotEmpty) ...[
-                                    const Divider(height: 12, color: _line),
-                                    _inlineRow(Icons.grid_view_rounded, 'Slot', slot),
-                                  ],
-                                  if (faculty.isNotEmpty) ...[
-                                    const Divider(height: 12, color: _line),
-                                    _inlineRow(Icons.person_outline_rounded, 'Faculty', faculty),
-                                  ],
-                                ],
+                          if (faculty.isNotEmpty) ...[
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _detail(
+                                Icons.person_outline_rounded,
+                                faculty,
+                                _muted,
                               ),
                             ),
                           ],
                         ],
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _inlineRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 13, color: _navy),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: GoogleFonts.dmSans(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: _inkSoft,
-          ),
-        ),
-        const Spacer(),
-        Flexible(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.end,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: _ink,
-            ),
-          ),
-        ),
-      ],
-    );
+    )
+        .animate(delay: (35 * index).ms)
+        .fadeIn(duration: 280.ms)
+        .slideY(
+          begin: .035,
+          end: 0,
+          curve: Curves.easeOutCubic,
+        );
   }
 
   Widget _timeBlock(
@@ -917,7 +631,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 8,
-        vertical: 4,
+        vertical: 5,
       ),
       decoration: BoxDecoration(
         color: _green.withValues(alpha: .10),
@@ -975,7 +689,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 8,
-        vertical: 4,
+        vertical: 5,
       ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .09),
@@ -1034,24 +748,21 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
               color: _navy,
               borderRadius: BorderRadius.circular(17),
             ),
-            child: const Center(
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+            padding: const EdgeInsets.all(13),
+            child: const CircularProgressIndicator(
+              strokeWidth: 2.2,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Colors.white,
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 17),
           Text(
             'LOADING SCHEDULE',
             style: GoogleFonts.spaceGrotesk(
-              fontSize: 9.5,
+              fontSize: 9,
               fontWeight: FontWeight.w800,
-              color: _navy,
+              color: _ink,
               letterSpacing: 1.5,
             ),
           ),
@@ -1068,34 +779,68 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 58,
-              height: 58,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
                 color: _orange.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: const Icon(
-                Icons.sync_problem_rounded,
+                Icons.cloud_off_rounded,
+                size: 28,
                 color: _orange,
-                size: 26,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 17),
             Text(
-              'Couldn’t load schedule',
+              'Couldn’t load timetable',
+              textAlign: TextAlign.center,
               style: GoogleFonts.dmSans(
-                fontSize: 19,
+                fontSize: 20,
                 fontWeight: FontWeight.w900,
                 color: _ink,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 7),
             Text(
               error,
               textAlign: TextAlign.center,
               style: GoogleFonts.dmSans(
                 fontSize: 11.5,
                 color: _muted,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 21),
+            ElevatedButton.icon(
+              onPressed: () async {
+                try {
+                  await refreshTimetable(ref);
+                } catch (_) {}
+              },
+              icon: const Icon(
+                Icons.refresh_rounded,
+                size: 17,
+              ),
+              label: Text(
+                'TRY AGAIN',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _navy,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 19,
+                  vertical: 13,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
