@@ -18,6 +18,8 @@ import 'vtop_webview_screen.dart';
 import 'profile_screen.dart';
 import 'exam_schedule.dart';
 import 'timetable_screen.dart';
+import 'attendance_screen.dart';
+import 'marks_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   final Function(int)? onNavigateTab;
@@ -32,7 +34,10 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _isQuickAccessExpanded = false;
   bool _isScheduleExpanded = false;
+  bool _isCompletedExpanded = false;
+  final Set<String> _expandedClassIds = {};
 
   // ============================================================
   // EDITORIAL CAMPUS THEME
@@ -46,7 +51,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   static const Color _navy = Color(0xFF172B4D);
   static const Color _blue = Color(0xFF356AE6);
   static const Color _orange = Color(0xFFE47543);
-  static const Color _cream = Color(0xFFECE7DC);
   static const Color _green = Color(0xFF278B68);
   static const Color _line = Color(0xFFE2DED5);
   static const Color _soft = Color(0xFFF0EEE8);
@@ -58,57 +62,112 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return 'GOOD EVENING';
   }
 
-  // 4x2 Quick Access Items
-  static const List<_QuickItem> _quickAccessItems = [
-    _QuickItem(
-      label: 'Biometric',
-      icon: Icons.fingerprint_rounded,
-      accent: _navy,
-      action: 'biometric',
-    ),
-    _QuickItem(
-      label: 'VTOP Portal',
-      icon: Icons.language_rounded,
-      accent: _navy,
-      action: 'direct_vtop',
-    ),
-    _QuickItem(
-      label: 'Exams',
-      icon: Icons.event_note_rounded,
-      accent: _orange,
-      action: 'exams',
-    ),
-    _QuickItem(
-      label: 'Calendar',
-      icon: Icons.calendar_month_rounded,
-      accent: _blue,
-      action: 'calendar',
-    ),
-    _QuickItem(
-      label: 'Outing',
-      icon: Icons.directions_walk_rounded,
-      accent: _green,
-      action: 'outings',
-    ),
-    _QuickItem(
-      label: 'Assignments',
-      icon: Icons.assignment_outlined,
-      accent: _orange,
-      action: 'assignments',
-    ),
-    _QuickItem(
-      label: 'Course Page',
-      icon: Icons.menu_book_rounded,
-      accent: _blue,
-      action: 'courses',
-    ),
-    _QuickItem(
-      label: 'More',
-      icon: Icons.grid_view_rounded,
-      accent: _navy,
-      action: 'more',
-    ),
-  ];
+  // Non-duplicate Quick Access items
+  List<_QuickItem> _getQuickAccessItems() {
+    final baseItems = [
+      const _QuickItem(
+        label: 'Biometric',
+        icon: Icons.fingerprint_rounded,
+        accent: _navy,
+        action: 'biometric',
+      ),
+      const _QuickItem(
+        label: 'VTOP Portal',
+        icon: Icons.language_rounded,
+        accent: _navy,
+        action: 'direct_vtop',
+      ),
+      const _QuickItem(
+        label: 'Exams',
+        icon: Icons.event_note_rounded,
+        accent: _orange,
+        action: 'exams',
+      ),
+      const _QuickItem(
+        label: 'Calendar',
+        icon: Icons.calendar_month_rounded,
+        accent: _blue,
+        action: 'calendar',
+      ),
+      const _QuickItem(
+        label: 'Outing',
+        icon: Icons.directions_walk_rounded,
+        accent: _green,
+        action: 'outings',
+      ),
+      const _QuickItem(
+        label: 'Assignments',
+        icon: Icons.assignment_outlined,
+        accent: _orange,
+        action: 'assignments',
+      ),
+      const _QuickItem(
+        label: 'Course Page',
+        icon: Icons.menu_book_rounded,
+        accent: _blue,
+        action: 'courses',
+      ),
+    ];
+
+    if (!_isQuickAccessExpanded) {
+      return [
+        ...baseItems,
+        const _QuickItem(
+          label: 'More',
+          icon: Icons.grid_view_rounded,
+          accent: _navy,
+          action: 'toggle_more',
+        ),
+      ];
+    } else {
+      // Inline expanded items - strictly NO DUPLICATES!
+      return [
+        ...baseItems,
+        const _QuickItem(
+          label: 'Grades',
+          icon: Icons.bar_chart_rounded,
+          accent: _blue,
+          action: 'grades',
+        ),
+        const _QuickItem(
+          label: 'Mentor',
+          icon: Icons.person_outline_rounded,
+          accent: _green,
+          action: 'mentor',
+        ),
+        const _QuickItem(
+          label: 'Payments',
+          icon: Icons.account_balance_wallet_outlined,
+          accent: _orange,
+          action: 'payments',
+        ),
+        const _QuickItem(
+          label: 'Profile',
+          icon: Icons.badge_outlined,
+          accent: _navy,
+          action: 'profile',
+        ),
+        const _QuickItem(
+          label: 'Attendance',
+          icon: Icons.pie_chart_rounded,
+          accent: _orange,
+          action: 'attendance',
+        ),
+        const _QuickItem(
+          label: 'Marks',
+          icon: Icons.assignment_turned_in_rounded,
+          accent: _green,
+          action: 'marks',
+        ),
+        const _QuickItem(
+          label: 'Less',
+          icon: Icons.keyboard_arrow_up_rounded,
+          accent: _navy,
+          action: 'toggle_more',
+        ),
+      ];
+    }
+  }
 
   Future<void> _handleQuickTap(
     _QuickItem item,
@@ -116,6 +175,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     AuthState authState,
   ) async {
     if (!mounted) return;
+
+    if (item.action == 'toggle_more') {
+      setState(() {
+        _isQuickAccessExpanded = !_isQuickAccessExpanded;
+      });
+      return;
+    }
 
     if (item.action == 'calendar') {
       if (widget.onNavigateTab != null) {
@@ -135,8 +201,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       return;
     }
 
-    if (item.action == 'more') {
-      _showMoreBottomSheet(data, authState);
+    if (item.action == 'attendance') {
+      if (widget.onNavigateTab != null) {
+        widget.onNavigateTab!(1);
+      } else {
+        _navigateScreen(const AttendanceScreen());
+      }
+      return;
+    }
+
+    if (item.action == 'marks') {
+      if (widget.onNavigateTab != null) {
+        widget.onNavigateTab!(3);
+      } else {
+        _navigateScreen(const MarksScreen());
+      }
+      return;
+    }
+
+    if (item.action == 'profile') {
+      _navigateScreen(const ProfileScreen());
       return;
     }
 
@@ -209,332 +293,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  void _showMoreBottomSheet(
-    Map<String, dynamic> data,
-    AuthState authState,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final moreItems = [
-          _QuickItem(
-            label: 'Grades & CGPA',
-            icon: Icons.bar_chart_rounded,
-            accent: _blue,
-            action: 'grades',
-            subtitle: 'Academic record',
-          ),
-          _QuickItem(
-            label: 'Faculty Mentor',
-            icon: Icons.person_outline_rounded,
-            accent: _green,
-            action: 'mentor',
-            subtitle: 'Contact info',
-          ),
-          _QuickItem(
-            label: 'Fee Payments',
-            icon: Icons.account_balance_wallet_outlined,
-            accent: _orange,
-            action: 'payments',
-            subtitle: 'Dues & receipts',
-          ),
-          _QuickItem(
-            label: 'Student Profile',
-            icon: Icons.badge_outlined,
-            accent: _navy,
-            action: 'profile',
-            subtitle: 'Credentials & info',
-          ),
-          _QuickItem(
-            label: 'Full Timetable',
-            icon: Icons.schedule_rounded,
-            accent: _blue,
-            action: 'calendar',
-            subtitle: 'Weekly schedule',
-          ),
-          _QuickItem(
-            label: 'Exam Schedule',
-            icon: Icons.event_note_rounded,
-            accent: _orange,
-            action: 'exams',
-            subtitle: 'CAT & FAT dates',
-          ),
-        ];
-
-        return Container(
-          decoration: const BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 34),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _line,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Text(
-                    'Campus Services',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: _ink,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 20, color: _inkMuted),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: moreItems.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 2.2,
-                ),
-                itemBuilder: (context, index) {
-                  final item = moreItems[index];
-                  return InkWell(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      if (item.action == 'profile') {
-                        _navigateScreen(const ProfileScreen());
-                      } else {
-                        _handleQuickTap(item, data, authState);
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _paper,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _line),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: item.accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(item.icon, color: item.accent, size: 18),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  item.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: _ink,
-                                  ),
-                                ),
-                                if (item.subtitle != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    item.subtitle!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                      color: _inkMuted,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  void _toggleClassExpanded(String classId) {
+    setState(() {
+      if (_expandedClassIds.contains(classId)) {
+        _expandedClassIds.remove(classId);
+      } else {
+        _expandedClassIds.add(classId);
+      }
+    });
   }
 
-  void _showCourseDetails(BuildContext context, Map<String, dynamic> item) {
-    final isLab = VtopHelpers.isLabCourse(
-      courseType: item['course_type']?.toString(),
-      courseSlot: item['slot']?.toString(),
-      courseTypeCode: item['course_type_code']?.toString(),
-    );
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(22, 16, 22, 34),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _line,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isLab ? _orange.withValues(alpha: 0.12) : _blue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Text(
-                    isLab ? 'LAB / PRACTICAL' : 'THEORY COURSE',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: isLab ? _orange : _blue,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                if (item['slot'] != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _cream,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Text(
-                      'SLOT ${item['slot']}',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: _navy,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              item['course_name'] ?? item['course_title'] ?? 'Course Details',
-              style: GoogleFonts.dmSans(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-                height: 1.2,
-                letterSpacing: -0.4,
-              ),
-            ),
-            if (item['course_code'] != null && item['course_code'].toString().isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                item['course_code'],
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _inkMuted,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: _paper,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _line),
-              ),
-              child: Column(
-                children: [
-                  _detailRow(Icons.access_time_rounded, 'Timing', item['time'] ?? 'N/A'),
-                  const Divider(height: 18, color: _line),
-                  _detailRow(Icons.location_on_outlined, 'Room / Venue', item['venue'] ?? item['room_no'] ?? 'TBA'),
-                  if (item['faculty'] != null && item['faculty'].toString().isNotEmpty) ...[
-                    const Divider(height: 18, color: _line),
-                    _detailRow(Icons.person_outline_rounded, 'Faculty', item['faculty']),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _getClassId(Map<String, dynamic> item) {
+    final code = item['course_code'] ?? '';
+    final slot = item['slot'] ?? '';
+    final time = item['time'] ?? '';
+    final name = item['course_name'] ?? item['course_title'] ?? '';
+    return '$code-$slot-$time-$name';
   }
 
-  Widget _detailRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 17, color: _navy),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: GoogleFonts.dmSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: _inkMuted,
-          ),
-        ),
-        const Spacer(),
-        Flexible(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.end,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: _ink,
-            ),
-          ),
-        ),
-      ],
-    );
+  double _calculateLiveProgress(String timeStr) {
+    try {
+      final range = VtopHelpers.parseTimeRange(timeStr);
+      final startMin = range['start']!;
+      final endMin = range['end']!;
+      if (endMin <= startMin) return 0.0;
+
+      final now = DateTime.now();
+      final currentMin = now.hour * 60 + now.minute;
+
+      if (currentMin < startMin) return 0.0;
+      if (currentMin >= endMin) return 1.0;
+
+      return (currentMin - startMin) / (endMin - startMin);
+    } catch (_) {
+      return 0.0;
+    }
   }
 
   String _getCountdownText(String timeStr) {
@@ -548,7 +341,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final currentMin = now.hour * 60 + now.minute;
 
       if (currentMin >= startMin && currentMin <= endMin) {
-        return 'HAPPENING NOW';
+        final remaining = endMin - currentMin;
+        return '$remaining MINS LEFT';
       } else if (currentMin < startMin) {
         final diff = startMin - currentMin;
         final h = diff ~/ 60;
@@ -603,35 +397,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final now = DateTime.now();
     final currentMinutes = now.hour * 60 + now.minute;
 
-    // Calculate remaining classes count
-    final remainingCount = todayClasses.where((c) {
-      final range = VtopHelpers.parseTimeRange(c['time']?.toString() ?? '');
-      return range['end']! > currentMinutes;
-    }).length;
+    // Segment classes into: Live, Upcoming, Completed
+    Map<String, dynamic>? liveClass;
+    final List<Map<String, dynamic>> upcomingClasses = [];
+    final List<Map<String, dynamic>> completedClasses = [];
 
-    // Pick hero class: active class if any, or next upcoming class, or first class
-    Map<String, dynamic>? heroClass;
     for (var c in todayClasses) {
-      final range = VtopHelpers.parseTimeRange(c['time']?.toString() ?? '');
-      if (currentMinutes >= range['start']! && currentMinutes <= range['end']!) {
-        heroClass = c as Map<String, dynamic>;
-        break;
-      }
-    }
-    if (heroClass == null) {
-      for (var c in todayClasses) {
-        final range = VtopHelpers.parseTimeRange(c['time']?.toString() ?? '');
-        if (currentMinutes < range['start']!) {
-          heroClass = c as Map<String, dynamic>;
-          break;
-        }
+      final map = c as Map<String, dynamic>;
+      final range = VtopHelpers.parseTimeRange(map['time']?.toString() ?? '');
+      final start = range['start']!;
+      final end = range['end']!;
+
+      if (currentMinutes >= start && currentMinutes <= end) {
+        liveClass = map;
+      } else if (currentMinutes < start) {
+        upcomingClasses.add(map);
+      } else {
+        completedClasses.add(map);
       }
     }
 
-    // Subsequent classes (classes other than hero class)
-    final subsequentClasses = heroClass != null
-        ? todayClasses.where((c) => c != heroClass).toList()
-        : todayClasses;
+    // Determine hero class:
+    // If live class exists -> liveClass
+    // Else if upcoming classes exist -> upcomingClasses.first
+    // Else if all completed -> null (show all finished)
+    Map<String, dynamic>? heroClass = liveClass;
+    if (heroClass == null && upcomingClasses.isNotEmpty) {
+      heroClass = upcomingClasses.first;
+    }
+
+    // Subsequent upcoming classes to show below Hero
+    final subsequentUpcoming = (heroClass != null && upcomingClasses.contains(heroClass))
+        ? upcomingClasses.where((c) => c != heroClass).toList()
+        : upcomingClasses;
+
+    final remainingCount = (liveClass != null ? 1 : 0) + upcomingClasses.length;
 
     return Scaffold(
       backgroundColor: _paper,
@@ -666,9 +466,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
               const SizedBox(height: 14),
 
-              // Hero class card or Empty hero
-              if (todayClasses.isNotEmpty && heroClass != null)
-                _buildHeroClassCard(heroClass)
+              // Hero class card (Live progress bar or Next upcoming countdown)
+              if (heroClass != null)
+                _buildHeroClassCard(heroClass, isLive: heroClass == liveClass)
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideY(
+                      begin: 0.04,
+                      end: 0,
+                      curve: Curves.easeOutCubic,
+                    )
+              else if (todayClasses.isNotEmpty && completedClasses.length == todayClasses.length)
+                _buildAllCompletedHero()
                     .animate()
                     .fadeIn(duration: 400.ms)
                     .slideY(
@@ -686,16 +495,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       curve: Curves.easeOutCubic,
                     ),
 
-              // Subsequent classes stacked cards
-              if (subsequentClasses.isNotEmpty) ...[
+              // Subsequent upcoming classes stacked cards
+              if (subsequentUpcoming.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                _buildSubsequentClasses(subsequentClasses),
+                _buildUpcomingClassesList(subsequentUpcoming),
+              ],
+
+              // Completed Classes Section (moves completed classes here!)
+              if (completedClasses.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildCompletedClassesSection(completedClasses),
               ],
 
               const SizedBox(height: 28),
 
               // ======================================================
-              // QUICK ACCESS SECTION (4x2 Grid from reference)
+              // QUICK ACCESS SECTION (Expands inline right there!)
               // ======================================================
               _buildQuickAccessHeader(),
 
@@ -886,9 +701,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // ============================================================
-  // HERO CLASS CARD
+  // HERO CLASS CARD WITH LIVE PROGRESS BAR OR COUNTDOWN
   // ============================================================
-  Widget _buildHeroClassCard(Map<String, dynamic> item) {
+  Widget _buildHeroClassCard(Map<String, dynamic> item, {required bool isLive}) {
+    final classId = _getClassId(item);
+    final isExpanded = _expandedClassIds.contains(classId);
+
     final isLab = VtopHelpers.isLabCourse(
       courseType: item['course_type']?.toString(),
       courseSlot: item['slot']?.toString(),
@@ -897,12 +715,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final timeStr = item['time']?.toString() ?? '';
     final countdown = _getCountdownText(timeStr);
-    final isLive = countdown == 'HAPPENING NOW';
+    final progress = _calculateLiveProgress(timeStr);
 
     final courseCode = item['course_code']?.toString() ?? '';
     final courseSlot = item['slot']?.toString() ?? '';
     final courseName = item['course_name'] ?? item['course_title'] ?? 'Scheduled Class';
     final venue = item['venue'] ?? item['room_no'] ?? 'TBA';
+    final faculty = item['faculty']?.toString() ?? '';
 
     String topMeta = '';
     if (courseCode.isNotEmpty) {
@@ -915,18 +734,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     return InkWell(
-      onTap: () => _showCourseDetails(context, item),
+      onTap: () => _toggleClassExpanded(classId),
       borderRadius: BorderRadius.circular(22),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: _surface,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: _line, width: 1.2),
+          border: Border.all(
+            color: isLive ? _green.withValues(alpha: 0.4) : _line,
+            width: isLive ? 1.4 : 1.2,
+          ),
           boxShadow: [
             BoxShadow(
-              color: _ink.withValues(alpha: 0.04),
+              color: isLive ? _green.withValues(alpha: 0.06) : _ink.withValues(alpha: 0.04),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -935,7 +759,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Code & Slot on Left | Status pill on Right
+            // Top Row: Code & Slot on Left | Status / Countdown pill on Right
             Row(
               children: [
                 Expanded(
@@ -955,18 +779,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                   decoration: BoxDecoration(
-                    color: isLive
-                        ? _green.withValues(alpha: 0.12)
-                        : (countdown == 'COMPLETED'
-                            ? _soft
-                            : _orange.withValues(alpha: 0.12)),
+                    color: isLive ? _green.withValues(alpha: 0.12) : _orange.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isLive
-                          ? _green.withValues(alpha: 0.3)
-                          : (countdown == 'COMPLETED'
-                              ? _line
-                              : _orange.withValues(alpha: 0.3)),
+                      color: isLive ? _green.withValues(alpha: 0.3) : _orange.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -984,13 +800,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         ),
                       ],
                       Text(
-                        countdown,
+                        isLive ? 'LIVE NOW • $countdown' : countdown,
                         style: GoogleFonts.spaceGrotesk(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w800,
-                          color: isLive
-                              ? _green
-                              : (countdown == 'COMPLETED' ? _inkMuted : _orange),
+                          color: isLive ? _green : _orange,
                           letterSpacing: 0.6,
                         ),
                       ),
@@ -1005,7 +819,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // Course Name
             Text(
               courseName,
-              maxLines: 2,
+              maxLines: isExpanded ? 4 : 2,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.dmSans(
                 fontSize: 19,
@@ -1015,6 +829,64 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 letterSpacing: -0.4,
               ),
             ),
+
+            // ========================================================
+            // LIVE CLASS PROGRESS BAR (Completes according to time)
+            // ========================================================
+            if (isLive) ...[
+              const SizedBox(height: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'CLASS PROGRESS',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: _green,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      Text(
+                        '${(progress * 100).toInt()}% COMPLETED',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: _green,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Stack(
+                      children: [
+                        Container(
+                          height: 6,
+                          width: double.infinity,
+                          color: _green.withValues(alpha: 0.15),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: progress.clamp(0.01, 1.0),
+                          child: Container(
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: _green,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
 
             const SizedBox(height: 16),
 
@@ -1066,8 +938,46 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                   ),
                 ],
+                const Spacer(),
+                Icon(
+                  isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: _inkMuted,
+                ),
               ],
             ),
+
+            // Inline Expanded Details
+            if (isExpanded) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _paper,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _line),
+                ),
+                child: Column(
+                  children: [
+                    _inlineDetailRow(Icons.access_time_rounded, 'Class Time', timeStr),
+                    const Divider(height: 14, color: _line),
+                    _inlineDetailRow(Icons.location_on_outlined, 'Room / Venue', venue),
+                    if (faculty.isNotEmpty) ...[
+                      const Divider(height: 14, color: _line),
+                      _inlineDetailRow(Icons.person_outline_rounded, 'Faculty', faculty),
+                    ],
+                    if (courseCode.isNotEmpty) ...[
+                      const Divider(height: 14, color: _line),
+                      _inlineDetailRow(Icons.tag_rounded, 'Course Code', courseCode),
+                    ],
+                    if (courseSlot.isNotEmpty) ...[
+                      const Divider(height: 14, color: _line),
+                      _inlineDetailRow(Icons.grid_view_rounded, 'Slot', courseSlot),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1075,9 +985,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // ============================================================
-  // EMPTY / FREE HERO STATE
+  // ALL COMPLETED HERO STATE
   // ============================================================
-  Widget _buildNoClassesHero() {
+  Widget _buildAllCompletedHero() {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -1088,16 +998,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
               color: _green.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
-              Icons.check_circle_outline_rounded,
+              Icons.check_circle_rounded,
               color: _green,
-              size: 24,
+              size: 26,
             ),
           ),
           const SizedBox(width: 14),
@@ -1106,7 +1016,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'All done for today',
+                  'All classes done for today',
                   style: GoogleFonts.dmSans(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -1116,7 +1026,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'No more scheduled classes today. Enjoy your time!',
+                  'All scheduled lectures finished. Great job today!',
                   style: GoogleFonts.dmSans(
                     fontSize: 11.5,
                     color: _inkSoft,
@@ -1131,14 +1041,73 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // ============================================================
-  // SUBSEQUENT CLASSES (COMPACT STACKED ROWS)
+  // EMPTY HERO STATE (NO CLASSES TODAY)
   // ============================================================
-  Widget _buildSubsequentClasses(List<dynamic> classes) {
+  Widget _buildNoClassesHero() {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _line, width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: _blue.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.free_breakfast_outlined,
+              color: _blue,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No classes scheduled today',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Enjoy your free day or prepare for upcoming assessments!',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11.5,
+                    color: _inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // UPCOMING CLASSES LIST WITH INLINE EXPANSION & COUNTDOWN
+  // ============================================================
+  Widget _buildUpcomingClassesList(List<Map<String, dynamic>> classes) {
     final visibleClasses = _isScheduleExpanded ? classes : classes.take(3).toList();
 
     return Column(
       children: [
         ...visibleClasses.map((item) {
+          final classId = _getClassId(item);
+          final isExpanded = _expandedClassIds.contains(classId);
+
           final isLab = VtopHelpers.isLabCourse(
             courseType: item['course_type']?.toString(),
             courseSlot: item['slot']?.toString(),
@@ -1147,77 +1116,150 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
           final timeStr = item['time']?.toString() ?? '';
           final startTime = _formatStartTime(timeStr);
+          final countdown = _getCountdownText(timeStr);
           final courseName = item['course_name'] ?? item['course_title'] ?? 'Class';
           final venue = item['venue'] ?? item['room_no'] ?? 'TBA';
+          final faculty = item['faculty']?.toString() ?? '';
+          final courseCode = item['course_code']?.toString() ?? '';
+          final courseSlot = item['slot']?.toString() ?? '';
 
           return Container(
             margin: const EdgeInsets.only(bottom: 8),
             child: InkWell(
-              onTap: () => _showCourseDetails(context, item as Map<String, dynamic>),
+              onTap: () => _toggleClassExpanded(classId),
               borderRadius: BorderRadius.circular(14),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: _surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: _line),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Start Time (Fixed width)
-                    SizedBox(
-                      width: 68,
-                      child: Text(
-                        startTime,
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: _navy,
+                    Row(
+                      children: [
+                        // Start Time (Fixed width)
+                        SizedBox(
+                          width: 68,
+                          child: Text(
+                            startTime,
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: _navy,
+                            ),
+                          ),
+                        ),
+
+                        Container(
+                          width: 1,
+                          height: 18,
+                          color: _line,
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        // Course Name
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                courseName,
+                                maxLines: isExpanded ? 3 : 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: _ink,
+                                ),
+                              ),
+                              if (isExpanded && courseCode.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  courseCode,
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: _inkMuted,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Countdown Pill (e.g. IN 2H 15M)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: _orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            countdown,
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: _orange,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 6),
+
+                        // Venue badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: _soft,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _line.withValues(alpha: 0.6)),
+                          ),
+                          child: Text(
+                            venue,
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: isLab ? _orange : _navy,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Inline Details when tapped
+                    if (isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _paper,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _line),
+                        ),
+                        child: Column(
+                          children: [
+                            _inlineDetailRow(Icons.access_time_rounded, 'Class Timing', timeStr),
+                            const Divider(height: 12, color: _line),
+                            _inlineDetailRow(Icons.location_on_outlined, 'Room / Venue', venue),
+                            if (faculty.isNotEmpty) ...[
+                              const Divider(height: 12, color: _line),
+                              _inlineDetailRow(Icons.person_outline_rounded, 'Faculty', faculty),
+                            ],
+                            if (courseSlot.isNotEmpty) ...[
+                              const Divider(height: 12, color: _line),
+                              _inlineDetailRow(Icons.grid_view_rounded, 'Slot', courseSlot),
+                            ],
+                          ],
                         ),
                       ),
-                    ),
-
-                    Container(
-                      width: 1,
-                      height: 18,
-                      color: _line,
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Course Name
-                    Expanded(
-                      child: Text(
-                        courseName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _ink,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    // Venue badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _soft,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _line.withValues(alpha: 0.6)),
-                      ),
-                      child: Text(
-                        venue,
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: isLab ? _orange : _navy,
-                        ),
-                      ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -1247,7 +1289,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Text(
                     _isScheduleExpanded
                         ? 'SHOW LESS'
-                        : 'SHOW ALL ${classes.length} REMAINING',
+                        : 'SHOW ALL ${classes.length} UPCOMING',
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w800,
@@ -1273,6 +1315,197 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // ============================================================
+  // COMPLETED CLASSES SECTION (Shows finished classes here)
+  // ============================================================
+  Widget _buildCompletedClassesSection(List<Map<String, dynamic>> completedClasses) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() {
+              _isCompletedExpanded = !_isCompletedExpanded;
+            });
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 16,
+                  color: _green,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Completed Classes (${completedClasses.length})',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: _inkSoft,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  _isCompletedExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: _inkMuted,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (_isCompletedExpanded) ...[
+          ...completedClasses.map((item) {
+            final classId = _getClassId(item);
+            final isExpanded = _expandedClassIds.contains(classId);
+            final timeStr = item['time']?.toString() ?? '';
+            final startTime = _formatStartTime(timeStr);
+            final courseName = item['course_name'] ?? item['course_title'] ?? 'Class';
+            final venue = item['venue'] ?? item['room_no'] ?? 'TBA';
+            final faculty = item['faculty']?.toString() ?? '';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                onTap: () => _toggleClassExpanded(classId),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: _paper,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            size: 15,
+                            color: _green,
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 60,
+                            child: Text(
+                              startTime,
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: _inkMuted,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 16,
+                            color: _line,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              courseName,
+                              maxLines: isExpanded ? 3 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: _inkSoft,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _surface,
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(color: _line),
+                            ),
+                            child: Text(
+                              venue,
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: _inkMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (isExpanded) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _line),
+                          ),
+                          child: Column(
+                            children: [
+                              _inlineDetailRow(Icons.access_time_rounded, 'Class Time', timeStr),
+                              const Divider(height: 10, color: _line),
+                              _inlineDetailRow(Icons.location_on_outlined, 'Room', venue),
+                              if (faculty.isNotEmpty) ...[
+                                const Divider(height: 10, color: _line),
+                                _inlineDetailRow(Icons.person_outline_rounded, 'Faculty', faculty),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+
+  Widget _inlineDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: _navy),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _inkMuted,
+          ),
+        ),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: _ink,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
   // QUICK ACCESS HEADER
   // ============================================================
   Widget _buildQuickAccessHeader() {
@@ -1292,77 +1525,83 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // ============================================================
-  // QUICK ACCESS 4x2 GRID (CIRCULAR BUTTONS FROM REFERENCE)
+  // QUICK ACCESS 4xN GRID (Expands inline smoothly right there!)
   // ============================================================
   Widget _buildQuickAccessGrid(Map<String, dynamic> data, AuthState authState) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _quickAccessItems.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.78,
-      ),
-      itemBuilder: (context, index) {
-        final item = _quickAccessItems[index];
+    final items = _getQuickAccessItems();
 
-        return InkWell(
-          onTap: () => _handleQuickTap(item, data, authState),
-          borderRadius: BorderRadius.circular(18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              // Circular icon button
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _surface,
-                  border: Border.all(color: _line, width: 1.2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _ink.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: items.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.78,
+        ),
+        itemBuilder: (context, index) {
+          final item = items[index];
+
+          return InkWell(
+            onTap: () => _handleQuickTap(item, data, authState),
+            borderRadius: BorderRadius.circular(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                // Circular icon button
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _surface,
+                    border: Border.all(color: _line, width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _ink.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      item.icon,
+                      color: item.accent,
+                      size: 23,
                     ),
-                  ],
-                ),
-                child: Center(
-                  child: Icon(
-                    item.icon,
-                    color: item.accent,
-                    size: 23,
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 7),
+                const SizedBox(height: 7),
 
-              // Title label
-              Flexible(
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _ink,
+                // Title label
+                Flexible(
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        )
-            .animate(delay: (25 * index).ms)
-            .fadeIn(duration: 250.ms)
-            .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
-      },
+              ],
+            ),
+          )
+              .animate(delay: (20 * (index % 4)).ms)
+              .fadeIn(duration: 220.ms)
+              .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
+        },
+      ),
     );
   }
 
@@ -1386,14 +1625,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 // ============================================================
 class _QuickItem {
   final String label;
-  final String? subtitle;
   final IconData icon;
   final Color accent;
   final String? action;
 
   const _QuickItem({
     required this.label,
-    this.subtitle,
     required this.icon,
     required this.accent,
     this.action,
