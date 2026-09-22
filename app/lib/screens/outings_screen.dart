@@ -84,16 +84,16 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
   List<Map<String, dynamic>> _extractRequests(dynamic data) {
     if (data == null) return [];
+    List<dynamic> list = [];
     if (data is List) {
-      return data.whereType<Map<String, dynamic>>().toList();
-    }
-    if (data is Map) {
-      final reqs = data['requests'] ?? data['root'] ?? data['data'];
+      list = data;
+    } else if (data is Map) {
+      final reqs = data['root'] ?? data['requests'] ?? data['data'] ?? data['history'];
       if (reqs is List) {
-        return reqs.whereType<Map<String, dynamic>>().toList();
+        list = reqs;
       }
     }
-    return [];
+    return list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   @override
@@ -901,31 +901,30 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   Widget _buildModernOutingCard(Map<String, dynamic> req, bool isWeekend) {
     final status = req['status']?.toString() ??
         req['leave_status']?.toString() ??
-        'Approved';
+        'Pending';
 
     final isApproved = status.toLowerCase().contains('app') || status.toLowerCase().contains('acc');
-    final isPending = status.toLowerCase().contains('pend') || status.toLowerCase().contains('appl');
+    final isPending = status.toLowerCase().contains('pend') || status.toLowerCase().contains('appl') || status.toLowerCase().contains('req');
 
     final place = req['place_of_visit']?.toString() ??
         req['out_place']?.toString() ??
         req['place']?.toString() ??
-        'Vijayawada';
+        '-';
 
     final purpose = req['purpose_of_visit']?.toString() ??
         req['reason']?.toString() ??
-        'Outing';
+        '-';
 
-    final outDate = req['from_date']?.toString() ??
-        req['out_date']?.toString() ??
-        req['date']?.toString() ??
-        '23-08-2026';
+    final outDate = isWeekend
+        ? (req['date']?.toString() ?? req['from_date']?.toString() ?? '')
+        : (req['from_date']?.toString() ?? req['date']?.toString() ?? '');
 
-    final outTime = req['from_time']?.toString() ??
-        req['out_time']?.toString() ??
-        req['time']?.toString() ??
-        '9:30 AM- 3:30PM';
+    final outTime = isWeekend
+        ? (req['time']?.toString() ?? req['from_time']?.toString() ?? '')
+        : (req['from_time']?.toString() ?? req['time']?.toString() ?? '');
 
     final formattedDate = _formatCardDate(outDate);
+    final canDownload = req['can_download'] == true || isApproved;
 
     return InkWell(
       onTap: () => _openOutingDetailsModal(req, isWeekend),
@@ -964,7 +963,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       const Icon(Icons.calendar_today_outlined, size: 12, color: _inkSoft),
                       const SizedBox(width: 5),
                       Text(
-                        formattedDate,
+                        formattedDate.isNotEmpty ? formattedDate : 'Outing Date',
                         style: GoogleFonts.spaceGrotesk(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
@@ -1035,54 +1034,58 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
             const SizedBox(height: 12),
 
             // Time Row
-            Row(
-              children: [
-                const Icon(Icons.access_time_rounded, size: 14, color: _inkSoft),
-                const SizedBox(width: 6),
-                Text(
-                  'Time  ',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _muted,
-                  ),
-                ),
-                Text(
-                  outTime,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _ink,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Pass available Chip at bottom left
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: _soft,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            if (outTime.isNotEmpty) ...[
+              Row(
                 children: [
-                  const Icon(Icons.description_outlined, size: 12, color: _inkSoft),
-                  const SizedBox(width: 5),
+                  const Icon(Icons.access_time_rounded, size: 14, color: _inkSoft),
+                  const SizedBox(width: 6),
                   Text(
-                    'Pass available',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: _inkSoft,
+                    'Time  ',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _muted,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      outTime,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _ink,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 12),
+            ],
+
+            // Pass available Chip at bottom left
+            if (canDownload)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _soft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.description_outlined, size: 12, color: _inkSoft),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Pass available',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: _inkSoft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
@@ -1097,48 +1100,58 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     final dash = ref.read(dashboardProvider);
     final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
 
-    final studentName = profile['student_name'] ?? auth.username ?? 'Student';
-    final regNo = profile['application_number'] ?? auth.username ?? '';
-    final hostelBlock = req['hostel_block']?.toString() ?? profile['hostel_block']?.toString() ?? 'MH-5';
-    final roomNo = req['room_number']?.toString() ?? profile['room_number']?.toString() ?? '1102';
+    final studentName = profile['student_name']?.toString() ?? auth.username ?? 'Student';
+    final regNo = req['registration_number']?.toString() ??
+        profile['application_number']?.toString() ??
+        auth.username ??
+        '';
+    final hostelBlock = req['hostel_block']?.toString() ?? profile['hostel_block']?.toString() ?? '-';
+    final roomNo = req['room_number']?.toString() ?? profile['room_number']?.toString() ?? '-';
 
-    final leaveId = req['leave_id']?.toString() ??
+    final leaveId = req['booking_id']?.toString() ??
+        req['leave_id']?.toString() ??
         req['appl_id']?.toString() ??
-        req['booking_id']?.toString() ??
         req['id']?.toString() ??
-        'W25401094831';
+        '';
 
     final place = req['place_of_visit']?.toString() ??
         req['out_place']?.toString() ??
         req['place']?.toString() ??
-        'Vijayawada';
+        '-';
 
     final purpose = req['purpose_of_visit']?.toString() ??
         req['reason']?.toString() ??
-        'Movie';
+        '-';
 
-    final outDate = req['from_date']?.toString() ??
-        req['out_date']?.toString() ??
-        req['date']?.toString() ??
-        '23-08-2026';
+    final outDate = isWeekend
+        ? (req['date']?.toString() ?? '-')
+        : (req['from_date']?.toString() ?? req['date']?.toString() ?? '-');
 
-    final outTime = req['from_time']?.toString() ??
-        req['out_time']?.toString() ??
-        req['time']?.toString() ??
-        '9:30 AM- 3:30PM';
+    final outTime = isWeekend
+        ? (req['time']?.toString() ?? '-')
+        : (req['from_time']?.toString() ?? req['time']?.toString() ?? '-');
+
+    final toDate = !isWeekend ? req['to_date']?.toString() : null;
+    final toTime = !isWeekend ? req['to_time']?.toString() : null;
 
     final contactNo = req['contact_number']?.toString() ??
         profile['mobile_number']?.toString() ??
-        '7780632515';
+        '-';
 
-    final parentContact = req['parent_phone']?.toString() ??
+    final parentContact = req['parent_contact_number']?.toString() ??
+        req['parent_phone']?.toString() ??
         profile['parent_mobile_number']?.toString() ??
-        '9849322913';
+        '-';
 
     final status = req['status']?.toString() ??
         req['leave_status']?.toString() ??
-        'Approved';
-    final isPending = status.toLowerCase().contains('pend') || status.toLowerCase().contains('appl');
+        'Pending';
+    final isPending = status.toLowerCase().contains('pend') ||
+        status.toLowerCase().contains('appl') ||
+        status.toLowerCase().contains('req');
+    final isCancelled = status.toLowerCase().contains('cancel') ||
+        status.toLowerCase().contains('delete') ||
+        status.toLowerCase().contains('reject');
 
     showModalBottomSheet(
       context: context,
@@ -1151,187 +1164,205 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Modal Drag Handle
-                Center(
-                  child: Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: _line,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-
-                // Title
-                Text(
-                  'Outing Details',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: _ink,
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Section 1: Outing Details
-                _buildModalSectionTitle('Outing Details'),
-                _buildModalDetailRow(Icons.location_on_outlined, 'Place of Visit', place),
-                _buildModalDetailRow(Icons.description_outlined, 'Purpose', purpose),
-                _buildModalDetailRow(Icons.person_outline_rounded, 'Registration Number', regNo),
-                _buildModalDetailRow(Icons.receipt_long_outlined, 'Booking ID', leaveId),
-
-                const SizedBox(height: 12),
-
-                // Section 2: Accommodation
-                _buildModalSectionTitle('Accommodation'),
-                _buildModalDetailRow(Icons.apartment_rounded, 'Hostel Block', hostelBlock),
-                _buildModalDetailRow(Icons.meeting_room_outlined, 'Room Number', roomNo),
-
-                const SizedBox(height: 12),
-
-                // Section 3: Schedule
-                _buildModalSectionTitle('Schedule'),
-                _buildModalDetailRow(Icons.calendar_today_outlined, 'Date', outDate),
-                _buildModalDetailRow(Icons.access_time_rounded, 'Time', outTime),
-
-                const SizedBox(height: 24),
-
-                // Action 1: View PDF (Green filled button)
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      Navigator.of(modalCtx).pop();
-                      final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
-                        studentName: studentName,
-                        regNo: regNo,
-                        outingType: isWeekend ? 'Weekend' : 'General',
-                        placeOfVisit: place,
-                        purpose: purpose,
-                        dateTimeSlot: '$outDate & $outTime',
-                        contactNumber: contactNo,
-                        parentContactNumber: parentContact,
-                        bookingId: leaveId,
-                        hostelBlock: hostelBlock,
-                        roomNo: roomNo,
-                      );
-
-                      if (!mounted) return;
-                      final fileName = 'VITAP_Outing_$leaveId.pdf';
-                      await DownloadHelper.saveFile(
-                        context: context,
-                        fileName: fileName,
-                        content: pdfBytes,
-                        mimeType: 'application/pdf',
-                        openImmediately: true,
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC7DEC9),
-                      foregroundColor: const Color(0xFF132A15),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    icon: const Icon(Icons.description_outlined, size: 18),
-                    label: Text(
-                      'View PDF',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Modal Drag Handle
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: _line,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 18),
 
-                const SizedBox(height: 10),
-
-                // Action 2: Download PDF (Green outline button)
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      Navigator.of(modalCtx).pop();
-                      final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
-                        studentName: studentName,
-                        regNo: regNo,
-                        outingType: isWeekend ? 'Weekend' : 'General',
-                        placeOfVisit: place,
-                        purpose: purpose,
-                        dateTimeSlot: '$outDate & $outTime',
-                        contactNumber: contactNo,
-                        parentContactNumber: parentContact,
-                        bookingId: leaveId,
-                        hostelBlock: hostelBlock,
-                        roomNo: roomNo,
-                      );
-
-                      if (!mounted) return;
-                      final fileName = 'VITAP_Outing_Pass_$leaveId.pdf';
-                      await DownloadHelper.saveFile(
-                        context: context,
-                        fileName: fileName,
-                        content: pdfBytes,
-                        mimeType: 'application/pdf',
-                        openImmediately: false,
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _green,
-                      side: const BorderSide(color: _green, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    icon: const Icon(Icons.download_rounded, size: 18),
-                    label: Text(
-                      'Download',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  // Title
+                  Text(
+                    'Outing Details',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: _ink,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 14),
 
-                if (isPending && leaveId.isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                  // Section 1: Outing Details
+                  _buildModalSectionTitle('Outing Details'),
+                  _buildModalDetailRow(Icons.location_on_outlined, 'Place of Visit', place),
+                  _buildModalDetailRow(Icons.description_outlined, 'Purpose', purpose),
+                  if (regNo.isNotEmpty)
+                    _buildModalDetailRow(Icons.person_outline_rounded, 'Registration Number', regNo),
+                  if (leaveId.isNotEmpty)
+                    _buildModalDetailRow(Icons.receipt_long_outlined, isWeekend ? 'Booking ID' : 'Leave ID', leaveId),
+                  _buildModalDetailRow(Icons.info_outline_rounded, 'Status', status),
+
+                  const SizedBox(height: 12),
+
+                  // Section 2: Accommodation
+                  if (hostelBlock != '-' || roomNo != '-') ...[
+                    _buildModalSectionTitle('Accommodation'),
+                    if (hostelBlock != '-')
+                      _buildModalDetailRow(Icons.apartment_rounded, 'Hostel Block', hostelBlock),
+                    if (roomNo != '-')
+                      _buildModalDetailRow(Icons.meeting_room_outlined, 'Room Number', roomNo),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Section 3: Schedule
+                  _buildModalSectionTitle('Schedule'),
+                  _buildModalDetailRow(Icons.calendar_today_outlined, isWeekend ? 'Date' : 'Leaving Date', outDate),
+                  _buildModalDetailRow(Icons.access_time_rounded, isWeekend ? 'Time' : 'Leaving Time', outTime),
+                  if (toDate != null && toDate.isNotEmpty)
+                    _buildModalDetailRow(Icons.calendar_today_outlined, 'Returning Date', toDate),
+                  if (toTime != null && toTime.isNotEmpty)
+                    _buildModalDetailRow(Icons.access_time_rounded, 'Returning Time', toTime),
+
+                  const SizedBox(height: 24),
+
+                  // Action 1: View PDF (Green filled button)
                   SizedBox(
                     width: double.infinity,
-                    height: 46,
-                    child: TextButton.icon(
-                      onPressed: () {
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
                         Navigator.of(modalCtx).pop();
-                        _deleteOuting(leaveId, isWeekend);
+                        final dateTimeSlot = isWeekend
+                            ? '$outDate & $outTime'
+                            : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
+                        final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                          studentName: studentName,
+                          regNo: regNo,
+                          outingType: isWeekend ? 'Weekend' : 'General',
+                          placeOfVisit: place,
+                          purpose: purpose,
+                          dateTimeSlot: dateTimeSlot,
+                          contactNumber: contactNo,
+                          parentContactNumber: parentContact,
+                          bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
+                          hostelBlock: hostelBlock,
+                          roomNo: roomNo,
+                        );
+
+                        if (!mounted) return;
+                        final fileName = 'VITAP_Outing_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
+                        await DownloadHelper.saveFile(
+                          context: context,
+                          fileName: fileName,
+                          content: pdfBytes,
+                          mimeType: 'application/pdf',
+                          openImmediately: true,
+                        );
                       },
-                      style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFFCEDEA),
-                        foregroundColor: _red,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC7DEC9),
+                        foregroundColor: const Color(0xFF132A15),
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      icon: const Icon(Icons.description_outlined, size: 18),
                       label: Text(
-                        'Cancel Outing Request',
+                        'View PDF',
                         style: GoogleFonts.dmSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 10),
+
+                  // Action 2: Download PDF (Green outline button)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        Navigator.of(modalCtx).pop();
+                        final dateTimeSlot = isWeekend
+                            ? '$outDate & $outTime'
+                            : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
+                        final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                          studentName: studentName,
+                          regNo: regNo,
+                          outingType: isWeekend ? 'Weekend' : 'General',
+                          placeOfVisit: place,
+                          purpose: purpose,
+                          dateTimeSlot: dateTimeSlot,
+                          contactNumber: contactNo,
+                          parentContactNumber: parentContact,
+                          bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
+                          hostelBlock: hostelBlock,
+                          roomNo: roomNo,
+                        );
+
+                        if (!mounted) return;
+                        final fileName = 'VITAP_Outing_Pass_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
+                        await DownloadHelper.saveFile(
+                          context: context,
+                          fileName: fileName,
+                          content: pdfBytes,
+                          mimeType: 'application/pdf',
+                          openImmediately: false,
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _green,
+                        side: const BorderSide(color: _green, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: const Icon(Icons.download_rounded, size: 18),
+                      label: Text(
+                        'Download',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  if (isPending && leaveId.isNotEmpty && !isCancelled) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(modalCtx).pop();
+                          _deleteOuting(leaveId, isWeekend);
+                        },
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFFCEDEA),
+                          foregroundColor: _red,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                        label: Text(
+                          'Cancel Outing Request',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );
@@ -1368,26 +1399,28 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
             child: Icon(icon, size: 16, color: _navy),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.dmSans(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: _muted,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: _muted,
+                  ),
                 ),
-              ),
-              Text(
-                value,
-                style: GoogleFonts.dmSans(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
+                Text(
+                  value,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1395,17 +1428,23 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }
 
   String _formatCardDate(String rawDate) {
-    try {
-      final parsed = DateFormat('dd-MM-yyyy').parse(rawDate);
-      return DateFormat('EEE, MMM d').format(parsed);
-    } catch (_) {
+    if (rawDate.isEmpty || rawDate == '-') return '-';
+    final formats = [
+      'dd-MMM-yyyy',
+      'dd-MM-yyyy',
+      'yyyy-MM-dd',
+      'dd/MM/yyyy',
+      'd-MMM-yyyy',
+      'd-MM-yyyy',
+      'd/M/yyyy',
+    ];
+    for (final fmt in formats) {
       try {
-        final parsed = DateFormat('yyyy-MM-dd').parse(rawDate);
+        final parsed = DateFormat(fmt).parse(rawDate.trim());
         return DateFormat('EEE, MMM d').format(parsed);
-      } catch (_) {
-        return rawDate;
-      }
+      } catch (_) {}
     }
+    return rawDate;
   }
 
   Widget _pickerTheme(BuildContext context, Widget? child) {

@@ -115,8 +115,6 @@ class ApiClient {
     '/student/grade_history',
     '/student/mentor',
     '/student/biometric',
-    '/student/general_outing_requests',
-    '/student/weekend_outing_requests',
     '/student/pending_payments',
     '/student/payment_receipts',
     '/student/course_page_courses',
