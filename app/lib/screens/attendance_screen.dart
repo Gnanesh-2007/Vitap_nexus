@@ -782,12 +782,14 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                       const SizedBox(height: 3),
                       Text(
                         faculty,
-                        maxLines: 1,
+                        maxLines: 2,
+                        softWrap: true,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.dmSans(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w500,
                           color: _muted,
+                          height: 1.2,
                         ),
                       ),
                     ],

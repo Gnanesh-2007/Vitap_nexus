@@ -764,39 +764,56 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
             ),
             const SizedBox(height: 13),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.person_outline_rounded,
-                  size: 16,
-                  color: Color(0xFFD9E3FF),
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Icon(
+                    Icons.person_outline_rounded,
+                    size: 16,
+                    color: Color(0xFFD9E3FF),
+                  ),
                 ),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
                     faculty.isEmpty ? 'Faculty not available' : faculty,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 3,
+                    softWrap: true,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.82),
+                      color: Colors.white.withValues(alpha: 0.88),
+                      height: 1.25,
                     ),
                   ),
                 ),
                 if (slot.isNotEmpty) ...[
                   const SizedBox(width: 12),
-                  const Icon(
-                    Icons.schedule_rounded,
-                    size: 15,
-                    color: Color(0xFFD9E3FF),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    slot,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.76),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 13,
+                          color: Color(0xFFD9E3FF),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          slot,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -842,7 +859,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
         // here. It gives each faculty card a real hit-test area and avoids the
         // nested horizontal ListView feeling "stuck" inside the page scroll.
         SizedBox(
-          height: 82,
+          height: 96,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -866,9 +883,9 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                       borderRadius: BorderRadius.circular(16),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
-                        width: 205,
-                        height: 82,
-                        padding: const EdgeInsets.fromLTRB(13, 11, 13, 10),
+                        width: 215,
+                        height: 96,
+                        padding: const EdgeInsets.fromLTRB(13, 10, 13, 10),
                         decoration: BoxDecoration(
                           color: selected
                               ? AppTheme.navy
@@ -901,17 +918,19 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                                 letterSpacing: 0.6,
                               ),
                             ),
-                            const SizedBox(height: 5),
+                            const SizedBox(height: 4),
                             Text(
                               faculty,
-                              maxLines: 1,
+                              maxLines: 2,
+                              softWrap: true,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.dmSans(
-                                fontSize: 12,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
                                 color: selected
                                     ? Colors.white
                                     : AppTheme.ink,
+                                height: 1.2,
                               ),
                             ),
                             const Spacer(),

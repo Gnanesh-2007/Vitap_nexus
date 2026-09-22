@@ -605,21 +605,27 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                       if (faculty.isNotEmpty) ...[
                         const SizedBox(height: 5),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.person_outline_rounded,
-                              size: 13,
-                              color: _muted,
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Icon(
+                                Icons.person_outline_rounded,
+                                size: 13,
+                                color: _muted,
+                              ),
                             ),
                             const SizedBox(width: 5),
                             Expanded(
                               child: Text(
                                 faculty,
-                                maxLines: 1,
+                                maxLines: 2,
+                                softWrap: true,
                                 overflow: TextOverflow.ellipsis,
                                 style: _bodyStyle.copyWith(
                                   color: _muted,
                                   fontSize: 11.5,
+                                  height: 1.25,
                                 ),
                               ),
                             ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,11 +34,38 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
+    with WidgetsBindingObserver {
   bool _isQuickAccessExpanded = false;
   bool _isScheduleExpanded = false;
   bool _isCompletedExpanded = false;
   final Set<String> _expandedClassIds = {};
+  Timer? _tickerTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Periodically update class timers and progress bars in real-time
+    _tickerTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Immediately re-render when app is brought back from recents or resumed
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _tickerTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   // ============================================================
   // EDITORIAL CAMPUS THEME
@@ -1476,8 +1504,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _inlineDetailRow(IconData icon, String label, String value) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 14, color: _navy),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 14, color: _navy),
+        ),
         const SizedBox(width: 8),
         Text(
           label,
@@ -1487,12 +1519,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             color: _inkMuted,
           ),
         ),
-        const Spacer(),
-        Flexible(
+        const SizedBox(width: 12),
+        Expanded(
           child: Text(
             value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 3,
+            softWrap: true,
             textAlign: TextAlign.end,
             style: GoogleFonts.spaceGrotesk(
               fontSize: 11.5,

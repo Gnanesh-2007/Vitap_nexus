@@ -559,21 +559,64 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                       ),
                       const SizedBox(height: 11),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: _detail(
-                              Icons.location_on_outlined,
-                              venue,
-                              isCompleted ? _muted : _navy,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _background,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: _line),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.location_on_outlined,
+                                  size: 12,
+                                  color: isCompleted ? _muted : _navy,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  venue,
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isCompleted ? _muted : _ink,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           if (faculty.isNotEmpty) ...[
                             const SizedBox(width: 10),
                             Expanded(
-                              child: _detail(
-                                Icons.person_outline_rounded,
-                                faculty,
-                                _muted,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Icon(
+                                      Icons.person_outline_rounded,
+                                      size: 13,
+                                      color: _muted,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      faculty,
+                                      maxLines: 2,
+                                      softWrap: true,
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: isCompleted ? _muted : _inkSoft,
+                                        height: 1.25,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -707,34 +750,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
     );
   }
 
-  Widget _detail(
-    IconData icon,
-    String text,
-    Color color,
-  ) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 14,
-          color: color,
-        ),
-        const SizedBox(width: 5),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.dmSans(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: color == _navy ? _inkSoft : color,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildLoading() {
     return Center(

@@ -1,3 +1,4 @@
+// ignore_for_file: implementation_imports
 import 'package:flutter/foundation.dart';
 import 'package:vit_vtop/vit_vtop.dart';
 import 'package:vit_vtop/src/rust/api/vtop/parser/parseattn.dart' as rust_attn;

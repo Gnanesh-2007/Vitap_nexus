@@ -132,6 +132,75 @@ class DownloadHelper {
     );
   }
 
+  /// Generates clean Official Outing Gate Pass Slip HTML document
+  static String generateOutingPassSlip({
+    required String studentName,
+    required String regNo,
+    required String outingType,
+    required String placeOfVisit,
+    required String purpose,
+    required String outDateTime,
+    required String inDateTime,
+    required String contactNumber,
+    required String status,
+    required String leaveId,
+    String? hostelBlock,
+    String? roomNo,
+  }) {
+    final isApproved = status.toLowerCase().contains('app');
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIT-AP Hostel Outing Gate Pass - $leaveId</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 16px; color: #17202A; background: #F8F9FA; }
+    .card { background: #FFF; border: 2px solid #172B4D; border-radius: 16px; padding: 24px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .header { text-align: center; border-bottom: 2px solid #E2DED5; padding-bottom: 16px; margin-bottom: 20px; }
+    .title { font-size: 20px; font-weight: 800; color: #172B4D; margin: 0; letter-spacing: 0.5px; }
+    .subtitle { font-size: 13px; color: #E47543; font-weight: 700; margin-top: 4px; letter-spacing: 1px; }
+    .badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 800; font-size: 12px; margin-top: 12px; letter-spacing: 0.5px; }
+    .badge-approved { background: #E8F5E9; color: #2E7D32; border: 1.5px solid #A5D6A7; }
+    .badge-pending { background: #FFF8E1; color: #F57F17; border: 1.5px solid #FFE082; }
+    .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #F0EEE8; font-size: 13.5px; }
+    .label { color: #6E7681; font-weight: 600; }
+    .val { font-weight: 700; color: #17202A; text-align: right; }
+    .qr-box { text-align: center; margin: 20px 0 10px 0; padding: 14px; background: #F4F2ED; border-radius: 10px; font-family: monospace; font-weight: bold; color: #172B4D; font-size: 13px; border: 1px dashed #C3BCB0; }
+    .footer { margin-top: 20px; text-align: center; font-size: 11px; color: #8A929A; border-top: 1px dashed #E2DED5; padding-top: 14px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="title">VIT-AP UNIVERSITY</div>
+      <div class="subtitle">HOSTEL OUTING GATE PASS</div>
+      <div class="badge ${isApproved ? 'badge-approved' : 'badge-pending'}">${status.toUpperCase()}</div>
+    </div>
+    <div class="row"><span class="label">Pass / Application ID</span><span class="val">$leaveId</span></div>
+    <div class="row"><span class="label">Student Name</span><span class="val">$studentName</span></div>
+    <div class="row"><span class="label">Registration No</span><span class="val">$regNo</span></div>
+    ${hostelBlock != null && hostelBlock.isNotEmpty ? '<div class="row"><span class="label">Hostel & Room</span><span class="val">$hostelBlock ${roomNo != null && roomNo.isNotEmpty ? '• Rm $roomNo' : ''}</span></div>' : ''}
+    <div class="row"><span class="label">Outing Type</span><span class="val">$outingType</span></div>
+    <div class="row"><span class="label">Place of Visit</span><span class="val">$placeOfVisit</span></div>
+    <div class="row"><span class="label">Purpose of Outing</span><span class="val">$purpose</span></div>
+    <div class="row"><span class="label">Out Date & Time</span><span class="val">$outDateTime</span></div>
+    <div class="row"><span class="label">Expected Return</span><span class="val">$inDateTime</span></div>
+    <div class="row"><span class="label">Contact / Emergency</span><span class="val">$contactNumber</span></div>
+    <div class="qr-box">
+      SECURITY VERIFICATION TOKEN: [ $leaveId - $regNo ]
+    </div>
+    <div class="footer">
+      Generated via VIT-AP VTOP Nexus • Valid at Hostel Main Security Gate with Student Physical ID Card
+    </div>
+  </div>
+</body>
+</html>
+''';
+  }
+
   /// Shows an interactive bottom sheet or SnackBar with immediate Open and Share actions
   static void _showDownloadSuccessBanner({
     required BuildContext context,
