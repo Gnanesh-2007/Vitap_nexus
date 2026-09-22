@@ -17,10 +17,13 @@ class GradesScreen extends ConsumerStatefulWidget {
 
 class _GradesScreenState extends ConsumerState<GradesScreen> {
   late Future<Map<String, dynamic>> _gradesFuture;
+  String _selectedSemester = 'All';
+  final TextEditingController _searchController = TextEditingController();
 
   static const _paper = Color(0xFFF4F2ED);
   static const _surface = Color(0xFFFFFEFB);
   static const _ink = Color(0xFF17202A);
+  static const _inkSoft = Color(0xFF56616D);
   static const _navy = Color(0xFF172B4D);
   static const _blue = Color(0xFF356AE6);
   static const _orange = Color(0xFFE47543);
@@ -40,6 +43,12 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
   void initState() {
     super.initState();
     _fetchGrades();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _fetchGrades({bool forceRefresh = false}) {
@@ -79,8 +88,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
       }
     } catch (e) {
       debugPrint(
-        'GradesScreen: Network fetch failed ($e). '
-        'Checking offline cache...',
+        'GradesScreen: Network fetch failed ($e). Checking offline cache...',
       );
 
       final fallback = widget.initialData ??
@@ -128,6 +136,83 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     }
   }
 
+  List<String> _extractSemesters(List<dynamic> courses) {
+    final List<String> semesters = [];
+    for (final c in courses) {
+      final sem = (c['exam_month']?.toString() ?? '').trim();
+      if (sem.isNotEmpty && !semesters.contains(sem)) {
+        semesters.add(sem);
+      }
+    }
+    return semesters;
+  }
+
+  Map<String, dynamic> _calculateStats(List<dynamic> courses) {
+    double totalGradePoints = 0;
+    double gpaCredits = 0;
+    double earnedCredits = 0;
+    double registeredCredits = 0;
+
+    for (final c in courses) {
+      final credits = double.tryParse(c['credits']?.toString() ?? '0') ?? 0.0;
+      final grade = (c['grade']?.toString() ?? '').trim().toUpperCase();
+
+      registeredCredits += credits;
+
+      if (['S', 'A', 'B', 'C', 'D', 'E', 'P'].contains(grade)) {
+        earnedCredits += credits;
+      }
+
+      int? gradePoint;
+      switch (grade) {
+        case 'S':
+          gradePoint = 10;
+          break;
+        case 'A':
+          gradePoint = 9;
+          break;
+        case 'B':
+          gradePoint = 8;
+          break;
+        case 'C':
+          gradePoint = 7;
+          break;
+        case 'D':
+          gradePoint = 6;
+          break;
+        case 'E':
+          gradePoint = 5;
+          break;
+        case 'F':
+        case 'N':
+          gradePoint = 0;
+          break;
+        default:
+          gradePoint = null;
+          break;
+      }
+
+      if (gradePoint != null && credits > 0) {
+        totalGradePoints += (credits * gradePoint);
+        gpaCredits += credits;
+      }
+    }
+
+    final gpa = gpaCredits > 0
+        ? (totalGradePoints / gpaCredits).toStringAsFixed(2)
+        : 'N/A';
+
+    return {
+      'gpa': gpa,
+      'earned': earnedCredits % 1 == 0
+          ? earnedCredits.toInt().toString()
+          : earnedCredits.toStringAsFixed(1),
+      'registered': registeredCredits % 1 == 0
+          ? registeredCredits.toInt().toString()
+          : registeredCredits.toStringAsFixed(1),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,11 +237,53 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
               }
 
               final data = snapshot.data ?? {};
-              final cgpa = data['cgpa']?.toString() ?? 'N/A';
-              final earned = data['credits_earned']?.toString() ?? 'N/A';
-              final registered =
+              final allCourses = (data['courses'] as List<dynamic>?) ?? [];
+              final semesters = _extractSemesters(allCourses);
+
+              // Overall totals from VTOP or fallback
+              final overallCgpa = data['cgpa']?.toString() ?? 'N/A';
+              final overallEarned = data['credits_earned']?.toString() ?? 'N/A';
+              final overallRegistered =
                   data['credits_registered']?.toString() ?? 'N/A';
-              final courses = (data['courses'] as List<dynamic>?) ?? [];
+
+              // Filter courses based on selected semester
+              List<dynamic> filteredCourses = allCourses;
+              if (_selectedSemester != 'All') {
+                filteredCourses = allCourses
+                    .where((c) =>
+                        (c['exam_month']?.toString() ?? '').trim() ==
+                        _selectedSemester)
+                    .toList();
+              }
+
+              // Filter by search query if present
+              final searchQuery = _searchController.text.trim().toLowerCase();
+              if (searchQuery.isNotEmpty) {
+                filteredCourses = filteredCourses.where((c) {
+                  final code =
+                      (c['course_code'] ?? '').toString().toLowerCase();
+                  final title =
+                      (c['course_title'] ?? '').toString().toLowerCase();
+                  final grade = (c['grade'] ?? '').toString().toLowerCase();
+                  return code.contains(searchQuery) ||
+                      title.contains(searchQuery) ||
+                      grade.contains(searchQuery);
+                }).toList();
+              }
+
+              // Compute metrics for display
+              String heroGpaLabel = 'CURRENT CGPA';
+              String heroGpaValue = overallCgpa;
+              String heroEarned = overallEarned;
+              String heroRegistered = overallRegistered;
+
+              if (_selectedSemester != 'All') {
+                final semStats = _calculateStats(filteredCourses);
+                heroGpaLabel = 'SEMESTER SGPA';
+                heroGpaValue = semStats['gpa'];
+                heroEarned = semStats['earned'];
+                heroRegistered = semStats['registered'];
+              }
 
               return CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(
@@ -164,25 +291,85 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 ),
                 slivers: [
                   SliverToBoxAdapter(child: _buildHeader()),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 32),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        _buildHero(cgpa, earned, registered),
-                        const SizedBox(height: 28),
-                        _buildCoursesHeader(courses.length),
-                        const SizedBox(height: 12),
-                        if (courses.isEmpty)
-                          _buildEmpty()
-                        else
-                          ...courses.asMap().entries.map(
-                                (entry) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: _buildCourse(entry.value),
-                                ),
-                              ),
-                      ]),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                      child: _buildHero(
+                        heroGpaLabel,
+                        heroGpaValue,
+                        heroEarned,
+                        heroRegistered,
+                        _selectedSemester,
+                      ),
                     ),
+                  ),
+
+                  // Semester Filter Segmented Tabs
+                  if (semesters.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _buildSemesterFilterBar(
+                          semesters: semesters,
+                          allCourses: allCourses,
+                        ),
+                      ),
+                    ),
+
+                  // Search Bar
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                      child: _buildSearchBar(),
+                    ),
+                  ),
+
+                  // Courses Header
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: _buildCoursesHeader(
+                        filteredCourses.length,
+                        _selectedSemester,
+                      ),
+                    ),
+                  ),
+
+                  // Course Cards
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                    sliver: filteredCourses.isEmpty
+                        ? SliverToBoxAdapter(child: _buildEmpty())
+                        : (_selectedSemester == 'All' && searchQuery.isEmpty
+                            ? SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    final sem = semesters[index];
+                                    final semCourses = allCourses
+                                        .where((c) =>
+                                            (c['exam_month']?.toString() ??
+                                                '').trim() ==
+                                            sem)
+                                        .toList();
+                                    return _buildSemesterGroup(
+                                        sem, semCourses);
+                                  },
+                                  childCount: semesters.length,
+                                ),
+                              )
+                            : SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 10),
+                                      child: _buildCourse(
+                                          filteredCourses[index]),
+                                    );
+                                  },
+                                  childCount: filteredCourses.length,
+                                ),
+                              )),
                   ),
                 ],
               );
@@ -262,9 +449,11 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
   }
 
   Widget _buildHero(
-    String cgpa,
+    String gpaLabel,
+    String gpa,
     String earned,
     String registered,
+    String semester,
   ) {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -285,8 +474,8 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             children: [
               Expanded(
                 child: _HeroMetric(
-                  label: 'CURRENT CGPA',
-                  value: cgpa,
+                  label: gpaLabel,
+                  value: gpa,
                   icon: Icons.auto_graph_rounded,
                   accent: const Color(0xFFF2B35B),
                 ),
@@ -325,7 +514,9 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 ),
                 const SizedBox(width: 7),
                 Text(
-                  'Credits registered',
+                  semester == 'All'
+                      ? 'Total credits registered'
+                      : 'Semester credits registered',
                   style: GoogleFonts.dmSans(
                     color: Colors.white60,
                     fontSize: 10.5,
@@ -348,27 +539,162 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     );
   }
 
-  Widget _buildCoursesHeader(int count) {
+  Widget _buildSemesterFilterBar({
+    required List<String> semesters,
+    required List<dynamic> allCourses,
+  }) {
+    final allTabs = ['All', ...semesters];
+
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: allTabs.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final sem = allTabs[index];
+          final isSelected = _selectedSemester == sem;
+          final count = sem == 'All'
+              ? allCourses.length
+              : allCourses
+                  .where((c) =>
+                      (c['exam_month']?.toString() ?? '').trim() == sem)
+                  .length;
+
+          return InkWell(
+            onTap: () => setState(() => _selectedSemester = sem),
+            borderRadius: BorderRadius.circular(19),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: isSelected ? _navy : _surface,
+                borderRadius: BorderRadius.circular(19),
+                border: Border.all(
+                  color: isSelected ? _navy : _line,
+                  width: 1.2,
+                ),
+                boxShadow: isSelected
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x14172B4D),
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    sem,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 12.5,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      color: isSelected ? Colors.white : _ink,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.white.withValues(alpha: .2)
+                          : _soft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: isSelected ? Colors.white : _inkSoft,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _line),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search_rounded, size: 18, color: _muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: (_) => setState(() {}),
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                color: _ink,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search course by name, code or grade...',
+                hintStyle: GoogleFonts.dmSans(
+                  fontSize: 12.5,
+                  color: _muted,
+                  fontWeight: FontWeight.w500,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ),
+          if (_searchController.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                setState(() {});
+              },
+              child: const Icon(Icons.close_rounded, size: 16, color: _muted),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoursesHeader(int count, String semester) {
     return Row(
       children: [
         Container(
-          width: 31,
-          height: 31,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: _surface,
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: _line),
           ),
           child: const Icon(
             Icons.menu_book_outlined,
             color: _blue,
-            size: 16,
+            size: 15,
           ),
         ),
-        const SizedBox(width: 9),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'SUBJECT-WISE GRADES',
+            semester == 'All'
+                ? 'ALL SEMESTER GRADES'
+                : 'GRADES FOR $semester',
             style: _micro.copyWith(
               color: _ink,
               fontSize: 9.5,
@@ -378,7 +704,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
         Container(
           padding: const EdgeInsets.symmetric(
             horizontal: 8,
-            vertical: 5,
+            vertical: 4,
           ),
           decoration: BoxDecoration(
             color: _soft,
@@ -398,6 +724,76 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     );
   }
 
+  Widget _buildSemesterGroup(String semester, List<dynamic> semCourses) {
+    final stats = _calculateStats(semCourses);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Semester Subheader Card
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: _soft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _line),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_month_outlined, size: 16, color: _navy),
+                const SizedBox(width: 8),
+                Text(
+                  semester,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'SGPA: ',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _muted,
+                  ),
+                ),
+                Text(
+                  stats['gpa'],
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: _navy,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '• ${semCourses.length} courses',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    color: _inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Course Cards
+          ...semCourses.map(
+            (c) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _buildCourse(c),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCourse(dynamic course) {
     final grade = course['grade']?.toString() ?? '-';
     final color = _getGradeColor(grade);
@@ -406,6 +802,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     final credits = course['credits']?.toString() ?? '0';
     final type = course['course_type']?.toString() ?? '';
     final month = course['exam_month']?.toString() ?? '';
+    final distribution = course['course_distribution']?.toString() ?? '';
 
     return Container(
       padding: const EdgeInsets.all(13),
@@ -459,6 +856,12 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                       _muted,
                       _soft,
                     ),
+                    if (distribution.isNotEmpty)
+                      _Pill(
+                        distribution,
+                        _inkSoft,
+                        _soft,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 7),
@@ -515,7 +918,9 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'No grade history records found in VTOP.',
+            _searchController.text.isNotEmpty
+                ? 'No matching courses found for "${_searchController.text}".'
+                : 'No grade records found for the selected semester.',
             textAlign: TextAlign.center,
             style: GoogleFonts.dmSans(
               color: _muted,
