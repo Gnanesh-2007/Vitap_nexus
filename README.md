@@ -1,254 +1,153 @@
-<p align="center">
-  <img src="app/assets/images/konoha_logo.png" width="80" alt="VITAP Nexus Logo"/>
-</p>
+# VIT-AP Nexus 🚀
 
-<h1 align="center">VITAP Nexus</h1>
+[![Flutter](https://img.shields.io/badge/Flutter-3.12+-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.0+-0175C2?logo=dart&logoColor=white)](https://dart.dev)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Rust](https://img.shields.io/badge/Rust-Native_FFI-DEA584?logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Riverpod](https://img.shields.io/badge/State_Management-Riverpod_2.0-2563EB)](https://riverpod.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<p align="center">
-  <strong>A premium student companion app for VIT-AP University</strong>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Flutter-3.12+-02569B?logo=flutter&logoColor=white" alt="Flutter"/>
-  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white" alt="FastAPI"/>
-  <img src="https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white" alt="Python"/>
-  <img src="https://img.shields.io/badge/Deployed_on-Render-46E3B7?logo=render&logoColor=white" alt="Render"/>
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"/>
-</p>
-
-<p align="center">
-  <em>Access your VTOP academic data — attendance, marks, timetable, grades, and more — through a beautifully crafted mobile experience.</em>
-</p>
+> **VIT-AP Nexus** is a next-generation mobile client and asynchronous microservice ecosystem for VIT-AP University students. It replaces slow, desktop-bound legacy portals with a high-performance, offline-capable mobile experience delivering instant data access, predictive attendance tracking, digital courseware, and automated gate-pass management.
 
 ---
 
-## ✨ Features
+## 🌟 Why VIT-AP Nexus?
 
-| Feature | Description |
-|---------|-------------|
-| 🔐 **Secure OTP Login** | Two-factor authentication with VIT-AP's VTOP portal |
-| 📊 **Dashboard** | Today's schedule, live class countdown, quick stats at a glance |
-| 📋 **Attendance** | Course-wise attendance %, safe bunk calculator |
-| 📅 **Timetable** | Interactive day-by-day weekly schedule with venue & faculty |
-| 📝 **Marks** | CAT-1, CAT-2, FAT breakdown with weighted scores |
-| 🎓 **Grades & CGPA** | Semester GPA history, credit tracking, full grade tables |
-| 👤 **Profile** | Student info, hostel details, academic information |
-| 📚 **Courses** | Course materials, syllabus, lecture notes download |
-| 📄 **Assignments** | Digital assignment tracking with deadline management |
-| 🚶 **Outings** | General & weekend outing request management |
-| 🔬 **Biometrics** | Campus turnstile punch logs |
-| 💰 **Payments** | Fee dues and receipt tracking |
-| 👨‍🏫 **Mentor** | Faculty mentor/proctor contact details |
-| 🌐 **VTOP Portal** | Embedded live VTOP via reverse proxy |
+Legacy university portals often suffer from server timeouts, session expirations, and heavy desktop tables that are difficult to navigate on mobile devices. 
+
+**VIT-AP Nexus solves this through:**
+- **0ms Instant Load Times:** Multi-tier Stale-While-Revalidate caching renders your latest data in RAM/Disk instantly before background revalidation.
+- **Native Parsing Engine:** High-performance Rust DOM parser (`lib_vtop`) parses complex tabular data locally with zero garbage collection overhead.
+- **Offline Reliability:** View your timetable, attendance records, exam schedules, and grades even when the campus network is offline.
+- **Modern Editorial UI:** Tailored layout built with modern typography, smooth micro-interactions, and accessible high-contrast design.
 
 ---
 
-## 🏗️ Architecture
+## ⚡ Core Features
+
+### 1. 📊 Smart Attendance & Predictive Bunk Intelligence
+- **Real-Time Eligibility Tracking:** Color-coded status indicators for 75% minimum eligibility and 85% scholarship targets.
+- **Mathematical Bunk Calculator:** Automatically computes the exact number of classes you can safely bunk without falling below minimum thresholds, or how many consecutive classes you must attend to recover.
+- **Day-Wise Session Logs:** Deep-dive timeline view displaying every slot, date, faculty, and present/absent mark per registered course.
+
+### 2. 📅 Interactive Timetable & Exam Schedule
+- **Weekly Schedule View:** Day-by-day timetable showing classroom venues, slot timings, and course codes.
+- **Upcoming Class Countdown:** Live indicator highlighting current and next classes for the day.
+- **Exam Schedule & Seating:** Comprehensive CAT-1, CAT-2, and FAT exam dates with venue details.
+
+### 3. 📚 Digital Courseware & Resource Hub
+- **Direct Material Access:** View syllabus documents, course plans, lecture topics, and faculty reference notes.
+- **Lecture-Wise Organization:** Browse lecture notes structured session by session with direct download support.
+
+### 4. 🏡 Hostel Outing Management & Digital Gate Pass
+- **Streamlined Leave Booking:** Apply for General or Weekend Outings with automatic time slot configuration.
+- **Live Status Tracking:** Real-time lifecycle visibility (*Applied $\rightarrow$ Waiting for Approval $\rightarrow$ Approved / Denied*).
+- **Digital Gate Pass:** Automatically generates an authentic vector A4 pass with verifiable cryptographic QR code for seamless security turnstile clearance.
+
+### 5. 🎓 Grade History & Academic Analytics
+- **CGPA & Credit Summary:** Real-time calculation of overall CGPA, earned credits, and semester-by-semester GPA trends.
+- **Detailed Grade Cards:** Tabular grade breakdown categorized across regular, elective, and audit courses.
+
+### 6. 💳 Fee Ledger & Payment Summary
+- **Transaction Overview:** Instant status summary of all academic, hostel, and semester tuition payments with verified timestamps.
+
+---
+
+## 🏗️ System Architecture
 
 ```
-┌──────────────────────────┐          ┌─────────────────────────┐
-│   Flutter Mobile App     │  HTTPS   │   FastAPI Backend        │
-│   (app/)                 │ ◄──────► │   (src/)                 │
-│                          │          │                          │
-│  • Riverpod State Mgmt   │          │  • Auth + OTP Sessions   │
-│  • Dio HTTP Client       │          │  • VTOP Data Endpoints   │
-│  • Secure Storage        │          │  • Reverse Proxy         │
-│  • Cyberpunk Dark Theme  │          │  • API Key Middleware    │
-└──────────────────────────┘          └────────────┬────────────┘
-                                                   │
-                                            ┌──────▼──────┐
-                                            │  VIT-AP VTOP │
-                                            │  Portal      │
-                                            └─────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                 Client Layer (Flutter Mobile)               │
+│                                                             │
+│   • Editorial Design System    • Riverpod State Management  │
+│   • 0ms Stale-While-Revalidate • Rust FFI Native Engine     │
+│   • Offline Encrypted Storage  • Vector PDF Gate-Pass Gen   │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ HTTPS / JSON
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Microservice Layer (FastAPI)                │
+│                                                             │
+│   • Non-Blocking Async I/O     • Dynamic Session Cookie Pool│
+│   • Automatic Captcha Handling • Resilient Request Retries  │
+│   • API Facade & CORS Normalization                         │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ HTTPS
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│              University Infrastructure (VTOP ERP)           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📁 Project Structure
+## 🛠️ Technology Stack
 
-```
-Vitap_nexus/
-├── app/                          # Flutter Mobile Application
-│   ├── lib/
-│   │   ├── main.dart             # App entry point
-│   │   ├── providers/            # Riverpod state management
-│   │   │   ├── auth_provider.dart
-│   │   │   └── vtop_providers.dart
-│   │   ├── screens/              # 16 feature screens
-│   │   │   ├── login_screen.dart
-│   │   │   ├── dashboard_screen.dart
-│   │   │   ├── attendance_screen.dart
-│   │   │   ├── timetable_screen.dart
-│   │   │   ├── marks_screen.dart
-│   │   │   └── ...
-│   │   ├── services/             # API client & storage
-│   │   ├── theme/                # Cyberpunk dark theme
-│   │   ├── utils/                # Helpers & VTOP embed
-│   │   └── widgets/              # Reusable UI components
-│   ├── assets/images/            # App assets
-│   └── pubspec.yaml
-│
-├── src/                          # FastAPI Backend
-│   ├── main.py                   # App initialization & CORS
-│   ├── config.py                 # Environment configuration
-│   ├── dependencies.py           # API key verification
-│   ├── models/
-│   │   └── api_models.py         # Pydantic request/response schemas
-│   ├── routers/
-│   │   ├── auth.py               # Login, OTP verification
-│   │   ├── student_data.py       # Academic data endpoints
-│   │   └── vtop_proxy.py         # VTOP reverse proxy
-│   └── utils/
-│       └── handle_client_exception.py
-│
-├── requirements.txt              # Python dependencies
-├── Dockerfile                    # Container build
-├── Procfile                      # Render start command
-├── render.yaml                   # Render deployment config
-├── .env.example                  # Environment variable template
-└── README.md
-```
+| Layer | Technologies |
+| :--- | :--- |
+| **Mobile Frontend** | Flutter, Dart 3, Riverpod 2.6, Dio, Google Fonts |
+| **Native Performance Core** | Rust (`lib_vtop`), `dart:ffi` C-interop bindings |
+| **Backend API Gateway** | Python 3.11+, FastAPI, Uvicorn, AsyncIO, Pydantic |
+| **State & Storage** | Riverpod, Flutter Secure Storage (AES-256), SharedPreferences |
+| **Document Generation** | Vector PDF Engine (`pdf`, `printing`), Dynamic QR Code Generators |
+| **Deployment & CI** | Docker, Render Cloud Hosting, GitHub Actions |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+- **Flutter SDK:** `>= 3.12.0` ([Install Flutter](https://flutter.dev/docs/get-started/install))
+- **Python:** `>= 3.11` ([Install Python](https://www.python.org/downloads/))
+- **Git**
 
-- **Flutter** >= 3.12 ([Install Flutter](https://docs.flutter.dev/get-started/install))
-- **Python** >= 3.13 ([Install Python](https://python.org/downloads/))
-- **Git** ([Install Git](https://git-scm.com/))
+---
 
-### 1. Clone the Repository
+### 1. Backend Microservice Setup
 
 ```bash
+# Clone the repository
 git clone https://github.com/Gnanesh-2007/Vitap_nexus.git
 cd Vitap_nexus
-```
 
-### 2. Backend Setup
-
-```bash
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment
-cp .env.example .env
-# Edit .env and set your API_KEY
-
-# Run the server
-uvicorn src.main:app --reload --port 8000
+# Launch FastAPI development server
+uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+The interactive API documentation will be available at `http://localhost:8000/docs`.
 
-The API will be available at `http://localhost:8000` with docs at `/docs`.
+---
 
-### 3. Flutter App Setup
+### 2. Flutter Mobile App Setup
 
 ```bash
+# Navigate to the Flutter app directory
 cd app
 
-# Install dependencies
+# Fetch package dependencies
 flutter pub get
 
-# Run with your API key
-flutter run --dart-define=API_KEY=your-api-key-here
-```
-
-> **Note:** Pass your API key via `--dart-define` at build time. Never hardcode secrets!
-
----
-
-## 🌐 Deployment
-
-### Backend (Render)
-
-The backend is configured for one-click deployment on [Render](https://render.com):
-
-1. Fork this repo
-2. Connect your Render account to GitHub
-3. Create a new **Web Service** and select this repo
-4. Set the environment variable `API_KEY` in the Render dashboard
-5. Deploy!
-
-> The `render.yaml` blueprint is included for automatic configuration.
-
-### Flutter App
-
-```bash
-# Build APK
-flutter build apk --dart-define=API_KEY=your-api-key-here
-
-# Build iOS
-flutter build ios --dart-define=API_KEY=your-api-key-here
+# Run on an attached device or emulator
+flutter run
 ```
 
 ---
 
-## 🔒 API Endpoints
+## 🔒 Security & Privacy Architecture
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/auth/login` | Initiate login with registration number & password |
-| `POST` | `/auth/verify_otp` | Verify OTP for two-factor authentication |
-| `POST` | `/auth/resend_otp` | Resend OTP code |
-| `GET` | `/student/attendance` | Fetch attendance data |
-| `GET` | `/student/timetable` | Fetch class timetable |
-| `GET` | `/student/marks` | Fetch exam marks |
-| `GET` | `/student/grades` | Fetch grade history |
-| `GET` | `/student/profile` | Fetch student profile |
-| `GET` | `/student/outings` | Fetch outing requests |
-| `GET` | `/student/biometric` | Fetch biometric logs |
-| `GET` | `/student/assignments` | Fetch digital assignments |
-| `GET` | `/vtop_proxy/start_session` | Start VTOP proxy session |
-
-All endpoints require the `X-API-Key` header for authentication.
+- **Zero Remote Password Storage:** Student credentials are never persisted on cloud databases. Passwords are sent solely over encrypted HTTPS transport to negotiate authenticated session cookies.
+- **Device-Level Encryption:** Authentication tokens and biometric keys are saved via `flutter_secure_storage` leveraging the Android Keystore and iOS Keychain.
+- **Graceful Error Translation:** Technical network traces and server socket exceptions are filtered through a centralized `ErrorFormatter` to prevent data leakage and provide clear guidance to students.
 
 ---
 
-## 🛠️ Tech Stack
+## 📄 License
 
-### Frontend
-- **Flutter** — Cross-platform UI framework
-- **Riverpod** — Reactive state management
-- **Dio** — HTTP client with interceptors
-- **Flutter Secure Storage** — Encrypted credential storage
-- **Flutter Animate** — Smooth micro-interactions
-
-### Backend
-- **FastAPI** — High-performance Python web framework
-- **vitap-vtop-client** — VTOP portal scraping engine
-- **Pydantic** — Data validation & serialization
-- **Uvicorn** — ASGI server
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- [vitap-vtop-client](https://github.com/Udhay-Adithya/vitap-vtop-client) by Udhay Adithya — The core VTOP scraping library
-- VIT-AP University — For the academic ecosystem
-
----
-
-<p align="center">
-  Built with ❤️ for VIT-AP students
-</p>
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for full details.
