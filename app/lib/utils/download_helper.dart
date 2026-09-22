@@ -9,6 +9,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:vitap_nexus_app/utils/error_formatter.dart';
 
@@ -693,6 +694,39 @@ class DownloadHelper {
           color: PdfColors.black,
         ),
       ),
+    );
+  }
+
+  /// Converts official VTOP receipt HTML markup into authentic PDF bytes
+  static Future<Uint8List> convertOfficialReceiptHtmlToPdf(String receiptHtml) async {
+    var html = receiptHtml.trim();
+    if (!html.contains('<html') && !html.contains('<body')) {
+      html = '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #17202A; background: #FFF; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; margin-bottom: 12px; }
+    th, td { border: 1px solid #C3BCB0; padding: 7px 10px; font-size: 11px; }
+    th { background-color: #F4F2ED; font-weight: bold; }
+    .header { text-align: center; margin-bottom: 16px; }
+    .title { font-size: 18px; font-weight: bold; color: #7A1B28; margin: 0; }
+    .subtitle { font-size: 12px; font-weight: bold; color: #172B4D; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  $html
+</body>
+</html>
+''';
+    }
+
+    // ignore: deprecated_member_use
+    return await Printing.convertHtml(
+      html: html,
+      format: PdfPageFormat.a4,
     );
   }
 

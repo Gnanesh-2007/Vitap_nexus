@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -710,7 +712,29 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
       final appNo = profile['application_number']?.toString() ?? username;
       final programName = profile['program_name']?.toString() ?? profile['branch_name']?.toString();
 
-      final pdfBytes = await DownloadHelper.generateOfficialPaymentReceiptPdfBytes(
+      // 1. Fetch official receipt from VTOP server
+      Uint8List? pdfBytes;
+      try {
+        final receiptHtml = await apiService.downloadPaymentReceipt(
+          username: username,
+          password: password,
+          receiptNo: receiptNo,
+          applicationNumber: appNo,
+        );
+
+        if (receiptHtml.isNotEmpty &&
+            (receiptHtml.contains('<table') ||
+                receiptHtml.contains('<div') ||
+                receiptHtml.contains('<html') ||
+                receiptHtml.contains('RECEIPT'))) {
+          pdfBytes = await DownloadHelper.convertOfficialReceiptHtmlToPdf(receiptHtml);
+        }
+      } catch (fetchErr) {
+        debugPrint('Official VTOP HTML fetch/conversion error: $fetchErr');
+      }
+
+      // 2. Fallback to official structured layout PDF if direct HTML conversion failed
+      pdfBytes ??= await DownloadHelper.generateOfficialPaymentReceiptPdfBytes(
         studentName: studentName,
         regNo: regNo,
         receiptNo: receiptNo,
