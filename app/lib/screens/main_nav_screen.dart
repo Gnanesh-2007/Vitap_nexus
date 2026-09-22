@@ -88,6 +88,13 @@ class _MainNavScreenState extends State<MainNavScreen> {
     });
   }
 
+  Widget _getScreen(int index) {
+    if (_screens[index] is SizedBox) {
+      _screens[index] = _buildScreen(index);
+    }
+    return _screens[index];
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -103,7 +110,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
         backgroundColor: _background,
         body: IndexedStack(
           index: _currentIndex,
-          children: _screens,
+          children: List.generate(_navItems.length, (i) => _getScreen(i)),
         ),
         bottomNavigationBar: _buildNavigationBar(),
       ),

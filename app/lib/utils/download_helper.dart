@@ -40,16 +40,24 @@ class DownloadHelper {
 
       String? savedPath;
 
-      // 1. Use FileSaver to save directly into public Downloads/Documents directory
+      // 1. Prompt system Save-As picker so the file is explicitly placed in user's Downloads/Files
       try {
-        savedPath = await FileSaver.instance.saveFile(
+        savedPath = await FileSaver.instance.saveAs(
           name: sanitizedName,
           bytes: bytes,
           mimeType: mimeType != null ? MimeType.other : MimeType.pdf,
           customMimeType: mimeType,
         );
       } catch (fsErr) {
-        debugPrint('FileSaver error, falling back to direct write: $fsErr');
+        debugPrint('FileSaver saveAs error: $fsErr');
+        try {
+          savedPath = await FileSaver.instance.saveFile(
+            name: sanitizedName,
+            bytes: bytes,
+            mimeType: mimeType != null ? MimeType.other : MimeType.pdf,
+            customMimeType: mimeType,
+          );
+        } catch (_) {}
       }
 
       // 2. Also write to accessible storage directory as fallback/direct path

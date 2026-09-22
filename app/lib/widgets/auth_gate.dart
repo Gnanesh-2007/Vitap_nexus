@@ -5,76 +5,36 @@ import '../providers/auth_provider.dart';
 import '../screens/login_screen.dart';
 import '../screens/main_nav_screen.dart';
 
-class AuthGate extends ConsumerStatefulWidget {
+class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
-  ConsumerState<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends ConsumerState<AuthGate> {
-  bool _openingDashboard = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
 
-    // ------------------------------------------------------------
-    // Still checking saved credentials / creating VTOP session
-    // ------------------------------------------------------------
+    // 1. Loading credentials or checking saved auth
     if (authState.isLoading) {
       return const Scaffold(
+        backgroundColor: Color(0xFFF4F2ED),
         body: Center(
-          child: CircularProgressIndicator(),
+          child: CircularProgressIndicator(
+            color: Color(0xFF172B4D),
+          ),
         ),
       );
     }
 
-    // ------------------------------------------------------------
-    // OTP required
-    //
-    // Keep LoginScreen underneath temporarily.
-    // OtpListener will show the OTP popup.
-    // After successful OTP verification, OtpListener opens
-    // MainNavScreen.
-    // ------------------------------------------------------------
+    // 2. OTP Required (renders LoginScreen with OTP dialog on top)
     if (authState.otpRequired) {
       return const LoginScreen();
     }
 
-    // ------------------------------------------------------------
-    // Already authenticated
-    // ------------------------------------------------------------
+    // 3. Authenticated - directly renders MainNavScreen (immune to recents/lifecycle tab issues)
     if (authState.isAuthenticated) {
-      if (!_openingDashboard) {
-        _openingDashboard = true;
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => const MainNavScreen(),
-            ),
-          );
-        });
-      }
-
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const MainNavScreen();
     }
 
-    // ------------------------------------------------------------
-    // Not authenticated
-    //
-    // This is the normal LoginScreen:
-    // - first-time user
-    // - logged out user
-    // - invalid/changed password
-    // ------------------------------------------------------------
+    // 4. Unauthenticated
     return const LoginScreen();
   }
 }
