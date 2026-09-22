@@ -236,7 +236,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
     }
   }
 
-  Future<void> _downloadGatePass(Map<String, dynamic> req, bool isWeekend) async {
+  String _getOutingPassHtml(Map<String, dynamic> req, bool isWeekend) {
     final auth = ref.read(authProvider);
     final dash = ref.read(dashboardProvider);
     final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
@@ -272,7 +272,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
     final status = req['status']?.toString() ??
         (req['leave_status']?.toString() ?? 'Approved');
 
-    final html = DownloadHelper.generateOutingPassHtml(
+    return DownloadHelper.generateOutingPassHtml(
       studentName: studentName,
       regNo: regNo,
       outingType: isWeekend ? 'Weekend Leave' : 'General Day Outing',
@@ -284,6 +284,29 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
       status: status,
       leaveId: leaveId,
     );
+  }
+
+  void _viewGatePass(Map<String, dynamic> req, bool isWeekend) {
+    final leaveId = req['leave_id']?.toString() ??
+        req['appl_id']?.toString() ??
+        req['id']?.toString() ??
+        'OUT-${DateTime.now().millisecondsSinceEpoch % 100000}';
+    final html = _getOutingPassHtml(req, isWeekend);
+
+    DownloadHelper.showPreviewModal(
+      context: context,
+      title: 'Hostel Gate Pass',
+      fileName: 'VITAP_Outing_Pass_$leaveId.html',
+      htmlContent: html,
+    );
+  }
+
+  Future<void> _downloadGatePass(Map<String, dynamic> req, bool isWeekend) async {
+    final leaveId = req['leave_id']?.toString() ??
+        req['appl_id']?.toString() ??
+        req['id']?.toString() ??
+        'OUT-${DateTime.now().millisecondsSinceEpoch % 100000}';
+    final html = _getOutingPassHtml(req, isWeekend);
 
     await DownloadHelper.saveFile(
       context: context,
@@ -806,6 +829,34 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              // View Gate Pass button
+              TextButton.icon(
+                onPressed: () => _viewGatePass(req, isWeekend),
+                style: TextButton.styleFrom(
+                  backgroundColor: _soft,
+                  foregroundColor: _ink,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 7,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: const BorderSide(color: _line),
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.visibility_outlined,
+                  size: 14,
+                ),
+                label: Text(
+                  'View Pass',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               // Download Gate Pass button
               TextButton.icon(
                 onPressed: () => _downloadGatePass(req, isWeekend),
@@ -813,7 +864,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
                   backgroundColor: const Color(0xFFEAF0FD),
                   foregroundColor: _blue,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 9,
                     vertical: 7,
                   ),
                   shape: RoundedRectangleBorder(
@@ -825,7 +876,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
                   size: 14,
                 ),
                 label: Text(
-                  'Download Pass',
+                  'Download',
                   style: GoogleFonts.dmSans(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
