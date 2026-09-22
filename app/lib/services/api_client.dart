@@ -139,7 +139,8 @@ class ApiClient {
       }
     }
 
-    return '${_vtopSessionId ?? 'no-session'}|${options.path}|$body';
+    final user = StorageService.currentUsername ?? 'GLOBAL';
+    return '$user|${_vtopSessionId ?? 'no-session'}|${options.path}|$body';
   }
 
   void clearDataCache() {
@@ -159,7 +160,7 @@ class ApiClient {
 
     if (sessionId == null || sessionId.isEmpty) return;
 
-    final warmUpKey = '$sessionId|$semSubId';
+    final warmUpKey = '$username|$sessionId|$semSubId';
 
     // all_data can be refreshed/rebuilt by Riverpod. Do not launch the
     // five background prefetch requests again for the same session +
@@ -230,12 +231,31 @@ class ApiClient {
     );
   }
 
-  /// Clears the current VTOP session.
+  /// Clears the current VTOP session locally.
   void clearVtopSessionId() {
     _vtopSessionId = null;
     _lastWarmUpKey = null;
     clearDataCache();
-    debugPrint('VTOP session cleared');
+    debugPrint('VTOP session cleared locally');
+  }
+
+  /// Explicitly terminates the session on the backend and flushes local caches.
+  Future<void> logout(String? sessionId) async {
+    final activeId = sessionId ?? _vtopSessionId;
+    clearVtopSessionId();
+
+    if (activeId != null && activeId.isNotEmpty) {
+      try {
+        await dio.post(
+          '/auth/logout',
+          data: {'session_id': activeId},
+          options: Options(headers: {'X-VTOP-Session-ID': activeId}),
+        );
+        debugPrint('Backend session $activeId destroyed successfully');
+      } catch (e) {
+        debugPrint('Backend logout request note (session may have expired): $e');
+      }
+    }
   }
 
   // ============================================================
@@ -246,8 +266,9 @@ class ApiClient {
     dio = Dio(
       BaseOptions(
         baseUrl: baseUrl ?? defaultBaseUrl,
-        connectTimeout: const Duration(seconds: 45),
-        receiveTimeout: const Duration(seconds: 45),
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
+        sendTimeout: const Duration(seconds: 60),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',

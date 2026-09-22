@@ -195,12 +195,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Do NOT block the user on a slow VTOP network call.
       // --------------------------------------------------------
 
+      StorageService.setCurrentUser(username);
+
       // Restore the COMPLETE semester list from local storage too.
       // This keeps the semester dropdown available immediately after restart.
       // Restore the complete semester list from disk/memory.
       // Do NOT depend on initCache() having already run.
       final cachedSemesters =
-          await StorageService.getAvailableSemesters();
+          await StorageService.getAvailableSemesters(username: username);
 
       state = state.copyWith(
         isAuthenticated: true,
@@ -372,6 +374,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       // Save credentials.
+      StorageService.setCurrentUser(username);
       await StorageService.saveCredentials(
         username: username,
         password: password,
@@ -496,6 +499,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           username.isNotEmpty &&
           password != null &&
           password.isNotEmpty) {
+        StorageService.setCurrentUser(username);
         await StorageService.saveCredentials(
           username: username,
           password: password,
@@ -791,26 +795,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ============================================================
 
   Future<void> logout() async {
-    // ----------------------------------------------------------
-    // Clear backend session ID from ApiClient.
-    // ----------------------------------------------------------
+    final oldSessionId = state.sessionId ?? apiService.vtopSessionId;
 
+    // Destroy session on the backend immediately
+    if (oldSessionId != null && oldSessionId.isNotEmpty) {
+      try {
+        await apiService.logout(oldSessionId);
+      } catch (e) {
+        debugPrint('Logout backend request error: $e');
+      }
+    }
+
+    // Clear backend session ID from ApiClient.
     apiService.clearVtopSessionId();
 
-    // ----------------------------------------------------------
-    // Clear saved credentials.
-    // ----------------------------------------------------------
-
+    // Clear saved credentials & memory cache.
     try {
       await StorageService.clearAll();
     } catch (_) {
       // Ignore storage errors during logout.
     }
 
-    // ----------------------------------------------------------
     // Reset state.
-    // ----------------------------------------------------------
-
     state = const AuthState(
       isAuthenticated: false,
       isLoading: false,

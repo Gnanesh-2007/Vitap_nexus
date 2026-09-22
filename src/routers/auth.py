@@ -1,14 +1,14 @@
 """
-OTP-aware VTOP session management.
+OTP-aware VTOP session management with strict user-isolation.
 
 Flow:
 
     POST /auth/login
         ↓
-    creates ONE VtopClient
+    creates ONE VtopClient bound to registration_number
         ↓
     if OTP required:
-        store the client + return session_id
+        store client + username + return session_id
         ↓
     POST /auth/verify_otp
         ↓
@@ -16,7 +16,11 @@ Flow:
         ↓
     authenticated VtopClient stays in session store
         ↓
-    /student/* requests use that SAME VtopClient
+    /student/* requests verify X-VTOP-Session-ID matches user
+        ↓
+    POST /auth/logout
+        ↓
+    destroys VTOP session and closes client immediately
 """
 
 import asyncio
@@ -47,44 +51,51 @@ router = APIRouter(
 
 
 # ============================================================
-# SESSION STORE
+# SESSION STORE (STRICTLY SCOPED PER SESSION_ID)
 # ============================================================
 
 # session_id -> VtopClient
-#
-# IMPORTANT:
-# The VtopClient remains alive after /auth/login.
-# This preserves the VTOP cookies/session required after OTP.
-#
 _session_store: dict[str, VtopClient] = {}
 
+# session_id -> creation timestamp
 _session_created_at: dict[str, float] = {}
+
+# session_id -> registration_number (upper-case)
+_session_usernames: dict[str, str] = {}
 
 _session_lock = asyncio.Lock()
 
 # Keep authenticated VTOP sessions for 12 hours.
-# Change this if you want a shorter lifetime.
 SESSION_TTL_SECONDS = 12 * 60 * 60
 
 
-async def get_client_for_session(session_id: str) -> VtopClient:
+async def get_client_for_session(
+    session_id: str,
+    expected_username: Optional[str] = None,
+) -> VtopClient:
     """
     Returns the existing authenticated/pending VtopClient.
-
-    This function MUST be used by /student/* endpoints.
-
-    It does NOT create a new VtopClient.
+    Validates ownership if expected_username is provided.
     """
 
     async with _session_lock:
         client = _session_store.get(session_id)
         created_at = _session_created_at.get(session_id)
+        owner_username = _session_usernames.get(session_id)
 
     if client is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="VTOP session not found. Please login again.",
         )
+
+    # Validate that session belongs to the requested student
+    if expected_username is not None and owner_username is not None:
+        if owner_username.upper().strip() != expected_username.upper().strip():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Session does not match the requested registration number.",
+            )
 
     # Check session age.
     if created_at is not None:
@@ -101,14 +112,21 @@ async def get_client_for_session(session_id: str) -> VtopClient:
     return client
 
 
+async def get_session_username(session_id: str) -> Optional[str]:
+    """Returns the registration number bound to a session."""
+    async with _session_lock:
+        return _session_usernames.get(session_id)
+
+
 async def release_session(session_id: str) -> None:
     """
-    Completely remove and close a VTOP session.
+    Completely remove, destroy, and close a VTOP session.
     """
 
     async with _session_lock:
         client = _session_store.pop(session_id, None)
         _session_created_at.pop(session_id, None)
+        _session_usernames.pop(session_id, None)
 
     if client is not None:
         try:
@@ -124,13 +142,8 @@ async def get_vtop_client_from_header(
     ),
 ) -> VtopClient:
     """
-    FastAPI dependency used by every /student/* endpoint.
-
-    Flutter sends:
-
-        X-VTOP-Session-ID: <session_id>
-
-    We then retrieve the SAME VtopClient created during /auth/login.
+    FastAPI dependency used by /student/* endpoints.
+    Retrieves the VtopClient created during /auth/login.
     """
 
     if not x_vtop_session_id:
@@ -172,6 +185,10 @@ class ResendOtpRequest(BaseModel):
     session_id: str
 
 
+class LogoutRequest(BaseModel):
+    session_id: str
+
+
 # ============================================================
 # LOGIN
 # ============================================================
@@ -182,13 +199,11 @@ class ResendOtpRequest(BaseModel):
 )
 async def login(request: LoginRequest):
     """
-    Creates exactly ONE VtopClient.
-
-    If VTOP requires OTP, the client remains alive in the
-    session store until /auth/verify_otp is called.
+    Creates exactly ONE VtopClient bound to the student.
     """
 
     session_id = str(uuid.uuid4())
+    reg_no = request.registration_number.strip().upper()
 
     client = VtopClient(
         registration_number=request.registration_number,
@@ -202,6 +217,7 @@ async def login(request: LoginRequest):
         async with _session_lock:
             _session_store[session_id] = client
             _session_created_at[session_id] = time.time()
+            _session_usernames[session_id] = reg_no
 
         return LoginResponse(
             session_id=session_id,
@@ -210,17 +226,10 @@ async def login(request: LoginRequest):
         )
 
     except VtopLoginOtpRequiredError:
-
-        # VERY IMPORTANT:
-        #
-        # Do NOT close this client.
-        #
-        # It contains the VTOP session/cookies required
-        # to verify the OTP later.
-        #
         async with _session_lock:
             _session_store[session_id] = client
             _session_created_at[session_id] = time.time()
+            _session_usernames[session_id] = reg_no
 
         return LoginResponse(
             session_id=session_id,
@@ -232,18 +241,14 @@ async def login(request: LoginRequest):
         )
 
     except VitapVtopClientError as e:
-
         await client.close()
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
 
     except Exception as e:
-
         await client.close()
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error during login: {e}",
@@ -260,14 +265,12 @@ async def login(request: LoginRequest):
 )
 async def verify_otp(request: VerifyOtpRequest):
     """
-    Verifies OTP using the EXACT SAME VtopClient that was created
-    during /auth/login.
+    Verifies OTP using the EXACT SAME VtopClient created during /auth/login.
     """
 
     client = await get_client_for_session(request.session_id)
 
     try:
-
         await client.verify_login_otp(request.otp)
 
         # Refresh session timestamp after successful authentication.
@@ -281,30 +284,25 @@ async def verify_otp(request: VerifyOtpRequest):
         )
 
     except VtopLoginOtpIncorrectError:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect OTP. Please try again.",
         )
 
     except VtopLoginOtpExpiredError:
-
         await release_session(request.session_id)
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="OTP has expired. Please login again.",
         )
 
     except (VtopSessionError, VitapVtopClientError) as e:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
 
     except Exception as e:
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error verifying OTP: {e}",
@@ -317,23 +315,34 @@ async def verify_otp(request: VerifyOtpRequest):
 
 @router.post("/resend_otp")
 async def resend_otp(request: ResendOtpRequest):
-
     client = await get_client_for_session(request.session_id)
 
     try:
-
         await client.resend_login_otp()
-
         return {
             "message": (
                 "OTP resent. "
                 "Check your registered email/mobile."
             )
         }
-
     except VitapVtopClientError as e:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+
+# ============================================================
+# LOGOUT
+# ============================================================
+
+@router.post("/logout")
+async def logout(request: LogoutRequest):
+    """
+    Explicitly destroys the VTOP session and closes the client connection.
+    Guarantees that a logged-out user's session can never be reused.
+    """
+    await release_session(request.session_id)
+    return {
+        "message": "VTOP session destroyed and logged out successfully."
+    }

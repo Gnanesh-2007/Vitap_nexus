@@ -917,6 +917,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
 
     if (confirm == true) {
+      resetAllVtopProviders(ref);
       await ref.read(authProvider.notifier).logout();
 
       if (context.mounted) {

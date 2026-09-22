@@ -99,6 +99,55 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
 
   DashboardNotifier(this._ref) : super(_loadInitialState()) {
     _initFromCache();
+
+    // Listen for auth state & user changes reactively
+    _ref.listen<AuthState>(authProvider, (previous, next) {
+      if (previous?.username != next.username || previous?.isAuthenticated != next.isAuthenticated) {
+        if (!next.isAuthenticated || next.username == null) {
+          reset();
+        } else if (previous?.username != next.username) {
+          reloadForCurrentUser();
+        }
+      }
+    });
+  }
+
+  void reset() {
+    state = const VtopDataState(isLoading: false);
+  }
+
+  Future<void> reloadForCurrentUser() async {
+    final auth = _ref.read(authProvider);
+    if (!auth.isAuthenticated || auth.username == null) {
+      reset();
+      return;
+    }
+
+    final memData = StorageService.getMemoryCache('all_data', username: auth.username);
+    final memTs = StorageService.getMemoryTimestamp('all_data', username: auth.username);
+    if (memData is Map && memData.isNotEmpty) {
+      state = VtopDataState(
+        data: Map<String, dynamic>.from(memData),
+        isLoading: false,
+        isSyncing: false,
+        lastSynced: memTs,
+      );
+      return;
+    }
+
+    final diskData = await StorageService.getCache('all_data', username: auth.username);
+    final diskTs = await StorageService.getLastSynced('all_data', username: auth.username);
+    if (diskData is Map && diskData.isNotEmpty) {
+      state = VtopDataState(
+        data: Map<String, dynamic>.from(diskData),
+        isLoading: false,
+        isSyncing: false,
+        lastSynced: diskTs,
+      );
+    } else {
+      state = const VtopDataState(isLoading: true);
+      await syncAll();
+    }
   }
 
   static VtopDataState<Map<String, dynamic>> _loadInitialState() {
@@ -117,11 +166,14 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
   }
 
   Future<void> _initFromCache() async {
-    // If state already loaded from memory, DO NOT touch disk or network on reopen!
-    if (state.hasData) return;
+    final auth = _ref.read(authProvider);
+    final currentUser = auth.username ?? StorageService.currentUsername;
 
-    final diskData = await StorageService.getCache('all_data');
-    final diskTs = await StorageService.getLastSynced('all_data');
+    // If state already loaded from memory for current user, return
+    if (state.hasData && currentUser != null) return;
+
+    final diskData = await StorageService.getCache('all_data', username: currentUser);
+    final diskTs = await StorageService.getLastSynced('all_data', username: currentUser);
 
     if (diskData is Map && diskData.isNotEmpty) {
       state = VtopDataState(
@@ -130,12 +182,11 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
         isSyncing: false,
         lastSynced: diskTs,
       );
-      debugPrint('DashboardViewModel: Loaded from disk cache in <10ms (no auto-sync on reopen)');
+      debugPrint('DashboardViewModel: Loaded from disk cache for $currentUser');
       return;
     }
 
     // ONLY IF NEVER CACHED BEFORE (FIRST LOGIN), SYNC INITIAL DATA
-    final auth = _ref.read(authProvider);
     if (auth.isAuthenticated && auth.username != null && auth.password != null) {
       await syncAll();
     }
@@ -217,33 +268,33 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
 
       final now = DateTime.now();
 
-      // Unpack into all sub-caches simultaneously!
-      await StorageService.unpackAllData(fresh);
+      // Unpack into all sub-caches simultaneously for the current user!
+      await StorageService.unpackAllData(fresh, username: auth.username);
 
       // Also pre-fetch and cache secondary features in background so each and every feature is stored forever
       unawaited(Future.wait([
         apiService.fetchMentor(username: auth.username!, password: auth.password!)
-            .then((m) => StorageService.setCache('mentor', m)).catchError((_) {}),
+            .then((m) => StorageService.setCache('mentor', m, username: auth.username)).catchError((_) {}),
         apiService.fetchBiometric(
           username: auth.username!,
           password: auth.password!,
           date: '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}',
         ).then((b) {
           final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-          StorageService.setCache('biometric', b);
-          StorageService.setCache('biometric_$dateKey', b);
+          StorageService.setCache('biometric', b, username: auth.username);
+          StorageService.setCache('biometric_$dateKey', b, username: auth.username);
         }).catchError((_) {}),
         apiService.fetchPendingPayments(username: auth.username!, password: auth.password!)
-            .then((p) => StorageService.setCache('payments', p)).catchError((_) {}),
+            .then((p) => StorageService.setCache('payments', p, username: auth.username)).catchError((_) {}),
         apiService.fetchPaymentReceipts(username: auth.username!, password: auth.password!)
-            .then((r) => StorageService.setCache('receipts', r)).catchError((_) {}),
+            .then((r) => StorageService.setCache('receipts', r, username: auth.username)).catchError((_) {}),
         if (semId.isNotEmpty) ...[
           apiService.fetchCoursePageCourses(username: auth.username!, password: auth.password!, semSubId: semId)
-              .then((c) => StorageService.setCache('courses', c)).catchError((_) {}),
+              .then((c) => StorageService.setCache('courses', c, username: auth.username)).catchError((_) {}),
           apiService.fetchDigitalAssignments(username: auth.username!, password: auth.password!, semSubId: semId)
-              .then((a) => StorageService.setCache('assignments', a)).catchError((_) {}),
+              .then((a) => StorageService.setCache('assignments', a, username: auth.username)).catchError((_) {}),
           apiService.fetchExamSchedule(username: auth.username!, password: auth.password!, semSubId: semId)
-              .then((e) => StorageService.setCache('exam_schedule', e)).catchError((_) {}),
+              .then((e) => StorageService.setCache('exam_schedule', e, username: auth.username)).catchError((_) {}),
         ],
       ]));
 
@@ -262,7 +313,7 @@ class DashboardNotifier extends StateNotifier<VtopDataState<Map<String, dynamic>
       _ref.invalidate(gradesProvider);
       _ref.invalidate(examScheduleProvider);
 
-      debugPrint('DashboardViewModel: Full sync complete and all sub-caches updated at $now');
+      debugPrint('DashboardViewModel: Full sync complete for ${auth.username} at $now');
     } catch (e) {
       debugPrint('DashboardViewModel: Sync error (retaining local data): $e');
       state = VtopDataState(
@@ -280,23 +331,54 @@ final dashboardProvider = StateNotifierProvider<DashboardNotifier, VtopDataState
   return DashboardNotifier(ref);
 });
 
+/// Resets all VTOP providers and clears caches across the entire Riverpod container.
+void resetAllVtopProviders(dynamic ref) {
+  try {
+    if (ref is WidgetRef) {
+      ref.read(dashboardProvider.notifier).reset();
+      ref.invalidate(dashboardProvider);
+      ref.invalidate(allDataProvider);
+      ref.invalidate(attendanceProvider);
+      ref.invalidate(timetableProvider);
+      ref.invalidate(marksProvider);
+      ref.invalidate(profileProvider);
+      ref.invalidate(gradesProvider);
+      ref.invalidate(examScheduleProvider);
+    } else if (ref is Ref) {
+      ref.read(dashboardProvider.notifier).reset();
+      ref.invalidate(dashboardProvider);
+      ref.invalidate(allDataProvider);
+      ref.invalidate(attendanceProvider);
+      ref.invalidate(timetableProvider);
+      ref.invalidate(marksProvider);
+      ref.invalidate(profileProvider);
+      ref.invalidate(gradesProvider);
+      ref.invalidate(examScheduleProvider);
+    }
+  } catch (e) {
+    debugPrint('resetAllVtopProviders error: $e');
+  }
+}
+
 // ============================================================================
 // 2. CORE FUTURE PROVIDERS (Instant Memory Cache -> Disk Cache -> Network)
 // ============================================================================
 
 /// Dashboard allDataProvider — returns cached all_data instantly (0ms)
 final allDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final mem = StorageService.getMemoryCache('all_data');
+  final auth = ref.watch(authProvider);
+  final user = auth.username ?? StorageService.currentUsername;
+
+  final mem = StorageService.getMemoryCache('all_data', username: user);
   if (mem is Map && mem.isNotEmpty) {
     return Map<String, dynamic>.from(mem);
   }
 
-  final disk = await StorageService.getCache('all_data');
+  final disk = await StorageService.getCache('all_data', username: user);
   if (disk is Map && disk.isNotEmpty) {
     return Map<String, dynamic>.from(disk);
   }
 
-  final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
     throw Exception('Not authenticated');
   }
@@ -307,23 +389,25 @@ final allDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     password: auth.password!,
     semSubId: semId,
   );
-  await StorageService.unpackAllData(fresh);
+  await StorageService.unpackAllData(fresh, username: auth.username);
   return fresh;
 });
 
 /// Attendance Provider — returns cached attendance instantly (0ms)
 final attendanceProvider = FutureProvider<List<dynamic>>((ref) async {
-  final mem = StorageService.getMemoryCache('attendance');
+  final auth = ref.watch(authProvider);
+  final user = auth.username ?? StorageService.currentUsername;
+
+  final mem = StorageService.getMemoryCache('attendance', username: user);
   if (mem is List && mem.isNotEmpty) {
     return List<dynamic>.from(mem);
   }
 
-  final disk = await StorageService.getCache('attendance');
+  final disk = await StorageService.getCache('attendance', username: user);
   if (disk is List && disk.isNotEmpty) {
     return List<dynamic>.from(disk);
   }
 
-  final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
     return [];
   }
@@ -335,11 +419,11 @@ final attendanceProvider = FutureProvider<List<dynamic>>((ref) async {
       password: auth.password!,
       semSubId: semId,
     );
-    await StorageService.setCache('attendance', fresh);
+    await StorageService.setCache('attendance', fresh, username: auth.username);
     return fresh;
   } catch (e) {
     debugPrint('attendanceProvider network error (falling back to cache): $e');
-    final fallback = await StorageService.getCache('attendance');
+    final fallback = await StorageService.getCache('attendance', username: auth.username);
     if (fallback is List && fallback.isNotEmpty) {
       return List<dynamic>.from(fallback);
     }
@@ -349,17 +433,19 @@ final attendanceProvider = FutureProvider<List<dynamic>>((ref) async {
 
 /// Timetable Provider — returns cached timetable instantly (0ms)
 final timetableProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final mem = StorageService.getMemoryCache('timetable');
+  final auth = ref.watch(authProvider);
+  final user = auth.username ?? StorageService.currentUsername;
+
+  final mem = StorageService.getMemoryCache('timetable', username: user);
   if (mem is Map && mem.isNotEmpty) {
     return Map<String, dynamic>.from(mem);
   }
 
-  final disk = await StorageService.getCache('timetable');
+  final disk = await StorageService.getCache('timetable', username: user);
   if (disk is Map && disk.isNotEmpty) {
     return Map<String, dynamic>.from(disk);
   }
 
-  final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
     return {};
   }
@@ -371,11 +457,11 @@ final timetableProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       password: auth.password!,
       semSubId: semId,
     );
-    await StorageService.setCache('timetable', fresh);
+    await StorageService.setCache('timetable', fresh, username: auth.username);
     return fresh;
   } catch (e) {
     debugPrint('timetableProvider network error (falling back to cache): $e');
-    final fallback = await StorageService.getCache('timetable');
+    final fallback = await StorageService.getCache('timetable', username: auth.username);
     if (fallback is Map && fallback.isNotEmpty) {
       return Map<String, dynamic>.from(fallback);
     }
@@ -385,17 +471,19 @@ final timetableProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
 /// Marks Provider — returns cached marks instantly (0ms)
 final marksProvider = FutureProvider<List<dynamic>>((ref) async {
-  final mem = StorageService.getMemoryCache('marks');
+  final auth = ref.watch(authProvider);
+  final user = auth.username ?? StorageService.currentUsername;
+
+  final mem = StorageService.getMemoryCache('marks', username: user);
   if (mem is List && mem.isNotEmpty) {
     return List<dynamic>.from(mem);
   }
 
-  final disk = await StorageService.getCache('marks');
+  final disk = await StorageService.getCache('marks', username: user);
   if (disk is List && disk.isNotEmpty) {
     return List<dynamic>.from(disk);
   }
 
-  final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
     return [];
   }
@@ -407,11 +495,11 @@ final marksProvider = FutureProvider<List<dynamic>>((ref) async {
       password: auth.password!,
       semSubId: semId,
     );
-    await StorageService.setCache('marks', fresh);
+    await StorageService.setCache('marks', fresh, username: auth.username);
     return fresh;
   } catch (e) {
     debugPrint('marksProvider network error (falling back to cache): $e');
-    final fallback = await StorageService.getCache('marks');
+    final fallback = await StorageService.getCache('marks', username: auth.username);
     if (fallback is List && fallback.isNotEmpty) {
       return List<dynamic>.from(fallback);
     }
@@ -421,17 +509,19 @@ final marksProvider = FutureProvider<List<dynamic>>((ref) async {
 
 /// Profile Provider — returns cached profile instantly (0ms)
 final profileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final mem = StorageService.getMemoryCache('profile');
+  final auth = ref.watch(authProvider);
+  final user = auth.username ?? StorageService.currentUsername;
+
+  final mem = StorageService.getMemoryCache('profile', username: user);
   if (mem is Map && mem.isNotEmpty) {
     return Map<String, dynamic>.from(mem);
   }
 
-  final disk = await StorageService.getCache('profile');
+  final disk = await StorageService.getCache('profile', username: user);
   if (disk is Map && disk.isNotEmpty) {
     return Map<String, dynamic>.from(disk);
   }
 
-  final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
     return {};
   }
@@ -441,11 +531,11 @@ final profileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       auth.username!,
       auth.password!,
     );
-    await StorageService.setCache('profile', fresh);
+    await StorageService.setCache('profile', fresh, username: auth.username);
     return fresh;
   } catch (e) {
     debugPrint('profileProvider network error (falling back to cache): $e');
-    final fallback = await StorageService.getCache('profile');
+    final fallback = await StorageService.getCache('profile', username: auth.username);
     if (fallback is Map && fallback.isNotEmpty) {
       return Map<String, dynamic>.from(fallback);
     }
@@ -455,17 +545,19 @@ final profileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
 /// Grades Provider — returns cached grade history instantly (0ms)
 final gradesProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final mem = StorageService.getMemoryCache('grades');
+  final auth = ref.watch(authProvider);
+  final user = auth.username ?? StorageService.currentUsername;
+
+  final mem = StorageService.getMemoryCache('grades', username: user);
   if (mem is Map && mem.isNotEmpty) {
     return Map<String, dynamic>.from(mem);
   }
 
-  final disk = await StorageService.getCache('grades');
+  final disk = await StorageService.getCache('grades', username: user);
   if (disk is Map && disk.isNotEmpty) {
     return Map<String, dynamic>.from(disk);
   }
 
-  final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
     return {};
   }
@@ -475,11 +567,11 @@ final gradesProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       username: auth.username!,
       password: auth.password!,
     );
-    await StorageService.setCache('grades', fresh);
+    await StorageService.setCache('grades', fresh, username: auth.username);
     return fresh;
   } catch (e) {
     debugPrint('gradesProvider network error (falling back to cache): $e');
-    final fallback = await StorageService.getCache('grades');
+    final fallback = await StorageService.getCache('grades', username: auth.username);
     if (fallback is Map && fallback.isNotEmpty) {
       return Map<String, dynamic>.from(fallback);
     }
@@ -489,17 +581,19 @@ final gradesProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
 /// Exam Schedule Provider — returns cached exam schedule instantly (0ms)
 final examScheduleProvider = FutureProvider<List<dynamic>>((ref) async {
-  final mem = StorageService.getMemoryCache('exam_schedule');
+  final auth = ref.watch(authProvider);
+  final user = auth.username ?? StorageService.currentUsername;
+
+  final mem = StorageService.getMemoryCache('exam_schedule', username: user);
   if (mem is List && mem.isNotEmpty) {
     return List<dynamic>.from(mem);
   }
 
-  final disk = await StorageService.getCache('exam_schedule');
+  final disk = await StorageService.getCache('exam_schedule', username: user);
   if (disk is List && disk.isNotEmpty) {
     return List<dynamic>.from(disk);
   }
 
-  final auth = ref.watch(authProvider);
   if (!auth.isAuthenticated || auth.username == null || auth.password == null) {
     return [];
   }
@@ -512,11 +606,11 @@ final examScheduleProvider = FutureProvider<List<dynamic>>((ref) async {
       semSubId: semId,
     );
     final result = fresh is List ? fresh : <dynamic>[];
-    await StorageService.setCache('exam_schedule', result);
+    await StorageService.setCache('exam_schedule', result, username: auth.username);
     return List<dynamic>.from(result);
   } catch (e) {
     debugPrint('examScheduleProvider network error (falling back to cache): $e');
-    final fallback = await StorageService.getCache('exam_schedule');
+    final fallback = await StorageService.getCache('exam_schedule', username: auth.username);
     if (fallback is List && fallback.isNotEmpty) {
       return List<dynamic>.from(fallback);
     }
