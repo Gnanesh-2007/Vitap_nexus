@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 
 import '../providers/auth_provider.dart';
-import '../providers/vtop_providers.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
-import '../utils/download_helper.dart';
 import '../utils/error_formatter.dart';
 
 class PaymentsScreen extends ConsumerStatefulWidget {
@@ -22,7 +19,6 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
   late TabController _tabController;
   late Future<List<dynamic>> _pendingPaymentsFuture;
   late Future<List<dynamic>> _receiptsFuture;
-  String? _downloadingReceiptNo;
 
   static const _paper = Color(0xFFF4F2ED);
   static const _surface = Color(0xFFFFFEFB);
@@ -556,7 +552,6 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
         receipt['receipt_date']?.toString() ??
         '';
     final amount = receipt['amount']?.toString() ?? '0';
-    final isThisDownloading = _downloadingReceiptNo == receiptNo;
 
     return Container(
       padding: const EdgeInsets.all(15),
@@ -637,146 +632,28 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          InkWell(
-            onTap: isThisDownloading ? null : () => _downloadReceipt(receipt),
-            borderRadius: BorderRadius.circular(9),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 9,
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: _green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'PAID',
+              style: GoogleFonts.spaceGrotesk(
+                color: _green,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
               ),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEAF0FD),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(
-                  color: const Color(0xFFC9D7F7),
-                ),
-              ),
-              child: isThisDownloading
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: _blue,
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.download_rounded,
-                          color: _blue,
-                          size: 15,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Receipt (PDF)',
-                          style: GoogleFonts.dmSans(
-                            color: _blue,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _downloadReceipt(dynamic receipt) async {
-    final auth = ref.read(authProvider);
-    final dash = ref.read(dashboardProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
-
-    final receiptMap = receipt is Map ? receipt : {'receipt_no': receipt.toString()};
-    final receiptNo = receiptMap['receipt_number']?.toString() ??
-        receiptMap['receipt_no']?.toString() ??
-        '';
-    final date = receiptMap['transaction_date']?.toString() ??
-        receiptMap['receipt_date']?.toString() ??
-        receiptMap['date']?.toString() ??
-        DateFormat('dd-MMM-yyyy').format(DateTime.now());
-    final amount = receiptMap['amount']?.toString() ?? '0';
-    final invoiceNo = receiptMap['invoice_number']?.toString() ??
-        receiptMap['invoice_no']?.toString() ??
-        '';
-    final feeGroup = receiptMap['fee_group']?.toString();
-    final feeSubgroup = receiptMap['fee_subgroup']?.toString();
-    final campusCode = receiptMap['campus_code']?.toString() ?? 'AMR';
-    final paymentStatus = receiptMap['payment_status']?.toString() ?? 'Paid';
-
-    setState(() => _downloadingReceiptNo = receiptNo);
-
-    try {
-      Map<String, dynamic> profile = {};
-      try {
-        profile = (dash.data?['profile'] as Map<String, dynamic>?) ??
-            await apiService.fetchProfile(username, password);
-      } catch (_) {}
-
-      final studentName = profile['student_name']?.toString() ?? auth.username ?? 'Student';
-      final regNo = profile['registration_number']?.toString() ??
-          profile['application_number']?.toString() ??
-          username;
-      final appNo = profile['application_number']?.toString() ?? username;
-      final programName = profile['program_name']?.toString() ?? profile['branch_name']?.toString();
-
-      // Generate official VIT-AP payment receipt PDF document
-      final pdfBytes = await DownloadHelper.generateOfficialPaymentReceiptPdfBytes(
-        studentName: studentName,
-        regNo: regNo,
-        receiptNo: receiptNo,
-        amount: amount,
-        date: date,
-        applicationNumber: appNo,
-        invoiceNo: invoiceNo,
-        feeGroup: feeGroup,
-        feeSubgroup: feeSubgroup,
-        campusCode: campusCode,
-        paymentStatus: paymentStatus,
-        programName: programName,
-      );
-
-      if (!mounted) return;
-
-      final sanitizedReceiptNo = receiptNo.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-      await DownloadHelper.saveFile(
-        context: context,
-        fileName: 'VITAP_Payment_Receipt_${sanitizedReceiptNo.isNotEmpty ? sanitizedReceiptNo : "Receipt"}.pdf',
-        content: pdfBytes,
-        mimeType: 'application/pdf',
-        openImmediately: false,
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: _red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          content: Text(
-            ErrorFormatter.format(e, fallback: 'Failed to download payment receipt. Please try again.'),
-            style: GoogleFonts.dmSans(
-              color: Colors.white,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _downloadingReceiptNo = null);
-      }
-    }
   }
 
   Widget _buildOverview({
