@@ -17,7 +17,7 @@ class MainNavScreen extends StatefulWidget {
 
 class _MainNavScreenState extends State<MainNavScreen> {
   int _currentIndex = 0;
-
+  final List<int> _tabRevisions = [0, 0, 0, 0, 0];
   late final List<Widget> _screens;
 
   static const Color _background = Color(0xFFF4F2ED);
@@ -39,7 +39,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
   void initState() {
     super.initState();
     _screens = [
-      DashboardScreen(onNavigateTab: _onTabSelected),
+      _buildScreen(0),
       const SizedBox.shrink(),
       const SizedBox.shrink(),
       const SizedBox.shrink(),
@@ -47,40 +47,66 @@ class _MainNavScreenState extends State<MainNavScreen> {
     ];
   }
 
+  Widget _buildScreen(int index) {
+    switch (index) {
+      case 0:
+        return DashboardScreen(
+          key: ValueKey('dashboard_${_tabRevisions[0]}'),
+          onNavigateTab: _onTabSelected,
+        );
+      case 1:
+        return AttendanceScreen(
+          key: ValueKey('attendance_${_tabRevisions[1]}'),
+        );
+      case 2:
+        return TimetableScreen(
+          key: ValueKey('timetable_${_tabRevisions[2]}'),
+        );
+      case 3:
+        return MarksScreen(
+          key: ValueKey('marks_${_tabRevisions[3]}'),
+        );
+      case 4:
+        return ExamScheduleScreen(
+          key: ValueKey('exams_${_tabRevisions[4]}'),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   void _onTabSelected(int index) {
-    if (index < 0 || index >= _screens.length || _currentIndex == index) return;
+    if (index < 0 || index >= _navItems.length) return;
 
     HapticFeedback.selectionClick();
 
-    if (_screens[index] is SizedBox) {
-      switch (index) {
-        case 1:
-          _screens[index] = const AttendanceScreen();
-          break;
-        case 2:
-          _screens[index] = const TimetableScreen();
-          break;
-        case 3:
-          _screens[index] = const MarksScreen();
-          break;
-        case 4:
-          _screens[index] = const ExamScheduleScreen();
-          break;
-      }
-    }
-
-    setState(() => _currentIndex = index);
+    setState(() {
+      // Increment revision so page resets to the top
+      _tabRevisions[index]++;
+      _screens[index] = _buildScreen(index);
+      _currentIndex = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        // If user is not on Dashboard (Tab 0), back press returns to Dashboard at top
+        if (_currentIndex != 0) {
+          _onTabSelected(0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _background,
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        bottomNavigationBar: _buildNavigationBar(),
       ),
-      bottomNavigationBar: _buildNavigationBar(),
     );
   }
 
