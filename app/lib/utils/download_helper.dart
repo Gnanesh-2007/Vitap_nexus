@@ -343,6 +343,359 @@ class DownloadHelper {
     );
   }
 
+  /// Generates official VIT-AP University Payment Receipt PDF document
+  static Future<Uint8List> generateOfficialPaymentReceiptPdfBytes({
+    required String studentName,
+    required String regNo,
+    required String receiptNo,
+    required String amount,
+    required String date,
+    String? applicationNumber,
+    String? invoiceNo,
+    String? feeGroup,
+    String? feeSubgroup,
+    String? campusCode,
+    String? paymentMode,
+    String? paymentStatus,
+    String? programName,
+  }) async {
+    final pdf = pw.Document();
+    final qrData = 'VIT-AP UNIVERSITY\nOFFICIAL PAYMENT RECEIPT\nRECEIPT NO: $receiptNo\nREG NO: $regNo\nNAME: $studentName\nAMOUNT: INR $amount\nDATE: $date\nSTATUS: ${paymentStatus ?? "PAID"}';
+
+    // Format amount cleanly
+    String formattedAmount = amount;
+    try {
+      final numVal = double.tryParse(amount.replaceAll(',', ''));
+      if (numVal != null) {
+        formattedAmount = 'INR ${NumberFormat('#,##,##0.00', 'en_IN').format(numVal)}';
+      }
+    } catch (_) {}
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 44, vertical: 36),
+        build: (pw.Context ctx) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              // Header Title
+              pw.Text(
+                'VIT-AP UNIVERSITY',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(0xFF7A1B28),
+                ),
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                'Vellore Institute of Technology – Andhra Pradesh',
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                '(State Private University Under The AP State Private Universities Act, 2016)',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                'Beside AP Secretariat, Near Vijayawada, Amaravati – 522 237, Andhra Pradesh, India',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 18),
+
+              // Sub-header banner
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                decoration: const pw.BoxDecoration(
+                  color: PdfColor.fromInt(0xFFF0EEE8),
+                  border: pw.Border.symmetric(
+                    horizontal: pw.BorderSide(color: PdfColor.fromInt(0xFF172B4D), width: 1),
+                  ),
+                ),
+                child: pw.Center(
+                  child: pw.Text(
+                    'STUDENT FEE PAYMENT RECEIPT',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                      letterSpacing: 1.2,
+                      color: PdfColor.fromInt(0xFF172B4D),
+                    ),
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 18),
+
+              // Receipt Meta Row + QR
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Row(
+                        children: [
+                          pw.Text('Receipt No: ', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                          pw.Text(receiptNo, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF7A1B28))),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      if (invoiceNo != null && invoiceNo.isNotEmpty) ...[
+                        pw.Row(
+                          children: [
+                            pw.Text('Invoice No: ', style: const pw.TextStyle(fontSize: 9.5)),
+                            pw.Text(invoiceNo, style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 4),
+                      ],
+                      pw.Row(
+                        children: [
+                          pw.Text('Receipt Date: ', style: const pw.TextStyle(fontSize: 9.5)),
+                          pw.Text(date, style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Text('Campus Code: ', style: const pw.TextStyle(fontSize: 9.5)),
+                          pw.Text(campusCode ?? 'AMR', style: const pw.TextStyle(fontSize: 9.5)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  pw.BarcodeWidget(
+                    barcode: pw.Barcode.qrCode(),
+                    data: qrData,
+                    width: 70,
+                    height: 70,
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 14),
+
+              // Student Details Box
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('STUDENT INFORMATION', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF7A1B28))),
+                    pw.SizedBox(height: 6),
+                    _pdfReceiptRow('Registration Number', regNo),
+                    _pdfReceiptRow('Student Name', studentName.toUpperCase()),
+                    if (applicationNumber != null && applicationNumber.isNotEmpty)
+                      _pdfReceiptRow('Application Number', applicationNumber),
+                    if (programName != null && programName.isNotEmpty)
+                      _pdfReceiptRow('Program / Branch', programName),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 14),
+
+              // Fee Breakdown Table
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.8),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(1),
+                  1: const pw.FlexColumnWidth(4),
+                  2: const pw.FlexColumnWidth(3),
+                  3: const pw.FlexColumnWidth(2.5),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF4F2ED)),
+                    children: [
+                      _tableCell('S.No', isHeader: true, align: pw.TextAlign.center),
+                      _tableCell('Fee Description', isHeader: true),
+                      _tableCell('Category / Group', isHeader: true),
+                      _tableCell('Amount (INR)', isHeader: true, align: pw.TextAlign.right),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _tableCell('1', align: pw.TextAlign.center),
+                      _tableCell(feeSubgroup ?? feeGroup ?? 'University Academic / Hostel Fees'),
+                      _tableCell(feeGroup ?? 'FEES'),
+                      _tableCell(formattedAmount.replaceFirst('INR ', ''), align: pw.TextAlign.right),
+                    ],
+                  ),
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFFAFAFA)),
+                    children: [
+                      _tableCell(''),
+                      _tableCell('TOTAL AMOUNT PAID', isHeader: true),
+                      _tableCell(''),
+                      _tableCell(formattedAmount.replaceFirst('INR ', ''), isHeader: true, align: pw.TextAlign.right),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 14),
+
+              // Transaction Summary
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  color: const PdfColor.fromInt(0xFFF9FAF8),
+                  border: pw.Border.all(color: PdfColors.grey300, width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Payment Mode : ${paymentMode ?? "Online Banking / Gateway"}', style: const pw.TextStyle(fontSize: 9.5)),
+                        pw.SizedBox(height: 3),
+                        pw.Text('Payment Status: ${paymentStatus ?? "PAID / SUCCESSFUL"}', style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF278B68))),
+                      ],
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text('Total Paid', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text(formattedAmount, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF172B4D))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.Spacer(),
+
+              // Signature and Footer
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('Note: Receipt generated electronically via VIT-AP VTOP.', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                      pw.Text('Please retain this document for hostel and academic verification.', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border.all(color: PdfColor.fromInt(0xFF278B68), width: 1),
+                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                        ),
+                        child: pw.Text(
+                          'OFFICIALLY VERIFIED',
+                          style: pw.TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColor.fromInt(0xFF278B68),
+                          ),
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text('Finance Officer / Accounts Office', style: const pw.TextStyle(fontSize: 8)),
+                    ],
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 12),
+              pw.Divider(color: PdfColors.grey300, thickness: 0.5),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('VIT-AP University • Apply Knowledge. Improve Life!™', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+                  pw.Text('Page 1 of 1', style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  static pw.Widget _pdfReceiptRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 140,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.black,
+              ),
+            ),
+          ),
+          pw.SizedBox(
+            width: 20,
+            child: pw.Text(
+              ':',
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.black,
+              ),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Text(
+              value,
+              style: const pw.TextStyle(
+                fontSize: 9.5,
+                color: PdfColors.black,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _tableCell(String text, {bool isHeader = false, pw.TextAlign align = pw.TextAlign.left}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        style: pw.TextStyle(
+          fontSize: isHeader ? 9.5 : 9,
+          fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+          color: PdfColors.black,
+        ),
+      ),
+    );
+  }
+
   /// Generates clean Official Outing Gate Pass Slip HTML document
   static String generateOutingPassSlip({
     required String studentName,

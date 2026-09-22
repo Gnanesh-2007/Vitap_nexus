@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/vtop_providers.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../utils/download_helper.dart';
@@ -635,7 +637,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
           ),
           const SizedBox(width: 8),
           InkWell(
-            onTap: () => _downloadReceipt(receiptNo),
+            onTap: () => _downloadReceipt(receipt),
             borderRadius: BorderRadius.circular(9),
             child: Container(
               padding: const EdgeInsets.symmetric(
@@ -659,7 +661,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    'Receipt',
+                    'Receipt (PDF)',
                     style: GoogleFonts.dmSans(
                       color: _blue,
                       fontSize: 9.5,
@@ -675,32 +677,63 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     );
   }
 
-  Future<void> _downloadReceipt(String receiptNo) async {
+  Future<void> _downloadReceipt(dynamic receipt) async {
     final auth = ref.read(authProvider);
+    final dash = ref.read(dashboardProvider);
     final username = auth.username ?? '';
     final password = auth.password ?? '';
 
-    try {
-      final profile =
-          await apiService.fetchProfile(username, password);
-      final appNo =
-          profile['application_number']?.toString() ?? username;
+    final receiptMap = receipt is Map ? receipt : {'receipt_no': receipt.toString()};
+    final receiptNo = receiptMap['receipt_number']?.toString() ??
+        receiptMap['receipt_no']?.toString() ??
+        '';
+    final date = receiptMap['transaction_date']?.toString() ??
+        receiptMap['receipt_date']?.toString() ??
+        receiptMap['date']?.toString() ??
+        DateFormat('dd-MMM-yyyy').format(DateTime.now());
+    final amount = receiptMap['amount']?.toString() ?? '0';
+    final invoiceNo = receiptMap['invoice_number']?.toString() ??
+        receiptMap['invoice_no']?.toString() ??
+        '';
+    final feeGroup = receiptMap['fee_group']?.toString();
+    final feeSubgroup = receiptMap['fee_subgroup']?.toString();
+    final campusCode = receiptMap['campus_code']?.toString() ?? 'AMR';
+    final paymentStatus = receiptMap['payment_status']?.toString() ?? 'Paid';
 
-      final receiptHtml =
-          await apiService.downloadPaymentReceipt(
-        username: username,
-        password: password,
+    try {
+      final profile = (dash.data?['profile'] as Map<String, dynamic>?) ??
+          await apiService.fetchProfile(username, password);
+      final studentName = profile['student_name']?.toString() ?? auth.username ?? 'Student';
+      final regNo = profile['registration_number']?.toString() ??
+          profile['application_number']?.toString() ??
+          username;
+      final appNo = profile['application_number']?.toString() ?? username;
+      final programName = profile['program_name']?.toString() ?? profile['branch_name']?.toString();
+
+      final pdfBytes = await DownloadHelper.generateOfficialPaymentReceiptPdfBytes(
+        studentName: studentName,
+        regNo: regNo,
         receiptNo: receiptNo,
+        amount: amount,
+        date: date,
         applicationNumber: appNo,
+        invoiceNo: invoiceNo,
+        feeGroup: feeGroup,
+        feeSubgroup: feeSubgroup,
+        campusCode: campusCode,
+        paymentStatus: paymentStatus,
+        programName: programName,
       );
 
       if (!mounted) return;
 
+      final sanitizedReceiptNo = receiptNo.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
       await DownloadHelper.saveFile(
         context: context,
-        fileName: 'VITAP_Payment_Receipt_$receiptNo.html',
-        content: receiptHtml,
-        mimeType: 'text/html',
+        fileName: 'VITAP_Payment_Receipt_${sanitizedReceiptNo.isNotEmpty ? sanitizedReceiptNo : "Receipt"}.pdf',
+        content: pdfBytes,
+        mimeType: 'application/pdf',
+        openImmediately: false,
       );
     } catch (e) {
       if (!mounted) return;
