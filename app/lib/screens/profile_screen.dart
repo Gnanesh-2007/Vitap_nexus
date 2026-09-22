@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 import 'grades_screen.dart';
 import 'login_screen.dart';
 
@@ -787,7 +788,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       _showSnack(
-        'Sync failed: ${e.toString()}',
+        ErrorFormatter.format(e, fallback: 'Data sync failed. Please try again.'),
         _red,
         seconds: 3,
       );

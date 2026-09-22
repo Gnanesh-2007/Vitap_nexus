@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/api_client.dart';
 import '../utils/download_helper.dart';
+import '../utils/error_formatter.dart';
 
 class OutingsScreen extends ConsumerStatefulWidget {
   const OutingsScreen({super.key});
@@ -173,7 +174,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
           message.toLowerCase().contains('not allowed');
 
       _showMessage(
-        message,
+        ErrorFormatter.cleanRawMessage(message),
         color: isError ? _red : _green,
       );
 
@@ -191,7 +192,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      _showMessage('Submission Error: ${e.toString()}', color: _red);
+      _showMessage(ErrorFormatter.format(e, fallback: 'Unable to submit outing request. Please try again.'), color: _red);
     }
   }
 
@@ -219,7 +220,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
       setState(_loadOutings);
     } catch (e) {
       if (!mounted) return;
-      _showMessage('Failed: ${e.toString()}', color: _red);
+      _showMessage(ErrorFormatter.format(e, fallback: 'Failed to cancel outing request. Please try again.'), color: _red);
     }
   }
 

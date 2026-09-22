@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../utils/download_helper.dart';
+import '../utils/error_formatter.dart';
 
 class PaymentsScreen extends ConsumerStatefulWidget {
   const PaymentsScreen({super.key});
@@ -712,7 +713,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
             borderRadius: BorderRadius.circular(10),
           ),
           content: Text(
-            'Download failed: $e',
+            ErrorFormatter.format(e, fallback: 'Failed to download payment receipt. Please try again.'),
             style: GoogleFonts.dmSans(
               color: Colors.white,
               fontSize: 12,

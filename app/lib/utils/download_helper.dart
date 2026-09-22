@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import 'package:vitap_nexus_app/utils/error_formatter.dart';
 
 class DownloadHelper {
   /// Primary color constants for consistent theme
@@ -69,19 +70,17 @@ class DownloadHelper {
         if (!kIsWeb) {
           if (Platform.isAndroid) {
             try {
-              final publicDownload = Directory('/storage/emulated/0/Download');
-              if (await publicDownload.exists()) {
-                dir = publicDownload;
-              }
+              // App-specific external storage or app documents (always readable/writable without MANAGE_EXTERNAL_STORAGE permission)
+              dir = await getExternalStorageDirectory();
             } catch (_) {}
-
-            dir ??= await getExternalStorageDirectory() ??
-                await getApplicationDocumentsDirectory();
+            dir ??= await getApplicationDocumentsDirectory();
           } else if (Platform.isIOS) {
             dir = await getApplicationDocumentsDirectory();
           } else {
-            dir = await getDownloadsDirectory() ??
-                await getApplicationDocumentsDirectory();
+            try {
+              dir = await getDownloadsDirectory();
+            } catch (_) {}
+            dir ??= await getApplicationDocumentsDirectory();
           }
         }
         dir ??= await getApplicationDocumentsDirectory();
@@ -104,14 +103,15 @@ class DownloadHelper {
       return savedPath;
     } catch (e) {
       if (context.mounted) {
+        final friendlyMsg = ErrorFormatter.format(e, fallback: 'Unable to save the file. Please check storage permissions or try again.');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: const Color(0xFFC84C43),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
-              'Could not download file: $e',
-              style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12),
+              friendlyMsg,
+              style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w500),
             ),
           ),
         );

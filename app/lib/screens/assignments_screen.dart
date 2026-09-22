@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/download_helper.dart';
+import '../utils/error_formatter.dart';
 
 class AssignmentsScreen extends ConsumerStatefulWidget {
   const AssignmentsScreen({super.key});
@@ -144,7 +145,10 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          content: Text('Download failed: $e', style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white)),
+          content: Text(
+            ErrorFormatter.format(e, fallback: 'Failed to download assignment file. Please try again.'),
+            style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white),
+          ),
         ),
       );
     }

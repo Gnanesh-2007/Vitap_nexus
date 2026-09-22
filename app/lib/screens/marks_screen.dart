@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 import '../utils/vtop_helpers.dart';
 
 class MarksScreen extends ConsumerStatefulWidget {
@@ -125,7 +126,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                               if (mounted) {
                                 messenger.showSnackBar(
                                   SnackBar(
-                                    content: Text('Could not update marks: $e'),
+                                    content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh marks. Please try again.')),
                                   ),
                                 );
                               }
@@ -249,7 +250,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
         } catch (e) {
           if (mounted) {
             messenger.showSnackBar(
-              SnackBar(content: Text('Could not update marks: $e')),
+              SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh marks. Please try again.'))),
             );
           }
         }
@@ -433,7 +434,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
           } catch (e) {
             if (mounted) {
               messenger.showSnackBar(
-                SnackBar(content: Text('Could not update marks: $e')),
+                SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh marks. Please try again.'))),
               );
             }
           }
@@ -470,7 +471,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
         } catch (e) {
           if (mounted) {
             messenger.showSnackBar(
-              SnackBar(content: Text('Could not update marks: $e')),
+              SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh marks. Please try again.'))),
             );
           }
         }

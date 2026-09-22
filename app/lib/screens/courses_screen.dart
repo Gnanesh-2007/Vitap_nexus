@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../utils/download_helper.dart';
+import '../utils/error_formatter.dart';
 
 class CoursesScreen extends ConsumerStatefulWidget {
   const CoursesScreen({super.key});
@@ -140,7 +141,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingSections = false);
-      _showMessage('Error loading course faculty: $e', color: _red);
+      _showMessage(ErrorFormatter.format(e, fallback: 'Unable to load course faculties. Please try again.'), color: _red);
     }
   }
 
@@ -182,7 +183,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       setState(() {
         _isLoadingDetail = false;
       });
-      _showMessage('Error loading course materials: $e', color: _red);
+      _showMessage(ErrorFormatter.format(e, fallback: 'Unable to load course materials. Please try again.'), color: _red);
     }
   }
 
@@ -211,7 +212,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isDownloading = false);
-      _showMessage('Download failed: $e', color: _red);
+      _showMessage(ErrorFormatter.format(e, fallback: 'Download could not be completed. Please try again.'), color: _red);
     }
   }
 

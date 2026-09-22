@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_formatter.dart';
 import 'main_nav_screen.dart';
 import 'otp_screen.dart';
 
@@ -82,8 +83,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       );
     } else {
-      final error = authState.errorMessage ??
-          'Login failed. Please check your credentials and try again.';
+      final rawError = authState.errorMessage;
+      final error = ErrorFormatter.cleanRawMessage(
+        rawError ?? '',
+        fallback: 'Login failed. Please check your credentials and try again.',
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 
 class ExamScheduleScreen extends ConsumerStatefulWidget {
   const ExamScheduleScreen({super.key});
@@ -18,7 +19,7 @@ class ExamScheduleScreen extends ConsumerStatefulWidget {
 class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   int _selectedCategoryIndex = 0;
 
-  // Editorial campus theme palette
+  // Campus Editorial Palette
   static const _paper = Color(0xFFF4F2ED);
   static const _surface = Color(0xFFFFFEFB);
   static const _ink = Color(0xFF17202A);
@@ -42,7 +43,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
           SnackBar(
             backgroundColor: const Color(0xFF2A1C1C),
             content: Text(
-              'Could not update exam schedule: $e',
+              ErrorFormatter.format(e, fallback: 'Unable to update exam schedule. Please try again.'),
               style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12),
             ),
           ),

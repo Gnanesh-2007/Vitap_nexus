@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/auth_provider.dart';
+import '../utils/error_formatter.dart';
 import 'main_nav_screen.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
@@ -430,24 +431,29 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                   ]
                 : const [],
           ),
+          alignment: Alignment.center,
           child: TextField(
             controller: _controllers[index],
             focusNode: _focusNodes[index],
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
+            textAlignVertical: TextAlignVertical.center,
+            showCursor: false,
+            enableInteractiveSelection: false,
             textInputAction: TextInputAction.next,
             inputFormatters: [
               LengthLimitingTextInputFormatter(1),
               FilteringTextInputFormatter.digitsOnly,
             ],
-            style: GoogleFonts.dmSans(
+            style: GoogleFonts.spaceGrotesk(
               color: _ink,
               fontSize: 22,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
             decoration: const InputDecoration(
               counterText: '',
               border: InputBorder.none,
+              isDense: true,
               contentPadding: EdgeInsets.zero,
             ),
             onChanged: (value) => _onDigitEntered(index, value),
@@ -461,6 +467,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
     if (authState.errorMessage == null || authState.isLoading) {
       return const SizedBox.shrink();
     }
+
+    final friendlyError = ErrorFormatter.cleanRawMessage(
+      authState.errorMessage!,
+      fallback: 'The OTP entered is incorrect. Please check and try again.',
+    );
 
     return Container(
       width: double.infinity,
@@ -483,7 +494,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              authState.errorMessage!,
+              friendlyError,
               style: GoogleFonts.dmSans(
                 color: _red,
                 fontSize: 12,

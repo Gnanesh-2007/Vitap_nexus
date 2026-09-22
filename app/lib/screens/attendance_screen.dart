@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 import '../utils/vtop_helpers.dart';
 
 class AttendanceScreen extends ConsumerStatefulWidget {
@@ -236,7 +237,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                           if (mounted) {
                             messenger.showSnackBar(
                               SnackBar(
-                                content: Text('Could not update attendance: $e'),
+                                content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh attendance. Please try again.')),
                               ),
                             );
                           }
@@ -351,7 +352,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
           } catch (e) {
             if (mounted) {
               messenger.showSnackBar(
-                SnackBar(content: Text('Could not update attendance: $e')),
+                SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh attendance. Please try again.'))),
               );
             }
           }
@@ -574,7 +575,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
           } catch (e) {
             if (mounted) {
               messenger.showSnackBar(
-                SnackBar(content: Text('Could not update attendance: $e')),
+                SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh attendance. Please try again.'))),
               );
             }
           }
@@ -614,7 +615,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
         } catch (e) {
           if (mounted) {
             messenger.showSnackBar(
-              SnackBar(content: Text('Could not update attendance: $e')),
+              SnackBar(content: Text(ErrorFormatter.format(e, fallback: 'Unable to refresh attendance. Please try again.'))),
             );
           }
         }

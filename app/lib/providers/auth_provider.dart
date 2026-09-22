@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
+import '../utils/error_formatter.dart';
 
 
 // ============================================================
@@ -936,13 +937,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ============================================================
 
   String _cleanError(Object error) {
-    return error
-        .toString()
-        .replaceFirst(
-          'Exception: ',
-          '',
-        )
-        .trim();
+    return ErrorFormatter.format(error);
   }
 }
 
