@@ -610,7 +610,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               'assets/images/konoha_logo.png',
               color: Colors.white,
               errorBuilder: (_, _, _) {
-                return const Icon(
+                return Icon(
                   Icons.school_rounded,
                   color: Colors.white,
                   size: 27,
@@ -666,7 +666,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _line),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.person_outline_rounded,
               color: _navy,
               size: 20,
@@ -852,7 +852,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                           width: 6,
                           height: 6,
                           margin: const EdgeInsets.only(right: 6),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: _green,
                             shape: BoxShape.circle,
                           ),
@@ -952,7 +952,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             // Location & Time Row
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.location_on_rounded,
                   size: 14,
                   color: _orange,
@@ -978,7 +978,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const Icon(
+                  Icon(
                     Icons.access_time_filled_rounded,
                     size: 13,
                     color: _navy,
@@ -1019,18 +1019,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 child: Column(
                   children: [
                     _inlineDetailRow(Icons.access_time_rounded, 'Class Time', timeStr),
-                    const Divider(height: 14, color: _line),
+                    Divider(height: 14, color: _line),
                     _inlineDetailRow(Icons.location_on_outlined, 'Room / Venue', venue),
                     if (faculty.isNotEmpty) ...[
-                      const Divider(height: 14, color: _line),
+                      Divider(height: 14, color: _line),
                       _inlineDetailRow(Icons.person_outline_rounded, 'Faculty', faculty),
                     ],
                     if (courseCode.isNotEmpty) ...[
-                      const Divider(height: 14, color: _line),
+                      Divider(height: 14, color: _line),
                       _inlineDetailRow(Icons.tag_rounded, 'Course Code', courseCode),
                     ],
                     if (courseSlot.isNotEmpty) ...[
-                      const Divider(height: 14, color: _line),
+                      Divider(height: 14, color: _line),
                       _inlineDetailRow(Icons.grid_view_rounded, 'Slot', courseSlot),
                     ],
                   ],
@@ -1063,7 +1063,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               color: _green.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.check_circle_rounded,
               color: _green,
               size: 26,
@@ -1119,7 +1119,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               color: _blue.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.free_breakfast_outlined,
               color: _blue,
               size: 24,
@@ -1305,14 +1305,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         child: Column(
                           children: [
                             _inlineDetailRow(Icons.access_time_rounded, 'Class Timing', timeStr),
-                            const Divider(height: 12, color: _line),
+                            Divider(height: 12, color: _line),
                             _inlineDetailRow(Icons.location_on_outlined, 'Room / Venue', venue),
                             if (faculty.isNotEmpty) ...[
-                              const Divider(height: 12, color: _line),
+                              Divider(height: 12, color: _line),
                               _inlineDetailRow(Icons.person_outline_rounded, 'Faculty', faculty),
                             ],
                             if (courseSlot.isNotEmpty) ...[
-                              const Divider(height: 12, color: _line),
+                              Divider(height: 12, color: _line),
                               _inlineDetailRow(Icons.grid_view_rounded, 'Slot', courseSlot),
                             ],
                           ],
@@ -1391,7 +1391,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_outline_rounded,
                   size: 16,
                   color: _green,
@@ -1446,7 +1446,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.check_circle_rounded,
                             size: 15,
                             color: _green,
@@ -1512,10 +1512,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                           child: Column(
                             children: [
                               _inlineDetailRow(Icons.access_time_rounded, 'Class Time', timeStr),
-                              const Divider(height: 10, color: _line),
+                              Divider(height: 10, color: _line),
                               _inlineDetailRow(Icons.location_on_outlined, 'Room', venue),
                               if (faculty.isNotEmpty) ...[
-                                const Divider(height: 10, color: _line),
+                                Divider(height: 10, color: _line),
                                 _inlineDetailRow(Icons.person_outline_rounded, 'Faculty', faculty),
                               ],
                             ],
@@ -1708,7 +1708,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         width: 26,
                         height: 26,
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => const Icon(
+                        errorBuilder: (context, error, stackTrace) => Icon(
                           Icons.school_rounded,
                           color: Colors.white,
                           size: 20,

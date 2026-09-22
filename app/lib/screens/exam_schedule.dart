@@ -211,7 +211,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                   border: Border.all(color: _line),
                 ),
                 child: isRefreshing
-                    ? const Center(
+                    ? Center(
                         child: SizedBox(
                           width: 18,
                           height: 18,
@@ -221,7 +221,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                           ),
                         ),
                       )
-                    : const Icon(
+                    : Icon(
                         Icons.refresh_rounded,
                         color: _navy,
                         size: 20,
@@ -254,7 +254,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: _line),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.event_available_rounded,
                       color: _muted,
                       size: 30,
@@ -602,7 +602,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.access_time_rounded,
                     size: 15,
                     color: _navy,
@@ -669,7 +669,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 32,
             height: 32,
             child: CircularProgressIndicator(
@@ -710,7 +710,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                       color: const Color(0xFFFCEDEA),
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.error_outline_rounded,
                       color: Color(0xFFC84C43),
                       size: 30,
@@ -739,7 +739,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: _onRefresh,
-                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    icon: Icon(Icons.refresh_rounded, size: 16),
                     label: Text(
                       'Try Again',
                       style: GoogleFonts.dmSans(fontWeight: FontWeight.w800),

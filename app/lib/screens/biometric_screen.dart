@@ -109,7 +109,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
+            colorScheme: ColorScheme.light(
               primary: _navy,
               onPrimary: Colors.white,
               surface: _surface,
@@ -233,7 +233,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back_rounded,
                 color: _navy,
                 size: 19,
@@ -278,7 +278,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.refresh_rounded,
                 color: _navy,
                 size: 18,
@@ -311,7 +311,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
               color: const Color(0xFFEAF0FD),
               borderRadius: BorderRadius.circular(11),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.calendar_month_rounded,
               color: _blue,
               size: 21,
@@ -345,7 +345,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
           ),
           OutlinedButton.icon(
             onPressed: _selectDate,
-            icon: const Icon(Icons.edit_calendar_rounded, size: 15),
+            icon: Icon(Icons.edit_calendar_rounded, size: 15),
             label: Text(
               'Change',
               style: GoogleFonts.dmSans(
@@ -355,7 +355,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: _navy,
-              side: const BorderSide(color: _line),
+              side: BorderSide(color: _line),
               padding: const EdgeInsets.symmetric(
                 horizontal: 10,
                 vertical: 9,
@@ -472,7 +472,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
             borderRadius: BorderRadius.circular(9),
             border: Border.all(color: _line),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.history_rounded,
             color: _blue,
             size: 16,
@@ -578,7 +578,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.schedule_rounded,
                       color: _muted,
                       size: 13,
@@ -639,7 +639,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
               color: _soft,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.fingerprint_rounded,
               size: 31,
               color: _muted,
@@ -675,7 +675,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 30,
             height: 30,
             child: CircularProgressIndicator(
@@ -717,7 +717,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                       color: Color(0xFFFCEDEA),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.error_outline_rounded,
                       color: _red,
                       size: 31,
@@ -751,7 +751,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                     onPressed: () {
                       setState(() => _fetchBiometric(forceRefresh: true));
                     },
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    icon: Icon(Icons.refresh_rounded, size: 18),
                     label: Text(
                       'Try Again',
                       style: GoogleFonts.dmSans(

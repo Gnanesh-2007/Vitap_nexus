@@ -212,7 +212,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: _line),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.calculate_outlined,
                     color: _navy,
                     size: 19,
@@ -252,7 +252,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                     border: Border.all(color: _line),
                   ),
                   child: attendanceAsync.isLoading
-                      ? const Center(
+                      ? Center(
                           child: SizedBox(
                             width: 17,
                             height: 17,
@@ -262,7 +262,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                             ),
                           ),
                         )
-                      : const Icon(
+                      : Icon(
                           Icons.refresh_rounded,
                           color: _navy,
                           size: 19,
@@ -291,7 +291,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
         elevation: 3,
         backgroundColor: _navy,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.calculate_rounded, size: 19),
+        icon: Icon(Icons.calculate_rounded, size: 19),
         label: Text(
           'CALCULATE',
           style: GoogleFonts.spaceGrotesk(
@@ -378,7 +378,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                           color: _cream,
                           borderRadius: BorderRadius.circular(19),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.folder_off_outlined,
                           size: 27,
                           color: _inkSoft,
@@ -465,7 +465,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                         color: _danger.withValues(alpha: .10),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.sync_problem_rounded,
                         size: 28,
                         color: _danger,
@@ -510,7 +510,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                           await refreshAttendance(ref);
                         } catch (_) {}
                       },
-                      icon: const Icon(Icons.refresh_rounded, size: 17),
+                      icon: Icon(Icons.refresh_rounded, size: 17),
                       label: Text(
                         'TRY AGAIN',
                         style: GoogleFonts.spaceGrotesk(
@@ -981,6 +981,20 @@ class _AttendanceCalculatorModal extends StatefulWidget {
 
 class _AttendanceCalculatorModalState
     extends State<_AttendanceCalculatorModal> {
+  AppPalette get _palette => AppPalette.of(context);
+
+  Color get _navy => _palette.navy;
+  Color get _ink => _palette.ink;
+  Color get _inkSoft => _palette.inkSoft;
+  Color get _muted => _palette.muted;
+  Color get _surface => _palette.surface;
+  Color get _background => _palette.background;
+  Color get _line => _palette.line;
+  Color get _blue => _palette.blue;
+  Color get _cream => _palette.cream;
+  Color get _success => _palette.success;
+  Color get _danger => _palette.danger;
+
   late TextEditingController _attendedCtrl;
   late TextEditingController _totalCtrl;
 
@@ -1058,9 +1072,9 @@ class _AttendanceCalculatorModalState
         top: 12,
         bottom: MediaQuery.of(context).viewInsets.bottom + 22,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.vertical(
+        borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28),
         ),
         border: Border(
@@ -1095,7 +1109,7 @@ class _AttendanceCalculatorModalState
                     color: _navy,
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.calculate_rounded,
                     color: Colors.white,
                     size: 20,
@@ -1315,15 +1329,15 @@ class _AttendanceCalculatorModalState
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _line),
+              borderSide: BorderSide(color: _line),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _line),
+              borderSide: BorderSide(color: _line),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
+              borderSide: BorderSide(
                 color: _blue,
                 width: 1.5,
               ),
@@ -1355,6 +1369,21 @@ class _AttendanceDetailModal extends ConsumerStatefulWidget {
 
 class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
     with SingleTickerProviderStateMixin {
+  AppPalette get _palette => AppPalette.of(context);
+
+  Color get _navy => _palette.navy;
+  Color get _ink => _palette.ink;
+  Color get _inkSoft => _palette.inkSoft;
+  Color get _muted => _palette.muted;
+  Color get _surface => _palette.surface;
+  Color get _background => _palette.background;
+  Color get _line => _palette.line;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _success => _palette.success;
+  Color get _warning => _palette.warning;
+  Color get _danger => _palette.danger;
+
   late TabController _tabController;
   List<dynamic>? _dayWiseList;
   bool _isLoadingDayWise = false;
@@ -1459,9 +1488,9 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         border: Border(top: BorderSide(color: _line, width: 1)),
       ),
       child: Column(
@@ -1515,7 +1544,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded, color: _inkSoft, size: 22),
+                  icon: Icon(Icons.close_rounded, color: _inkSoft, size: 22),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -1757,7 +1786,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
           height: 48,
           child: FilledButton.icon(
             onPressed: () => widget.onOpenCalculator(attended, total, courseName),
-            icon: const Icon(Icons.calculate_rounded, size: 19),
+            icon: Icon(Icons.calculate_rounded, size: 19),
             label: Text(
               'Open Bunk & Attendance Calculator',
               style: GoogleFonts.spaceGrotesk(
@@ -1920,12 +1949,12 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
               IconButton(
                 onPressed: _isLoadingDayWise ? null : () => _loadDayWise(forceRefresh: true),
                 icon: _isLoadingDayWise
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2, color: _navy),
                       )
-                    : const Icon(Icons.refresh_rounded, size: 20, color: _navy),
+                    : Icon(Icons.refresh_rounded, size: 20, color: _navy),
                 tooltip: 'Refresh Day-wise',
                 padding: const EdgeInsets.all(6),
                 constraints: const BoxConstraints(),
@@ -1949,7 +1978,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
+            SizedBox(
               width: 32,
               height: 32,
               child: CircularProgressIndicator(
@@ -1986,7 +2015,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                   color: _danger.withValues(alpha: .1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.error_outline_rounded, color: _danger, size: 26),
+                child: Icon(Icons.error_outline_rounded, color: _danger, size: 26),
               ),
               const SizedBox(height: 12),
               Text(
@@ -2006,7 +2035,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
               const SizedBox(height: 14),
               FilledButton.icon(
                 onPressed: () => _loadDayWise(forceRefresh: true),
-                icon: const Icon(Icons.refresh_rounded, size: 16),
+                icon: Icon(Icons.refresh_rounded, size: 16),
                 label: const Text('Try Again'),
                 style: FilledButton.styleFrom(
                   backgroundColor: _navy,
@@ -2040,11 +2069,11 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () => _loadDayWise(forceRefresh: true),
-              icon: const Icon(Icons.refresh_rounded, size: 15),
+              icon: Icon(Icons.refresh_rounded, size: 15),
               label: const Text('Fetch Now'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: _navy,
-                side: const BorderSide(color: _line),
+                side: BorderSide(color: _line),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
@@ -2120,14 +2149,14 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
               ],
             ),
           ),
-          const Divider(height: 1, color: _line),
+          Divider(height: 1, color: _line),
 
           // Table Rows
           Expanded(
             child: ListView.separated(
               physics: const BouncingScrollPhysics(),
               itemCount: list.length,
-              separatorBuilder: (context, index) => const Divider(height: 1, color: _line),
+              separatorBuilder: (context, index) => Divider(height: 1, color: _line),
               itemBuilder: (context, index) {
                 final item = list[index] is Map ? list[index] : <String, dynamic>{};
                 final serial = item['serial']?.toString() ?? '${index + 1}';

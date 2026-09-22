@@ -214,7 +214,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back_rounded,
                 color: _navy,
                 size: 19,
@@ -265,7 +265,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.refresh_rounded,
                 color: _navy,
                 size: 18,
@@ -411,7 +411,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
               color: const Color(0xFFFCEDEA),
               borderRadius: BorderRadius.circular(11),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.receipt_long_rounded,
               color: _red,
               size: 21,
@@ -435,7 +435,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                 const SizedBox(height: 5),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.event_outlined,
                       color: _muted,
                       size: 13,
@@ -578,7 +578,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
               color: const Color(0xFFE8F4EF),
               borderRadius: BorderRadius.circular(11),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.receipt_rounded,
               color: _green,
               size: 21,
@@ -603,7 +603,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                 if (date.isNotEmpty)
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.event_outlined,
                         color: _muted,
                         size: 13,
@@ -770,7 +770,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 30,
                   height: 30,
                   child: CircularProgressIndicator(
@@ -819,7 +819,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                       color: Color(0xFFFCEDEA),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.error_outline_rounded,
                       color: _red,
                       size: 31,
@@ -851,7 +851,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                   const SizedBox(height: 17),
                   FilledButton.icon(
                     onPressed: retry,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.refresh_rounded,
                       size: 17,
                     ),
@@ -899,7 +899,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                       color: Color(0xFFE8F4EF),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.check_rounded,
                       color: _green,
                       size: 35,
@@ -954,7 +954,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                       color: Color(0xFFEAF0FD),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.receipt_long_rounded,
                       color: _blue,
                       size: 31,

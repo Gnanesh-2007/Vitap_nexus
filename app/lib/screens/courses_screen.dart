@@ -353,7 +353,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _line),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.arrow_back_rounded,
               color: _navy,
               size: 19,
@@ -393,7 +393,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _line),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.refresh_rounded,
               color: _navy,
               size: 18,
@@ -457,7 +457,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                     color: _soft,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.auto_stories_outlined,
                     size: 17,
                     color: _navy,
@@ -477,7 +477,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(
+                Icon(
                   Icons.keyboard_arrow_down_rounded,
                   color: _inkSoft,
                   size: 22,
@@ -508,7 +508,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: _line),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.menu_book_rounded,
               size: 38,
               color: _muted,
@@ -626,7 +626,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.search_rounded, size: 18, color: _muted),
+                          Icon(Icons.search_rounded, size: 18, color: _muted),
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextField(
@@ -667,7 +667,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                           : ListView.separated(
                               physics: const BouncingScrollPhysics(),
                               itemCount: filtered.length,
-                              separatorBuilder: (context, index) => const Divider(height: 1, color: _line),
+                              separatorBuilder: (context, index) => Divider(height: 1, color: _line),
                               itemBuilder: (context, index) {
                                 final course = filtered[index];
                                 final isChosen = _selectedCourse?['value'] == course['value'];
@@ -712,7 +712,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                                           ),
                                         ),
                                         if (isChosen)
-                                          const Icon(
+                                          Icon(
                                             Icons.check_circle_rounded,
                                             color: _blue,
                                             size: 20,
@@ -779,7 +779,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (isSelected) ...[
-                    const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                    Icon(Icons.check_rounded, size: 14, color: Colors.white),
                     const SizedBox(width: 5),
                   ],
                   Text(
@@ -925,7 +925,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                         ],
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Icons.chevron_right_rounded,
                       color: _inkSoft,
                       size: 22,
@@ -1051,7 +1051,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.person_outline_rounded,
+                              Icon(Icons.person_outline_rounded,
                                   size: 15, color: Color(0xFFD9E3FF)),
                               const SizedBox(width: 6),
                               Expanded(
@@ -1075,7 +1075,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
 
                     // Material / Download buttons
                     if (_isLoadingDetail)
-                      const Expanded(
+                      Expanded(
                         child: Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2.4,
@@ -1302,7 +1302,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.download_rounded, size: 13, color: _blue),
+                        Icon(Icons.download_rounded, size: 13, color: _blue),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
@@ -1336,7 +1336,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 32,
             height: 32,
             child: CircularProgressIndicator(
@@ -1363,7 +1363,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       alignment: Alignment.center,
       child: Column(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 26,
             height: 26,
             child: CircularProgressIndicator(
@@ -1398,7 +1398,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                 color: Color(0xFFFCEDEA),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.error_outline_rounded, color: _red, size: 28),
+              child: Icon(Icons.error_outline_rounded, color: _red, size: 28),
             ),
             const SizedBox(height: 14),
             Text(
@@ -1421,7 +1421,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => setState(() => _loadCourses(forceRefresh: true)),
-              icon: const Icon(Icons.refresh_rounded, size: 16),
+              icon: Icon(Icons.refresh_rounded, size: 16),
               label: const Text('Retry'),
               style: FilledButton.styleFrom(
                 backgroundColor: _navy,

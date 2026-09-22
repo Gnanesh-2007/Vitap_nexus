@@ -399,7 +399,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back_rounded,
                 color: _navy,
                 size: 19,
@@ -439,7 +439,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.refresh_rounded,
                 color: _navy,
                 size: 18,
@@ -510,7 +510,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.fact_check_outlined,
                   color: Colors.white54,
                   size: 15,
@@ -639,7 +639,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search_rounded, size: 18, color: _muted),
+          Icon(Icons.search_rounded, size: 18, color: _muted),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
@@ -668,7 +668,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 _searchController.clear();
                 setState(() {});
               },
-              child: const Icon(Icons.close_rounded, size: 16, color: _muted),
+              child: Icon(Icons.close_rounded, size: 16, color: _muted),
             ),
         ],
       ),
@@ -686,7 +686,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: _line),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.menu_book_outlined,
             color: _blue,
             size: 15,
@@ -746,7 +746,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_month_outlined, size: 16, color: _navy),
+                Icon(Icons.calendar_month_outlined, size: 16, color: _navy),
                 const SizedBox(width: 8),
                 Text(
                   semester,
@@ -914,7 +914,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
       ),
       child: Column(
         children: [
-          const Icon(
+          Icon(
             Icons.menu_book_outlined,
             color: _muted,
             size: 30,
@@ -940,7 +940,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 30,
             height: 30,
             child: CircularProgressIndicator(
@@ -982,7 +982,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                       color: Color(0xFFFCEDEA),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.error_outline_rounded,
                       color: _red,
                       size: 31,
@@ -1016,7 +1016,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     onPressed: () {
                       setState(() => _fetchGrades(forceRefresh: true));
                     },
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    icon: Icon(Icons.refresh_rounded, size: 18),
                     label: Text(
                       'Try Again',
                       style: GoogleFonts.dmSans(

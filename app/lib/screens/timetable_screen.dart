@@ -328,7 +328,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                         color: _cream,
                         borderRadius: BorderRadius.circular(21),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.free_breakfast_outlined,
                         size: 29,
                         color: _inkSoft,
@@ -691,7 +691,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
           Container(
             width: 5,
             height: 5,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: _green,
               shape: BoxShape.circle,
             ),
@@ -803,7 +803,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                 color: _orange.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.cloud_off_rounded,
                 size: 28,
                 color: _orange,
@@ -836,7 +836,7 @@ class _TimetableScreenState extends ConsumerState<TimetableScreen>
                   await refreshTimetable(ref);
                 } catch (_) {}
               },
-              icon: const Icon(
+              icon: Icon(
                 Icons.refresh_rounded,
                 size: 17,
               ),

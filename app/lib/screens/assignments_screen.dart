@@ -163,7 +163,6 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
   Color get _paper => _palette.paper;
   Color get _surface => _palette.surface;
   Color get _ink => _palette.ink;
-  Color get _inkSoft => _palette.inkSoft;
   Color get _navy => _palette.navy;
   Color get _blue => _palette.blue;
   Color get _orange => _palette.orange;
@@ -250,7 +249,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                               const SizedBox(height: 24),
                               ElevatedButton.icon(
                                 onPressed: () => _loadAssignments(forceRefresh: true),
-                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                icon: Icon(Icons.refresh_rounded, size: 18),
                                 label: const Text('Retry'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _blue,
@@ -809,7 +808,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _downloadFile(qpUrl, title, 'Question Paper'),
-                      icon: const Icon(Icons.download_rounded, size: 14),
+                      icon: Icon(Icons.download_rounded, size: 14),
                       label: const Text('QP File'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _blue,
@@ -825,7 +824,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _downloadFile(daUrl, title, 'Submitted File'),
-                      icon: const Icon(Icons.remove_red_eye_rounded, size: 14),
+                      icon: Icon(Icons.remove_red_eye_rounded, size: 14),
                       label: const Text('My Work'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _green,

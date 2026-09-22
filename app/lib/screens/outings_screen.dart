@@ -302,7 +302,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isSelected) ...[
-                              const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                              Icon(Icons.check_rounded, size: 16, color: Colors.white),
                               const SizedBox(width: 6),
                             ],
                             Text(
@@ -526,12 +526,12 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   onPressed: () => setState(() => _showHistory = true),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _ink,
-                    side: const BorderSide(color: _line, width: 1.5),
+                    side: BorderSide(color: _line, width: 1.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(26),
                     ),
                   ),
-                  icon: const Icon(Icons.history_rounded, size: 18),
+                  icon: Icon(Icons.history_rounded, size: 18),
                   label: Text(
                     'View outing history',
                     style: GoogleFonts.dmSans(
@@ -555,7 +555,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
+            icon: Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
           ),
           const SizedBox(width: 8),
           Text(
@@ -697,7 +697,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 color: _ink,
               ),
             ),
-            const Icon(Icons.calendar_today_outlined, size: 18, color: _inkSoft),
+            Icon(Icons.calendar_today_outlined, size: 18, color: _inkSoft),
           ],
         ),
       ),
@@ -755,7 +755,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
             children: [
               IconButton(
                 onPressed: () => setState(() => _showHistory = false),
-                icon: const Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
+                icon: Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
               ),
               const SizedBox(width: 4),
               Expanded(
@@ -772,7 +772,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
               ),
               IconButton(
                 onPressed: () => setState(_loadOutings),
-                icon: const Icon(Icons.refresh_rounded, size: 22, color: _ink),
+                icon: Icon(Icons.refresh_rounded, size: 22, color: _ink),
               ),
             ],
           ),
@@ -794,7 +794,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.search_rounded, size: 20, color: _muted),
+                      Icon(Icons.search_rounded, size: 20, color: _muted),
                       const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
@@ -829,7 +829,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       _outingType = _outingType == 'weekend' ? 'general' : 'weekend';
                     });
                   },
-                  icon: const Icon(Icons.tune_rounded, size: 20, color: _navy),
+                  icon: Icon(Icons.tune_rounded, size: 20, color: _navy),
                 ),
               ),
             ],
@@ -846,7 +846,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
               future: future,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
+                  return Center(
                     child: CircularProgressIndicator(strokeWidth: 2.5, color: _navy),
                   );
                 }
@@ -870,7 +870,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       Center(
                         child: Column(
                           children: [
-                            const Icon(Icons.event_busy_rounded, size: 40, color: _muted),
+                            Icon(Icons.event_busy_rounded, size: 40, color: _muted),
                             const SizedBox(height: 12),
                             Text(
                               'No outing records found.',
@@ -998,7 +998,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.calendar_today_outlined, size: 12, color: _inkSoft),
+                      Icon(Icons.calendar_today_outlined, size: 12, color: _inkSoft),
                       const SizedBox(width: 5),
                       Text(
                         formattedDate.isNotEmpty ? formattedDate : 'Outing Date',
@@ -1073,7 +1073,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
             if (outTime.isNotEmpty) ...[
               Row(
                 children: [
-                  const Icon(Icons.access_time_rounded, size: 14, color: _inkSoft),
+                  Icon(Icons.access_time_rounded, size: 14, color: _inkSoft),
                   const SizedBox(width: 6),
                   Text(
                     'Time  ',
@@ -1109,7 +1109,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.description_outlined, size: 12, color: _inkSoft),
+                    Icon(Icons.description_outlined, size: 12, color: _inkSoft),
                     const SizedBox(width: 5),
                     Text(
                       'Pass available',
@@ -1304,7 +1304,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        icon: const Icon(Icons.description_outlined, size: 18),
+                        icon: Icon(Icons.description_outlined, size: 18),
                         label: Text(
                           'View PDF',
                           style: GoogleFonts.dmSans(
@@ -1353,12 +1353,12 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _green,
-                          side: const BorderSide(color: _green, width: 1.5),
+                          side: BorderSide(color: _green, width: 1.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        icon: const Icon(Icons.download_rounded, size: 18),
+                        icon: Icon(Icons.download_rounded, size: 18),
                         label: Text(
                           'Download',
                           style: GoogleFonts.dmSans(
@@ -1381,7 +1381,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.hourglass_top_rounded, size: 18, color: _orange),
+                          Icon(Icons.hourglass_top_rounded, size: 18, color: _orange),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -1416,7 +1416,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                          icon: Icon(Icons.delete_outline_rounded, size: 16),
                           label: Text(
                             'Cancel Outing Request',
                             style: GoogleFonts.dmSans(
@@ -1440,7 +1440,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.cancel_outlined, size: 18, color: _red),
+                          Icon(Icons.cancel_outlined, size: 18, color: _red),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -1469,7 +1469,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.info_outline_rounded, size: 18, color: _muted),
+                          Icon(Icons.info_outline_rounded, size: 18, color: _muted),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -1575,7 +1575,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   Widget _pickerTheme(BuildContext context, Widget? child) {
     return Theme(
       data: Theme.of(context).copyWith(
-        colorScheme: const ColorScheme.light(
+        colorScheme: ColorScheme.light(
           primary: _navy,
           onPrimary: Colors.white,
           surface: _surface,

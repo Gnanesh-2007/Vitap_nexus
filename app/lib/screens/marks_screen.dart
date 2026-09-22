@@ -142,7 +142,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                         border: Border.all(color: _line),
                       ),
                       child: marksAsync.isLoading
-                          ? const Center(
+                          ? Center(
                               child: SizedBox(
                                 width: 18,
                                 height: 18,
@@ -153,7 +153,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                                 ),
                               ),
                             )
-                          : const Icon(
+                          : Icon(
                               Icons.refresh_rounded,
                               color: _navy,
                               size: 20,
@@ -278,7 +278,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                         shape: BoxShape.circle,
                         border: Border.all(color: _line),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.analytics_outlined,
                         color: _blue,
                         size: 32,
@@ -341,7 +341,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                         shape: BoxShape.circle,
                         border: Border.all(color: const Color(0xFFE9C8C0)),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.error_outline_rounded,
                         color: _orange,
                         size: 30,
@@ -373,7 +373,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                           await refreshMarks(ref);
                         } catch (_) {}
                       },
-                      icon: const Icon(Icons.refresh_rounded, size: 17),
+                      icon: Icon(Icons.refresh_rounded, size: 17),
                       label: const Text('Try Again'),
                       style: FilledButton.styleFrom(
                         backgroundColor: _navy,
@@ -402,7 +402,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 30,
             height: 30,
             child: CircularProgressIndicator(
@@ -610,8 +610,8 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
                               child: Icon(
                                 Icons.person_outline_rounded,
                                 size: 13,
@@ -668,8 +668,8 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
             children: [
               Container(
                 width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8F6F1),
+                decoration: BoxDecoration(
+                  color: _soft,
                   border: Border(
                     top: BorderSide(color: _line),
                   ),
@@ -738,7 +738,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
           ],
         ),
         const SizedBox(height: 9),
-        const Divider(height: 1, color: _line),
+        Divider(height: 1, color: _line),
         const SizedBox(height: 5),
         ...details.map((d) {
           final title = d['mark_title'] ?? 'Assessment';

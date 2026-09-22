@@ -92,7 +92,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline_rounded,
                 color: Colors.white,
               ),
@@ -536,7 +536,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                           const SizedBox(width: 9),
-                          const Icon(
+                          Icon(
                             Icons.arrow_forward_rounded,
                             size: 18,
                           ),
@@ -560,7 +560,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
+                Icon(
                   Icons.info_outline_rounded,
                   size: 16,
                   color: _inkSoft,
@@ -621,15 +621,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: _line),
+        borderSide: BorderSide(color: _line),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: _line),
+        borderSide: BorderSide(color: _line),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(
+        borderSide: BorderSide(
           color: _blue,
           width: 1.5,
         ),
@@ -637,13 +637,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(
-          color: AppTheme.error,
+          color: _palette.red,
         ),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(
-          color: AppTheme.error,
+          color: _palette.red,
           width: 1.5,
         ),
       ),
@@ -706,7 +706,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(
+        Icon(
           Icons.shield_outlined,
           size: 14,
           color: _muted,

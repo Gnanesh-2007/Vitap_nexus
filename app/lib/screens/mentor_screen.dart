@@ -258,7 +258,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back_rounded,
                 color: _navy,
                 size: 19,
@@ -303,7 +303,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _line),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.refresh_rounded,
                 color: _navy,
                 size: 18,
@@ -347,7 +347,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                 width: 1.5,
               ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.person_rounded,
               color: Color(0xFFF2B35B),
               size: 36,
@@ -423,7 +423,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
             height: 48,
             child: FilledButton.icon(
               onPressed: hasEmail ? () => _launchEmail(email) : null,
-              icon: const Icon(Icons.email_outlined, size: 17),
+              icon: Icon(Icons.email_outlined, size: 17),
               label: Text(
                 'Email Mentor',
                 style: GoogleFonts.dmSans(
@@ -450,7 +450,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
               height: 48,
               child: OutlinedButton.icon(
                 onPressed: () => _launchCall(phone),
-                icon: const Icon(
+                icon: Icon(
                   Icons.phone_outlined,
                   size: 17,
                   color: _green,
@@ -465,7 +465,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                 ),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: _surface,
-                  side: const BorderSide(color: Color(0xFFB8DCCF)),
+                  side: BorderSide(color: Color(0xFFB8DCCF)),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -489,7 +489,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
             borderRadius: BorderRadius.circular(9),
             border: Border.all(color: _line),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.badge_outlined,
             color: _blue,
             size: 16,
@@ -582,7 +582,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.info_outline_rounded,
             color: _orange,
             size: 17,
@@ -608,7 +608,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 30,
             height: 30,
             child: CircularProgressIndicator(
@@ -650,7 +650,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                       color: Color(0xFFFCEDEA),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.error_outline_rounded,
                       color: _red,
                       size: 31,
@@ -684,7 +684,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                     onPressed: () {
                       setState(() => _fetchMentor(forceRefresh: true));
                     },
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    icon: Icon(Icons.refresh_rounded, size: 18),
                     label: Text(
                       'Try Again',
                       style: GoogleFonts.dmSans(

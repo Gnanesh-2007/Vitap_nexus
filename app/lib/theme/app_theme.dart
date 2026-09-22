@@ -73,6 +73,14 @@ class AppPalette {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return isDark ? dark : light;
   }
+
+  // Convenient aliases
+  Color get background => paper;
+  Color get muted => inkMuted;
+  Color get cream => soft;
+  Color get success => green;
+  Color get warning => orange;
+  Color get danger => red;
 }
 
 class AppTheme {
@@ -150,14 +158,14 @@ class AppTheme {
   // ───────────────────────────────────────────────────────────────────────────
   static ThemeData get lightTheme {
     final base = ThemeData.light();
-    const p = AppPalette.light;
+    final p = AppPalette.light;
 
     return base.copyWith(
       brightness: Brightness.light,
       scaffoldBackgroundColor: p.paper,
       primaryColor: p.blue,
       canvasColor: p.paper,
-      colorScheme: const ColorScheme.light(
+      colorScheme: ColorScheme.light(
         primary: p.blue,
         secondary: p.navy,
         surface: p.surface,
@@ -171,7 +179,7 @@ class AppTheme {
         bodyColor: p.ink,
         displayColor: p.ink,
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: p.paper,
         foregroundColor: p.ink,
         elevation: 0,
@@ -185,15 +193,15 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: p.line, width: 1),
+          side: BorderSide(color: p.line, width: 1),
         ),
       ),
-      dividerTheme: const DividerThemeData(
+      dividerTheme: DividerThemeData(
         color: p.line,
         thickness: 1,
         space: 1,
       ),
-      iconTheme: const IconThemeData(
+      iconTheme: IconThemeData(
         color: p.ink,
         size: 22,
       ),
@@ -203,15 +211,15 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: p.line),
+          borderSide: BorderSide(color: p.line),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: p.line),
+          borderSide: BorderSide(color: p.line),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: p.blue, width: 1.5),
+          borderSide: BorderSide(color: p.blue, width: 1.5),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -222,12 +230,12 @@ class AppTheme {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
+      bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: p.surface,
         surfaceTintColor: Colors.transparent,
         modalBackgroundColor: p.surface,
         elevation: 8,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
@@ -239,20 +247,20 @@ class AppTheme {
   // ───────────────────────────────────────────────────────────────────────────
   static ThemeData get darkTheme {
     final base = ThemeData.dark();
-    const p = AppPalette.dark;
+    final p = AppPalette.dark;
 
     return base.copyWith(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: p.paper,
       primaryColor: p.blue,
       canvasColor: p.paper,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: ColorScheme.dark(
         primary: p.blue,
         secondary: p.navy,
         surface: p.surface,
         error: p.red,
         onPrimary: Colors.white,
-        onSecondary: Color(0xFF0F172A),
+        onSecondary: const Color(0xFF0F172A),
         onSurface: p.ink,
         onError: Colors.white,
       ),
@@ -260,7 +268,7 @@ class AppTheme {
         bodyColor: p.ink,
         displayColor: p.ink,
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: p.paper,
         foregroundColor: p.ink,
         elevation: 0,
@@ -274,15 +282,15 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: p.line, width: 1),
+          side: BorderSide(color: p.line, width: 1),
         ),
       ),
-      dividerTheme: const DividerThemeData(
+      dividerTheme: DividerThemeData(
         color: p.line,
         thickness: 1,
         space: 1,
       ),
-      iconTheme: const IconThemeData(
+      iconTheme: IconThemeData(
         color: p.ink,
         size: 22,
       ),
@@ -292,15 +300,15 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: p.line),
+          borderSide: BorderSide(color: p.line),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: p.line),
+          borderSide: BorderSide(color: p.line),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: p.blue, width: 1.5),
+          borderSide: BorderSide(color: p.blue, width: 1.5),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -311,12 +319,12 @@ class AppTheme {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
+      bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: p.surface,
         surfaceTintColor: Colors.transparent,
         modalBackgroundColor: p.surface,
         elevation: 8,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),

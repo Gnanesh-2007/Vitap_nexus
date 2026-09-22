@@ -362,7 +362,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Switch.adaptive(
             value: isDark,
             onChanged: (_) => ref.read(themeModeProvider.notifier).toggleTheme(),
-            activeColor: palette.blue,
+            activeThumbColor: palette.blue,
           ),
         ],
       ),
@@ -630,72 +630,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildPreferencesCard(AppPalette palette) {
-    final themeMode = ref.watch(themeModeProvider);
-    final isDark = themeMode == ThemeMode.dark;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.line),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: (isDark ? palette.navy : palette.blue).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-              size: 19,
-              color: isDark ? palette.navy : palette.blue,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Dark Appearance',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: palette.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isDark ? 'Matte Slate (Zero Neon)' : 'Warm Editorial Paper',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    color: palette.inkSoft,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: isDark,
-            activeColor: palette.blue,
-            activeTrackColor: palette.blue.withValues(alpha: 0.35),
-            inactiveThumbColor: palette.inkSoft,
-            inactiveTrackColor: palette.soft,
-            onChanged: (val) {
-              ref.read(themeModeProvider.notifier).toggleTheme();
-            },
-          ),
-        ],
-      ),
-    ).animate(delay: 50.ms).fadeIn(duration: 300.ms).slideY(begin: .025, end: 0);
-  }
-
   Widget _buildPersonalCard({
     required AppPalette palette,
     required String dob,
@@ -880,7 +814,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   color: Colors.white,
                 ),
               )
-            : const Icon(Icons.sync_rounded, size: 20),
+            : Icon(Icons.sync_rounded, size: 20),
         label: Text(
           _isSyncing ? 'Syncing All Data...' : 'Sync Now',
           style: GoogleFonts.dmSans(
@@ -1137,7 +1071,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               onPressed: () => ref.invalidate(profileProvider),
-              icon: const Icon(Icons.refresh_rounded, size: 18),
+              icon: Icon(Icons.refresh_rounded, size: 18),
               label: Text(
                 'Try Again',
                 style: GoogleFonts.dmSans(

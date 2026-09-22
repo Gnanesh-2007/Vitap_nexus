@@ -249,7 +249,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _line),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.lock_outline_rounded,
             color: _navy,
             size: 19,
@@ -331,7 +331,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
               'assets/images/konoha_logo.png',
               width: compact ? 35 : 40,
               height: compact ? 35 : 40,
-              errorBuilder: (_, _, _) => const Icon(
+              errorBuilder: (_, _, _) => Icon(
                 Icons.verified_user_outlined,
                 color: _navy,
                 size: 34,
@@ -488,7 +488,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.error_outline_rounded,
             size: 17,
             color: _red,
@@ -545,7 +545,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                     ),
                   ),
                   const SizedBox(width: 9),
-                  const Icon(
+                  Icon(
                     Icons.arrow_forward_rounded,
                     size: 18,
                   ),
@@ -605,7 +605,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.privacy_tip_outlined,
             size: 17,
             color: Color(0xFF278B68),
@@ -629,7 +629,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   Widget _buildBackButton() {
     return TextButton.icon(
       onPressed: () => ref.read(authProvider.notifier).logout(),
-      icon: const Icon(
+      icon: Icon(
         Icons.arrow_back_rounded,
         size: 16,
       ),

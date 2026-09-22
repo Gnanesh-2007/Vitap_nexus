@@ -376,7 +376,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                 value: _progress > 0 && _progress < 1.0 ? _progress : null,
                 minHeight: 2.5,
                 backgroundColor: _line,
-                valueColor: const AlwaysStoppedAnimation<Color>(_navy),
+                valueColor: AlwaysStoppedAnimation<Color>(_navy),
               ),
             Expanded(child: _buildBody()),
           ],
@@ -572,7 +572,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
       );
     }
 
-    return const Center(
+    return Center(
       child: CircularProgressIndicator(
         strokeWidth: 2.2,
         valueColor: AlwaysStoppedAnimation<Color>(_navy),
@@ -602,7 +602,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                   color: const Color(0xFFFCEDEA),
                   borderRadius: BorderRadius.circular(15),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.cloud_off_rounded,
                   color: _red,
                   size: 26,
@@ -634,7 +634,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                 children: [
                   ElevatedButton.icon(
                     onPressed: _startSession,
-                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    icon: Icon(Icons.refresh_rounded, size: 16),
                     label: Text(
                       'Try Again',
                       style: GoogleFonts.dmSans(
@@ -655,7 +655,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: () => _launchExternal(url: _officialVtopUrl),
-                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    icon: Icon(Icons.open_in_new_rounded, size: 16),
                     label: Text(
                       'Open in Chrome',
                       style: GoogleFonts.dmSans(
@@ -665,7 +665,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _navy,
-                      side: const BorderSide(color: _line),
+                      side: BorderSide(color: _line),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(11),
