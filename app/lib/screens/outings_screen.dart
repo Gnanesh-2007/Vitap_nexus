@@ -129,7 +129,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
           return;
         }
 
-        final outDateStr = DateFormat('dd-MM-yyyy').format(_outingDate);
+        final outDateStr = DateFormat('dd-MMM-yyyy').format(_outingDate);
         message = await apiService.submitWeekendOuting(
           username: username,
           password: password,
@@ -147,8 +147,8 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
           return;
         }
 
-        final outDateStr = DateFormat('dd-MM-yyyy').format(_leavingDate);
-        final inDateStr = DateFormat('dd-MM-yyyy').format(_returningDate);
+        final outDateStr = DateFormat('dd-MMM-yyyy').format(_leavingDate);
+        final inDateStr = DateFormat('dd-MMM-yyyy').format(_returningDate);
         final outTimeStr =
             '${_leavingTime.hour.toString().padLeft(2, '0')}:${_leavingTime.minute.toString().padLeft(2, '0')}';
         final inTimeStr =
@@ -168,11 +168,20 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
       if (!mounted) return;
 
-      _showMessage(message, color: _green);
+      final isError = message.toLowerCase().startsWith('error') ||
+          message.toLowerCase().contains('failed') ||
+          message.toLowerCase().contains('not allowed');
 
-      _placeController.clear();
-      _purposeController.clear();
-      _contactController.clear();
+      _showMessage(
+        message,
+        color: isError ? _red : _green,
+      );
+
+      if (!isError) {
+        _placeController.clear();
+        _purposeController.clear();
+        _contactController.clear();
+      }
 
       setState(() {
         _isSubmitting = false;
@@ -745,16 +754,19 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 onPressed: () => setState(() => _showHistory = false),
                 icon: const Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
               ),
-              const SizedBox(width: 8),
-              Text(
-                historyTitle,
-                style: GoogleFonts.dmSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: _ink,
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  historyTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
                 ),
               ),
-              const Spacer(),
               IconButton(
                 onPressed: () => setState(_loadOutings),
                 icon: const Icon(Icons.refresh_rounded, size: 22, color: _ink),

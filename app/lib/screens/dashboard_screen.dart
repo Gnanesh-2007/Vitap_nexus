@@ -413,6 +413,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       );
     }
 
+    if (!dashboardState.hasData && (dashboardState.isLoading || dashboardState.isSyncing)) {
+      return Scaffold(
+        backgroundColor: _paper,
+        body: SafeArea(
+          child: _buildDashboardSkeleton(authState),
+        ),
+      );
+    }
+
     final data = dashboardState.data ?? {};
     final profile = data['profile'] as Map<String, dynamic>? ?? {};
     final studentName = profile['student_name'] ?? authState.username ?? 'Student';
@@ -1648,6 +1657,186 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           letterSpacing: 1.8,
         ),
       ),
+    );
+  }
+
+  Widget _buildDashboardSkeleton(AuthState authState) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
+      children: [
+        // 1. Header with Name Skeleton
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _navy,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.asset(
+                        'assets/icon/app_icon.png',
+                        width: 26,
+                        height: 26,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.school_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _getGreeting(),
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        color: _inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      (authState.username ?? 'STUDENT').toUpperCase(),
+                      style: GoogleFonts.dmSans(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                        color: _ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _line),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+        _buildDateStrip(),
+        const SizedBox(height: 24),
+
+        // Skeleton Today Schedule Card
+        Container(
+          height: 140,
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _line),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _soft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 140,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: _soft,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 200,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _soft,
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        )
+            .animate(onPlay: (controller) => controller.repeat())
+            .shimmer(duration: 1200.ms, color: Colors.white70),
+
+        const SizedBox(height: 28),
+        _buildQuickAccessHeader(),
+        const SizedBox(height: 16),
+
+        // Skeleton Quick Access Grid
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 86,
+          ),
+          itemCount: 8,
+          itemBuilder: (context, index) {
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 44,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _soft,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            );
+          },
+        )
+            .animate(onPlay: (controller) => controller.repeat())
+            .shimmer(duration: 1200.ms, color: Colors.white70),
+      ],
     );
   }
 }
