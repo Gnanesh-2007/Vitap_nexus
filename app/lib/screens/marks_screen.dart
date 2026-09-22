@@ -3,11 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
 import '../utils/vtop_helpers.dart';
-import '../utils/download_helper.dart';
 
 class MarksScreen extends ConsumerStatefulWidget {
   const MarksScreen({super.key});
@@ -43,37 +41,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
     super.dispose();
   }
 
-  Future<void> _downloadMarks(dynamic marksData) async {
-    final auth = ref.read(authProvider);
-    final dash = ref.read(dashboardProvider);
-    final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
-    final studentName = profile['student_name'] ?? auth.username ?? 'Student';
-    final regNo = auth.username ?? '';
 
-    final list = marksData is List ? marksData : [];
-    if (list.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: _orange,
-          content: Text('No marks records to download.', style: GoogleFonts.dmSans(color: Colors.white)),
-        ),
-      );
-      return;
-    }
-
-    final html = DownloadHelper.generateMarksHtml(
-      studentName: studentName,
-      regNo: regNo,
-      marksList: list,
-    );
-
-    await DownloadHelper.saveFile(
-      context: context,
-      fileName: 'VITAP_Marks_Report_$regNo.html',
-      content: html,
-      mimeType: 'text/html',
-    );
-  }
 
   TextStyle get _labelStyle => GoogleFonts.spaceGrotesk(
         fontSize: 10,
@@ -142,28 +110,6 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
                     ],
                   ),
                 ),
-                Material(
-                  color: _surface,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => _downloadMarks(marksAsync.value),
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _line),
-                      ),
-                      child: const Icon(
-                        Icons.download_rounded,
-                        color: _navy,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Material(
                   color: _surface,
                   borderRadius: BorderRadius.circular(12),
