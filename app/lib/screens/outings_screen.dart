@@ -897,14 +897,37 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     );
   }
 
+  bool _isApprovedStatus(String status) {
+    final s = status.trim().toLowerCase();
+    if (s.contains('applied') || s.contains('applicant')) return false;
+    return s.contains('approved') || s.contains('accepted') || s == 'acc' || s == 'appr';
+  }
+
+  bool _isRejectedStatus(String status) {
+    final s = status.trim().toLowerCase();
+    return s.contains('reject') || s.contains('denied') || s.contains('declined');
+  }
+
+  bool _isCancelledStatus(String status) {
+    final s = status.trim().toLowerCase();
+    return s.contains('cancel') || s.contains('deleted') || s.contains('closed');
+  }
+
+  bool _isPendingStatus(String status) {
+    final s = status.trim().toLowerCase();
+    if (_isApprovedStatus(s) || _isRejectedStatus(s) || _isCancelledStatus(s)) return false;
+    return s.contains('applied') || s.contains('pending') || s.contains('waiting') || s.contains('requested') || s.contains('submitted') || s.contains('under review');
+  }
+
   // Card matching Screenshot 3
   Widget _buildModernOutingCard(Map<String, dynamic> req, bool isWeekend) {
     final status = req['status']?.toString() ??
         req['leave_status']?.toString() ??
         'Pending';
 
-    final isApproved = status.toLowerCase().contains('app') || status.toLowerCase().contains('acc');
-    final isPending = status.toLowerCase().contains('pend') || status.toLowerCase().contains('appl') || status.toLowerCase().contains('req');
+    final isApproved = _isApprovedStatus(status);
+    final isPending = _isPendingStatus(status);
+    final isCancelled = _isCancelledStatus(status);
 
     final place = req['place_of_visit']?.toString() ??
         req['out_place']?.toString() ??
@@ -924,7 +947,19 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
         : (req['from_time']?.toString() ?? req['time']?.toString() ?? '');
 
     final formattedDate = _formatCardDate(outDate);
-    final canDownload = req['can_download'] == true || isApproved;
+    final canDownload = isApproved;
+
+    final statusColor = isApproved
+        ? _green
+        : (isPending
+            ? _orange
+            : (isCancelled ? _muted : _red));
+
+    final statusBg = isApproved
+        ? const Color(0xFFE5F5E9)
+        : (isPending
+            ? const Color(0xFFFEF4E8)
+            : (isCancelled ? const Color(0xFFF1F3F5) : const Color(0xFFFDECE8)));
 
     return InkWell(
       onTap: () => _openOutingDetailsModal(req, isWeekend),
@@ -976,9 +1011,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
                   decoration: BoxDecoration(
-                    color: isApproved
-                        ? const Color(0xFFE5F5E9)
-                        : (isPending ? const Color(0xFFFEF4E8) : const Color(0xFFFDECE8)),
+                    color: statusBg,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
@@ -989,7 +1022,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                         height: 6,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isApproved ? _green : (isPending ? _orange : _red),
+                          color: statusColor,
                         ),
                       ),
                       const SizedBox(width: 5),
@@ -998,7 +1031,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                         style: GoogleFonts.spaceGrotesk(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: isApproved ? _green : (isPending ? _orange : _red),
+                          color: statusColor,
                         ),
                       ),
                     ],
@@ -1062,7 +1095,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
               const SizedBox(height: 12),
             ],
 
-            // Pass available Chip at bottom left
+            // Pass available Chip at bottom left (ONLY if approved)
             if (canDownload)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1146,12 +1179,10 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     final status = req['status']?.toString() ??
         req['leave_status']?.toString() ??
         'Pending';
-    final isPending = status.toLowerCase().contains('pend') ||
-        status.toLowerCase().contains('appl') ||
-        status.toLowerCase().contains('req');
-    final isCancelled = status.toLowerCase().contains('cancel') ||
-        status.toLowerCase().contains('delete') ||
-        status.toLowerCase().contains('reject');
+    final isApproved = _isApprovedStatus(status);
+    final isPending = _isPendingStatus(status);
+    final isRejected = _isRejectedStatus(status);
+    final isCancelled = _isCancelledStatus(status);
 
     showModalBottomSheet(
       context: context,
@@ -1226,138 +1257,229 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Action 1: View PDF (Green filled button)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        Navigator.of(modalCtx).pop();
-                        final dateTimeSlot = isWeekend
-                            ? '$outDate & $outTime'
-                            : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
-                        final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
-                          studentName: studentName,
-                          regNo: regNo,
-                          outingType: isWeekend ? 'Weekend' : 'General',
-                          placeOfVisit: place,
-                          purpose: purpose,
-                          dateTimeSlot: dateTimeSlot,
-                          contactNumber: contactNo,
-                          parentContactNumber: parentContact,
-                          bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
-                          hostelBlock: hostelBlock,
-                          roomNo: roomNo,
-                        );
-
-                        if (!mounted) return;
-                        final fileName = 'VITAP_Outing_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
-                        await DownloadHelper.saveFile(
-                          context: context,
-                          fileName: fileName,
-                          content: pdfBytes,
-                          mimeType: 'application/pdf',
-                          openImmediately: true,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC7DEC9),
-                        foregroundColor: const Color(0xFF132A15),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: Text(
-                        'View PDF',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // Action 2: Download PDF (Green outline button)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        Navigator.of(modalCtx).pop();
-                        final dateTimeSlot = isWeekend
-                            ? '$outDate & $outTime'
-                            : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
-                        final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
-                          studentName: studentName,
-                          regNo: regNo,
-                          outingType: isWeekend ? 'Weekend' : 'General',
-                          placeOfVisit: place,
-                          purpose: purpose,
-                          dateTimeSlot: dateTimeSlot,
-                          contactNumber: contactNo,
-                          parentContactNumber: parentContact,
-                          bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
-                          hostelBlock: hostelBlock,
-                          roomNo: roomNo,
-                        );
-
-                        if (!mounted) return;
-                        final fileName = 'VITAP_Outing_Pass_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
-                        await DownloadHelper.saveFile(
-                          context: context,
-                          fileName: fileName,
-                          content: pdfBytes,
-                          mimeType: 'application/pdf',
-                          openImmediately: false,
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _green,
-                        side: const BorderSide(color: _green, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      icon: const Icon(Icons.download_rounded, size: 18),
-                      label: Text(
-                        'Download',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  if (isPending && leaveId.isNotEmpty && !isCancelled) ...[
-                    const SizedBox(height: 10),
+                  // Approved State: Show PDF view and download buttons (NEVER cancel)
+                  if (isApproved) ...[
+                    // Action 1: View PDF (Green filled button)
                     SizedBox(
                       width: double.infinity,
-                      height: 46,
-                      child: TextButton.icon(
-                        onPressed: () {
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
                           Navigator.of(modalCtx).pop();
-                          _deleteOuting(leaveId, isWeekend);
+                          final dateTimeSlot = isWeekend
+                              ? '$outDate & $outTime'
+                              : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
+                          final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                            studentName: studentName,
+                            regNo: regNo,
+                            outingType: isWeekend ? 'Weekend' : 'General',
+                            placeOfVisit: place,
+                            purpose: purpose,
+                            dateTimeSlot: dateTimeSlot,
+                            contactNumber: contactNo,
+                            parentContactNumber: parentContact,
+                            bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
+                            hostelBlock: hostelBlock,
+                            roomNo: roomNo,
+                          );
+
+                          if (!mounted) return;
+                          final fileName = 'VITAP_Outing_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
+                          await DownloadHelper.saveFile(
+                            context: context,
+                            fileName: fileName,
+                            content: pdfBytes,
+                            mimeType: 'application/pdf',
+                            openImmediately: true,
+                          );
                         },
-                        style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFFCEDEA),
-                          foregroundColor: _red,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC7DEC9),
+                          foregroundColor: const Color(0xFF132A15),
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                        icon: const Icon(Icons.description_outlined, size: 18),
                         label: Text(
-                          'Cancel Outing Request',
+                          'View PDF',
                           style: GoogleFonts.dmSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Action 2: Download PDF (Green outline button)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(modalCtx).pop();
+                          final dateTimeSlot = isWeekend
+                              ? '$outDate & $outTime'
+                              : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
+                          final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                            studentName: studentName,
+                            regNo: regNo,
+                            outingType: isWeekend ? 'Weekend' : 'General',
+                            placeOfVisit: place,
+                            purpose: purpose,
+                            dateTimeSlot: dateTimeSlot,
+                            contactNumber: contactNo,
+                            parentContactNumber: parentContact,
+                            bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
+                            hostelBlock: hostelBlock,
+                            roomNo: roomNo,
+                          );
+
+                          if (!mounted) return;
+                          final fileName = 'VITAP_Outing_Pass_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
+                          await DownloadHelper.saveFile(
+                            context: context,
+                            fileName: fileName,
+                            content: pdfBytes,
+                            mimeType: 'application/pdf',
+                            openImmediately: false,
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _green,
+                          side: const BorderSide(color: _green, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: const Icon(Icons.download_rounded, size: 18),
+                        label: Text(
+                          'Download',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else if (isPending) ...[
+                    // Pending Notice Banner (No PDF download before approval)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF4E8),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFCD7A1)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.hourglass_top_rounded, size: 18, color: _orange),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'This request is waiting for hostel authority approval. The outing pass will be available for download once approved.',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF8C530A),
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Cancel button only for pending outings
+                    if (leaveId.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(modalCtx).pop();
+                            _deleteOuting(leaveId, isWeekend);
+                          },
+                          style: TextButton.styleFrom(
+                            backgroundColor: const Color(0xFFFCEDEA),
+                            foregroundColor: _red,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                          label: Text(
+                            'Cancel Outing Request',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ] else if (isRejected) ...[
+                    // Rejected Notice Banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDECE8),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFF9C2B8)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.cancel_outlined, size: 18, color: _red),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'This outing request was rejected by the hostel warden/authority. No pass is available.',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF901B12),
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (isCancelled) ...[
+                    // Cancelled Notice Banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F3F5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _line),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline_rounded, size: 18, color: _muted),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'This outing request was cancelled.',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                color: _inkSoft,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
