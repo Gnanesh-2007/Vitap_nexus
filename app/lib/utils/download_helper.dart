@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,8 +14,9 @@ class DownloadHelper {
   static const Color _green = Color(0xFF278B68);
   static const Color _orange = Color(0xFFE47543);
 
-  /// Saves official file content (bytes, PDF, or text) from VTOP to device storage
-  /// and presents interactive Open and Share options immediately to the user.
+  /// Saves official file content (bytes, PDF, or text) from VTOP directly to public
+  /// device storage (Downloads folder) using native Android MediaStore / FileSaver,
+  /// making it visible in the phone's "Files" and "Downloads" app immediately.
   static Future<String?> saveFile({
     required BuildContext context,
     required String fileName,
@@ -22,53 +25,72 @@ class DownloadHelper {
     bool openImmediately = false,
   }) async {
     try {
-      Directory? dir;
-
-      if (!kIsWeb) {
-        if (Platform.isAndroid) {
-          try {
-            final publicDownload = Directory('/storage/emulated/0/Download');
-            if (await publicDownload.exists()) {
-              dir = publicDownload;
-            }
-          } catch (_) {}
-
-          dir ??= await getExternalStorageDirectory() ??
-              await getApplicationDocumentsDirectory();
-        } else if (Platform.isIOS) {
-          dir = await getApplicationDocumentsDirectory();
-        } else {
-          dir = await getDownloadsDirectory() ??
-              await getApplicationDocumentsDirectory();
-        }
-      }
-
-      dir ??= await getApplicationDocumentsDirectory();
-
       final sanitizedName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-      final filePath = '${dir.path}/$sanitizedName';
-      final file = File(filePath);
 
+      Uint8List bytes;
       if (content is String) {
-        await file.writeAsString(content);
+        bytes = Uint8List.fromList(utf8.encode(content));
+      } else if (content is Uint8List) {
+        bytes = content;
       } else if (content is List<int>) {
-        await file.writeAsBytes(content);
+        bytes = Uint8List.fromList(content);
       } else {
         throw Exception('Unsupported file content format');
       }
 
-      if (openImmediately) {
-        await openFile(filePath);
+      String? savedPath;
+
+      // 1. Use FileSaver to save directly into public Downloads/Documents directory
+      try {
+        savedPath = await FileSaver.instance.saveFile(
+          name: sanitizedName,
+          bytes: bytes,
+          mimeType: mimeType != null ? MimeType.other : MimeType.pdf,
+          customMimeType: mimeType,
+        );
+      } catch (fsErr) {
+        debugPrint('FileSaver error, falling back to direct write: $fsErr');
+      }
+
+      // 2. Also write to accessible storage directory as fallback/direct path
+      if (savedPath == null || savedPath.isEmpty) {
+        Directory? dir;
+        if (!kIsWeb) {
+          if (Platform.isAndroid) {
+            try {
+              final publicDownload = Directory('/storage/emulated/0/Download');
+              if (await publicDownload.exists()) {
+                dir = publicDownload;
+              }
+            } catch (_) {}
+
+            dir ??= await getExternalStorageDirectory() ??
+                await getApplicationDocumentsDirectory();
+          } else if (Platform.isIOS) {
+            dir = await getApplicationDocumentsDirectory();
+          } else {
+            dir = await getDownloadsDirectory() ??
+                await getApplicationDocumentsDirectory();
+          }
+        }
+        dir ??= await getApplicationDocumentsDirectory();
+        savedPath = '${dir.path}/$sanitizedName';
+        final file = File(savedPath);
+        await file.writeAsBytes(bytes);
+      }
+
+      if (openImmediately && savedPath.isNotEmpty) {
+        await openFile(savedPath);
       }
 
       if (context.mounted) {
         _showDownloadSuccessBanner(
           context: context,
-          filePath: filePath,
+          filePath: savedPath,
           fileName: sanitizedName,
         );
       }
-      return filePath;
+      return savedPath;
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -111,7 +133,7 @@ class DownloadHelper {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        duration: const Duration(seconds: 7),
+        duration: const Duration(seconds: 8),
         backgroundColor: _navy,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.fromLTRB(14, 0, 14, 16),
@@ -131,7 +153,7 @@ class DownloadHelper {
                 border: Border.all(color: _green.withValues(alpha: 0.4)),
               ),
               child: const Icon(
-                Icons.check_circle_rounded,
+                Icons.download_done_rounded,
                 color: Color(0xFF48CF9B),
                 size: 22,
               ),
@@ -143,7 +165,7 @@ class DownloadHelper {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Saved to Mobile',
+                    'Saved to Public Downloads',
                     style: GoogleFonts.dmSans(
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
@@ -196,7 +218,7 @@ class DownloadHelper {
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
                 shareFile(filePath, title: fileName);
               },
-              tooltip: 'Share File',
+              tooltip: 'Share / Save to Files',
               constraints: const BoxConstraints(),
               padding: const EdgeInsets.all(6),
               icon: const Icon(
