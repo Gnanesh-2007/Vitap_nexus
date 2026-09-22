@@ -16,28 +16,41 @@ class OutingsScreen extends ConsumerStatefulWidget {
   ConsumerState<OutingsScreen> createState() => _OutingsScreenState();
 }
 
-class _OutingsScreenState extends ConsumerState<OutingsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _OutingsScreenState extends ConsumerState<OutingsScreen> {
+  // 'apply' or 'history'
+  bool _showHistory = false;
 
-  String _outingType = 'general'; // 'general' or 'weekend'
+  // Selected Outing Type: 'weekend' or 'general'
+  String _outingType = 'weekend';
+
+  // Controllers & Form State
   final _placeController = TextEditingController();
   final _purposeController = TextEditingController();
   final _contactController = TextEditingController();
-  final _remarksController = TextEditingController();
-  String _selectedModeOfTravel = 'Campus Bus';
+  final _searchController = TextEditingController();
 
-  DateTime _outDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _outTime = const TimeOfDay(hour: 16, minute: 30);
-  DateTime _inDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _inTime = const TimeOfDay(hour: 20, minute: 0);
+  // Weekend Time Slots
+  final List<String> _weekendSlots = [
+    '9:30 AM- 3:30PM',
+    '10:30 AM- 4:30PM',
+    '11:30 AM- 5:30PM',
+    '12:30 PM- 6:30PM',
+  ];
+  String _selectedWeekendSlot = '9:30 AM- 3:30PM';
+
+  // Schedule Dates & Times
+  DateTime _outingDate = DateTime.now().add(const Duration(days: 1));
+  DateTime _leavingDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _leavingTime = const TimeOfDay(hour: 9, minute: 30);
+  DateTime _returningDate = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _returningTime = const TimeOfDay(hour: 18, minute: 30);
 
   bool _isSubmitting = false;
 
   late Future<dynamic> _generalOutingsFuture;
   late Future<dynamic> _weekendOutingsFuture;
 
-  // Editorial campus theme
+  // Editorial campus palette
   static const _paper = Color(0xFFF4F2ED);
   static const _surface = Color(0xFFFFFEFB);
   static const _ink = Color(0xFF17202A);
@@ -49,57 +62,11 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
   static const _red = Color(0xFFC84C43);
   static const _muted = Color(0xFF6E7681);
   static const _line = Color(0xFFE2DED5);
-  static const _soft = Color(0xFFF0EEE8);
-
-  List<String> get _currentPlaces => _outingType == 'general'
-      ? [
-          'Vijayawada',
-          'Guntur',
-          'Amaravati',
-          'Mangalagiri',
-          'Tadepalli',
-          'Tenali',
-          'PVP Square Mall',
-          'Trendset Mall',
-        ]
-      : [
-          'Home',
-          'Hometown',
-          'Relative House',
-          'Hyderabad',
-          'Chennai',
-          'Bengaluru',
-          'Visakhapatnam',
-          'Tirupati',
-          'Vijayawada',
-        ];
-
-  List<String> get _currentPurposes => _outingType == 'general'
-      ? [
-          'Shopping',
-          'Medical / Hospital',
-          'Library / Exam Center',
-          'Project Discussion',
-          'Personal Work',
-          'Dining Out',
-        ]
-      : [
-          'Home Visit',
-          'Family Function',
-          'Festival Celebration',
-          'Medical Emergency',
-          'Semester Break',
-          'Competitive / Placement Exam',
-        ];
-
-  List<String> get _currentTravelModes => _outingType == 'general'
-      ? ['Campus Bus', 'APSRTC Bus', 'Auto', 'Cab / Taxi', 'Train', 'Personal Bike']
-      : ['Train / Express', 'Interstate Bus', 'Flight', 'Private Car', 'Cab / Taxi'];
+  static const _soft = Color(0xFFEAE7DF);
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadOutings();
   }
 
@@ -131,19 +98,11 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
 
   @override
   void dispose() {
-    _tabController.dispose();
     _placeController.dispose();
     _purposeController.dispose();
     _contactController.dispose();
-    _remarksController.dispose();
+    _searchController.dispose();
     super.dispose();
-  }
-
-  String _calculateWeekendDuration() {
-    final diff = _inDate.difference(_outDate).inDays;
-    if (diff <= 0) return 'Same Day (Return today)';
-    if (diff == 1) return '1 Night • 2 Days Leave';
-    return '$diff Nights • ${diff + 1} Days Leave';
   }
 
   Future<void> _submitOuting() async {
@@ -151,27 +110,49 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
     final username = auth.username ?? '';
     final password = auth.password ?? '';
 
-    final place = _placeController.text.trim();
     final purpose = _purposeController.text.trim();
-
-    if (place.isEmpty || purpose.isEmpty) {
-      _showMessage('Please enter both Place and Purpose of visit.', color: _red);
+    if (purpose.isEmpty) {
+      _showMessage('Please enter the purpose of visit.', color: _red);
       return;
     }
 
     setState(() => _isSubmitting = true);
 
     try {
-      final outDateStr = DateFormat('dd-MM-yyyy').format(_outDate);
-      final outTimeStr =
-          '${_outTime.hour.toString().padLeft(2, '0')}:${_outTime.minute.toString().padLeft(2, '0')}';
-
       String message = '';
 
-      if (_outingType == 'general') {
-        final inDateStr = DateFormat('dd-MM-yyyy').format(_inDate);
+      if (_outingType == 'weekend') {
+        final contact = _contactController.text.trim();
+        if (contact.isEmpty) {
+          _showMessage('Please enter parent / emergency contact number.', color: _red);
+          setState(() => _isSubmitting = false);
+          return;
+        }
+
+        final outDateStr = DateFormat('dd-MM-yyyy').format(_outingDate);
+        message = await apiService.submitWeekendOuting(
+          username: username,
+          password: password,
+          outPlace: _placeController.text.trim().isEmpty ? 'Vijayawada' : _placeController.text.trim(),
+          purposeOfVisit: purpose,
+          outingDate: outDateStr,
+          outTime: _selectedWeekendSlot,
+          contactNumber: contact,
+        );
+      } else {
+        final place = _placeController.text.trim();
+        if (place.isEmpty) {
+          _showMessage('Please enter the place of visit.', color: _red);
+          setState(() => _isSubmitting = false);
+          return;
+        }
+
+        final outDateStr = DateFormat('dd-MM-yyyy').format(_leavingDate);
+        final inDateStr = DateFormat('dd-MM-yyyy').format(_returningDate);
+        final outTimeStr =
+            '${_leavingTime.hour.toString().padLeft(2, '0')}:${_leavingTime.minute.toString().padLeft(2, '0')}';
         final inTimeStr =
-            '${_inTime.hour.toString().padLeft(2, '0')}:${_inTime.minute.toString().padLeft(2, '0')}';
+            '${_returningTime.hour.toString().padLeft(2, '0')}:${_returningTime.minute.toString().padLeft(2, '0')}';
 
         message = await apiService.submitGeneralOuting(
           username: username,
@@ -183,27 +164,6 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
           inDate: inDateStr,
           inTime: inTimeStr,
         );
-      } else {
-        final contact = _contactController.text.trim();
-
-        if (contact.isEmpty) {
-          _showMessage(
-            'Please provide parent / emergency contact number.',
-            color: _red,
-          );
-          setState(() => _isSubmitting = false);
-          return;
-        }
-
-        message = await apiService.submitWeekendOuting(
-          username: username,
-          password: password,
-          outPlace: place,
-          purposeOfVisit: purpose,
-          outingDate: outDateStr,
-          outTime: outTimeStr,
-          contactNumber: contact,
-        );
       }
 
       if (!mounted) return;
@@ -213,14 +173,12 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
       _placeController.clear();
       _purposeController.clear();
       _contactController.clear();
-      _remarksController.clear();
 
       setState(() {
         _isSubmitting = false;
         _loadOutings();
+        _showHistory = true; // Switch to history view to see the submitted outing
       });
-
-      _tabController.animateTo(0);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -248,94 +206,12 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
 
       if (!mounted) return;
 
-      _showMessage(
-        'Outing request cancelled successfully.',
-        color: _green,
-      );
-
-      setState(() {
-        _loadOutings();
-      });
+      _showMessage('Outing request cancelled successfully.', color: _green);
+      setState(_loadOutings);
     } catch (e) {
       if (!mounted) return;
       _showMessage('Failed: ${e.toString()}', color: _red);
     }
-  }
-
-  Future<void> _downloadGatePass(Map<String, dynamic> req, bool isWeekend) async {
-    final auth = ref.read(authProvider);
-    final dash = ref.read(dashboardProvider);
-    final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
-    final studentName = profile['student_name'] ?? auth.username ?? 'Student';
-    final regNo = profile['application_number'] ?? auth.username ?? '';
-    final hostel = req['hostel_block']?.toString() ?? profile['hostel_block']?.toString() ?? '';
-    final room = req['room_number']?.toString() ?? profile['room_number']?.toString() ?? '';
-
-    final leaveId = req['leave_id']?.toString() ??
-        req['appl_id']?.toString() ??
-        req['booking_id']?.toString() ??
-        req['id']?.toString() ??
-        'OUT-${DateTime.now().millisecondsSinceEpoch}';
-
-    final place = req['place_of_visit']?.toString() ??
-        req['out_place']?.toString() ??
-        req['place']?.toString() ??
-        'Campus Outing';
-
-    final purpose = req['purpose_of_visit']?.toString() ??
-        req['reason']?.toString() ??
-        'Personal';
-
-    final outDate = req['from_date']?.toString() ??
-        req['out_date']?.toString() ??
-        req['date']?.toString() ??
-        '';
-
-    final outTime = req['from_time']?.toString() ??
-        req['out_time']?.toString() ??
-        req['time']?.toString() ??
-        '';
-
-    final inDate = req['to_date']?.toString() ??
-        req['in_date']?.toString() ??
-        outDate;
-
-    final inTime = req['to_time']?.toString() ??
-        req['in_time']?.toString() ??
-        '';
-
-    final contact = req['contact_number']?.toString() ??
-        req['parent_phone']?.toString() ??
-        profile['mobile_number']?.toString() ??
-        'N/A';
-
-    final status = req['status']?.toString() ??
-        req['leave_status']?.toString() ??
-        'Approved';
-
-    final htmlContent = DownloadHelper.generateOutingPassSlip(
-      studentName: studentName,
-      regNo: regNo,
-      outingType: isWeekend ? 'Weekend Outing / Leave' : 'General Outing (Day)',
-      placeOfVisit: place,
-      purpose: purpose,
-      outDateTime: '$outDate $outTime'.trim(),
-      inDateTime: '$inDate $inTime'.trim(),
-      contactNumber: contact,
-      status: status,
-      leaveId: leaveId,
-      hostelBlock: hostel,
-      roomNo: room,
-    );
-
-    final fileName = 'VITAP_GatePass_${leaveId}_${regNo.replaceAll("/", "_")}.html';
-    await DownloadHelper.saveFile(
-      context: context,
-      fileName: fileName,
-      content: htmlContent,
-      mimeType: 'text/html',
-      openImmediately: true,
-    );
   }
 
   void _showMessage(String message, {required Color color}) {
@@ -344,9 +220,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         content: Text(
           message,
           style: GoogleFonts.dmSans(
@@ -364,1203 +238,834 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
     return Scaffold(
       backgroundColor: _paper,
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildTabs(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildHistoryTab(),
-                  _buildApplyTab(),
-                ],
-              ),
-            ),
-          ],
-        ),
+        child: _showHistory ? _buildHistoryView() : _buildApplyView(),
       ),
     );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 13),
-      child: Row(
-        children: [
-          _iconButton(
-            icon: Icons.arrow_back_rounded,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CAMPUS ACCESS',
-                  style: GoogleFonts.spaceGrotesk(
-                    color: _orange,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Outings Portal',
-                  style: GoogleFonts.dmSans(
-                    color: _ink,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _iconButton(
-            icon: Icons.refresh_rounded,
-            onTap: () => setState(_loadOutings),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _iconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: _surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _line),
-          ),
-          child: Icon(icon, color: _navy, size: 19),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabs() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: _soft,
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: _line),
-        ),
-        child: TabBar(
-          controller: _tabController,
-          dividerColor: Colors.transparent,
-          indicator: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _line),
-          ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          labelColor: _navy,
-          unselectedLabelColor: _muted,
-          labelStyle: GoogleFonts.dmSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-          ),
-          unselectedLabelStyle: GoogleFonts.dmSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-          tabs: const [
-            Tab(
-              icon: Icon(Icons.history_rounded, size: 16),
-              text: 'Outing History',
-            ),
-            Tab(
-              icon: Icon(Icons.add_circle_outline_rounded, size: 16),
-              text: 'Apply Outing',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHistoryTab() {
-    return RefreshIndicator(
-      color: _blue,
-      backgroundColor: _surface,
-      onRefresh: () async => setState(() => _loadOutings()),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
-        children: [
-          _buildHistoryHero(),
-          const SizedBox(height: 20),
-          _buildSectionHeading(
-            'GENERAL OUTINGS',
-            Icons.directions_walk_rounded,
-          ),
-          const SizedBox(height: 10),
-          FutureBuilder<dynamic>(
-            future: _generalOutingsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return _buildSkeletonOutings();
-              }
-
-              final requests = _extractRequests(snapshot.data);
-
-              if (requests.isEmpty) {
-                return _buildEmpty(
-                  'No general outing records found.',
-                  Icons.event_busy_rounded,
-                );
-              }
-
-              return Column(
-                children: requests
-                    .map((req) => _buildOutingCard(req, false))
-                    .toList(),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          _buildSectionHeading(
-            'WEEKEND OUTINGS',
-            Icons.weekend_rounded,
-          ),
-          const SizedBox(height: 10),
-          FutureBuilder<dynamic>(
-            future: _weekendOutingsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return _buildSkeletonOutings();
-              }
-
-              final requests = _extractRequests(snapshot.data);
-
-              if (requests.isEmpty) {
-                return _buildEmpty(
-                  'No weekend outing records found.',
-                  Icons.event_busy_rounded,
-                );
-              }
-
-              return Column(
-                children: requests
-                    .map((req) => _buildOutingCard(req, true))
-                    .toList(),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryHero() {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: _navy,
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9ECE7),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.shield_outlined,
-              color: _orange,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'DIGITAL GATE PASS',
-                  style: GoogleFonts.spaceGrotesk(
-                    color: const Color(0xFFAEBBD0),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .8,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Hostel Outings & Leave',
-                  style: GoogleFonts.dmSans(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Download verified gate pass slips directly to your device storage.',
-                  style: GoogleFonts.dmSans(
-                    color: const Color(0xFFC1CAD7),
-                    fontSize: 10.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOutingCard(Map<String, dynamic> req, bool isWeekend) {
-    final status = req['status']?.toString() ??
-        req['leave_status']?.toString() ??
-        'Approved';
-
-    final isApproved = status.toLowerCase().contains('approved') ||
-        status.toLowerCase().contains('accepted');
-    final isPending = status.toLowerCase().contains('pending') ||
-        status.toLowerCase().contains('applied') ||
-        status.toLowerCase().contains('submitted');
-
-    final leaveId = req['leave_id']?.toString() ??
-        req['appl_id']?.toString() ??
-        req['booking_id']?.toString() ??
-        req['id']?.toString() ??
-        '';
-
-    final place = req['place_of_visit']?.toString() ??
-        req['out_place']?.toString() ??
-        req['place']?.toString() ??
-        'Campus Outing';
-
-    final outDate = req['from_date']?.toString() ??
-        req['out_date']?.toString() ??
-        req['date']?.toString() ??
-        '';
-
-    final outTime = req['from_time']?.toString() ??
-        req['out_time']?.toString() ??
-        req['time']?.toString() ??
-        '';
-
-    final inDate = req['to_date']?.toString() ??
-        req['in_date']?.toString();
-
-    final inTime = req['to_time']?.toString() ??
-        req['in_time']?.toString();
-
-    final purpose = req['purpose_of_visit']?.toString() ??
-        req['reason']?.toString() ??
-        '';
-
-    final hostel = req['hostel_block']?.toString();
-    final room = req['room_number']?.toString();
-
-    final statusColor = isApproved
-        ? _green
-        : (isPending ? _orange : _red);
-
-    final statusBg = isApproved
-        ? const Color(0xFFE8F4EF)
-        : (isPending
-            ? const Color(0xFFF9ECE7)
-            : const Color(0xFFFCEDEA));
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _line),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0617202A),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: isWeekend ? const Color(0xFFF0EBF8) : const Color(0xFFEAF0FD),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(
-                  isWeekend
-                      ? Icons.weekend_rounded
-                      : Icons.directions_walk_rounded,
-                  color: isWeekend ? const Color(0xFF6B4EE8) : _blue,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      place,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.dmSans(
-                        color: _ink,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (hostel != null && hostel.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'Block: $hostel ${room != null && room.isNotEmpty ? '• Room $room' : ''}',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 9,
-                          color: _muted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 9,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Text(
-                  status.toUpperCase(),
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w800,
-                    color: statusColor,
-                    letterSpacing: .35,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 11,
-              vertical: 9,
-            ),
-            decoration: BoxDecoration(
-              color: _soft,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.logout_rounded,
-                  size: 14,
-                  color: _orange,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Out: $outDate $outTime'.trim(),
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 10,
-                      color: _ink,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (inDate != null && inDate.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.home_rounded,
-                    size: 14,
-                    color: _green,
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      'In: $inDate ${inTime ?? ''}'.trim(),
-                      textAlign: TextAlign.right,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 10,
-                        color: _ink,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (purpose.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              'PURPOSE',
-              style: GoogleFonts.spaceGrotesk(
-                color: _muted,
-                fontSize: 8,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .75,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              purpose,
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                color: _inkSoft,
-                height: 1.35,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              // 1. Download Pass Button
-              TextButton.icon(
-                onPressed: () => _downloadGatePass(req, isWeekend),
-                style: TextButton.styleFrom(
-                  backgroundColor: _navy.withValues(alpha: 0.08),
-                  foregroundColor: _navy,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: const Icon(
-                  Icons.download_rounded,
-                  size: 15,
-                ),
-                label: Text(
-                  'Download Gate Pass',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (isPending && leaveId.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: () => _deleteOuting(leaveId, isWeekend),
-                  style: TextButton.styleFrom(
-                    backgroundColor: const Color(0xFFFCEDEA),
-                    foregroundColor: _red,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 11,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    size: 14,
-                  ),
-                  label: Text(
-                    'Cancel Request',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 300.ms);
   }
 
   // ============================================================
-  // REAL VTOP APPLY OUTING FORM
+  // APPLY VIEW (Screenshots 1 & 2)
   // ============================================================
-  Widget _buildApplyTab() {
-    final dash = ref.watch(dashboardProvider);
-    final auth = ref.watch(authProvider);
-    final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
-    final studentName = profile['student_name'] ?? auth.username ?? 'Student';
-    final regNo = profile['application_number'] ?? auth.username ?? '';
-    final hostelBlock = profile['hostel_block'] ?? profile['block'] ?? 'Campus Hostel';
-    final roomNo = profile['room_number'] ?? profile['room_no'] ?? '';
-
+  Widget _buildApplyView() {
     final isWeekend = _outingType == 'weekend';
 
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+    return Column(
       children: [
-        // 1. Student Credentials Card (Real VTOP Data)
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _line),
-          ),
-          child: Row(
+        _buildApplyHeader(),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _navy.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+              // Outing Type Toggle (Weekend | General)
+              _buildSegmentedToggle(),
+
+              const SizedBox(height: 22),
+
+              if (isWeekend) ...[
+                // Time Slot Section
+                Text(
+                  'Time slot',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _inkSoft,
+                  ),
                 ),
-                child: const Icon(Icons.badge_outlined, color: _navy, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: _weekendSlots.map((slot) {
+                    final isSelected = _selectedWeekendSlot == slot;
+                    return InkWell(
+                      onTap: () => setState(() => _selectedWeekendSlot = slot),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? _navy : _soft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected) ...[
+                              const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              slot,
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 12.5,
+                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                color: isSelected ? Colors.white : _ink,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Outing Date Field with Calendar
+                _buildDatePickerCard(
+                  label: 'Outing date',
+                  value: DateFormat('dd/MM/yyyy').format(_outingDate),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _outingDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 60)),
+                      builder: _pickerTheme,
+                    );
+                    if (picked != null) {
+                      setState(() => _outingDate = picked);
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 14),
+
+                // Purpose of visit
+                _buildPillTextField(
+                  hint: 'Purpose of visit',
+                  controller: _purposeController,
+                ),
+
+                const SizedBox(height: 14),
+
+                // Contact number
+                _buildPillTextField(
+                  hint: 'Contact number',
+                  controller: _contactController,
+                  keyboardType: TextInputType.phone,
+                ),
+              ] else ...[
+                // General Outing: Place of Visit
+                _buildPillTextField(
+                  hint: 'Place of visit',
+                  controller: _placeController,
+                ),
+
+                const SizedBox(height: 14),
+
+                // Purpose of visit
+                _buildPillTextField(
+                  hint: 'Purpose of visit',
+                  controller: _purposeController,
+                ),
+
+                const SizedBox(height: 18),
+
+                // Leaving Section
+                Text(
+                  'Leaving',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _inkSoft,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
                   children: [
-                    Text(
-                      studentName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: _ink,
+                    Expanded(
+                      child: _buildPillPicker(
+                        hint: 'Date',
+                        value: DateFormat('dd/MM/yyyy').format(_leavingDate),
+                        icon: Icons.calendar_today_outlined,
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _leavingDate,
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now().add(const Duration(days: 60)),
+                            builder: _pickerTheme,
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              _leavingDate = picked;
+                              if (_returningDate.isBefore(picked)) _returningDate = picked;
+                            });
+                          }
+                        },
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$regNo  •  $hostelBlock ${roomNo.isNotEmpty ? "• Rm $roomNo" : ""}',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: _muted,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildPillPicker(
+                        hint: 'Time',
+                        value: _leavingTime.format(context),
+                        icon: Icons.access_time_rounded,
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: _leavingTime,
+                            builder: _pickerTheme,
+                          );
+                          if (picked != null) {
+                            setState(() => _leavingTime = picked);
+                          }
+                        },
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
 
-        const SizedBox(height: 16),
+                const SizedBox(height: 18),
 
-        // 2. Outing Category Selector
-        _buildTypeSelector(),
-
-        const SizedBox(height: 18),
-
-        // 3. Mode Banner / Helper Notice
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isWeekend ? const Color(0xFFF4F0FC) : const Color(0xFFEBF3FE),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isWeekend
-                  ? const Color(0xFF6B4EE8).withValues(alpha: 0.25)
-                  : _blue.withValues(alpha: 0.25),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isWeekend ? Icons.info_outline_rounded : Icons.schedule_rounded,
-                size: 18,
-                color: isWeekend ? const Color(0xFF6B4EE8) : _blue,
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  isWeekend
-                      ? 'Weekend Outing allows multi-day home leave. Parent contact number is mandatory.'
-                      : 'General Outing is a same-day day pass. Please return before hostel cutoff time.',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isWeekend ? const Color(0xFF4A34A4) : const Color(0xFF1E48A6),
-                    height: 1.3,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 18),
-
-        // 4. Place of Visit with dynamic quick-select chips
-        _buildTextField(
-          label: 'PLACE OF VISIT',
-          controller: _placeController,
-          hint: isWeekend ? 'e.g. Home (Hyderabad, Chennai, Vizag)' : 'e.g. Vijayawada, Guntur, Amaravati',
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: _currentPlaces.map((place) {
-            final isSelected = _placeController.text.trim() == place;
-            return InkWell(
-              onTap: () {
-                setState(() => _placeController.text = place);
-              },
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: isSelected ? _navy : _soft,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: isSelected ? _navy : _line),
-                ),
-                child: Text(
-                  place,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? Colors.white : _inkSoft,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-
-        const SizedBox(height: 18),
-
-        // 5. Purpose of Visit with dynamic quick-select chips
-        _buildTextField(
-          label: 'PURPOSE OF OUTING',
-          controller: _purposeController,
-          hint: isWeekend ? 'e.g. Home Visit, Family Function, Medical' : 'e.g. Shopping, Hospital Visit, Dining Out',
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: _currentPurposes.map((purpose) {
-            final isSelected = _purposeController.text.trim() == purpose;
-            return InkWell(
-              onTap: () {
-                setState(() => _purposeController.text = purpose);
-              },
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: isSelected ? _navy : _soft,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: isSelected ? _navy : _line),
-                ),
-                child: Text(
-                  purpose,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? Colors.white : _inkSoft,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-
-        const SizedBox(height: 18),
-
-        // 6. Mode of Travel
-        Text(
-          'MODE OF TRAVEL',
-          style: GoogleFonts.spaceGrotesk(
-            color: _ink,
-            fontSize: 8.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .85,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: _currentTravelModes.map((mode) {
-            final isSelected = _selectedModeOfTravel == mode;
-            return InkWell(
-              onTap: () => setState(() => _selectedModeOfTravel = mode),
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isSelected ? _blue : _surface,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: isSelected ? _blue : _line),
-                ),
-                child: Text(
-                  mode,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected ? Colors.white : _ink,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-
-        const SizedBox(height: 18),
-
-        // 7. Contact Number (Required for Weekend, Optional for General)
-        _buildTextField(
-          label: isWeekend
-              ? 'PARENT / GUARDIAN MOBILE NUMBER (MANDATORY)'
-              : 'CONTACT NUMBER (OPTIONAL)',
-          controller: _contactController,
-          hint: 'e.g. 9876543210',
-          keyboardType: TextInputType.phone,
-        ),
-
-        const SizedBox(height: 20),
-
-        // 8. Departure Schedule
-        _buildDateTimeSection(
-          title: 'DEPARTURE SCHEDULE',
-          dateLabel: 'Out Date',
-          dateValue: DateFormat('dd MMM yyyy').format(_outDate),
-          icon: Icons.calendar_today_rounded,
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _outDate,
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(const Duration(days: 60)),
-              builder: _pickerTheme,
-            );
-            if (picked != null) {
-              setState(() {
-                _outDate = picked;
-                if (_inDate.isBefore(_outDate)) _inDate = picked;
-              });
-            }
-          },
-          timeLabel: 'Out Time',
-          timeValue: _outTime.format(context),
-          onTimeTap: () async {
-            final picked = await showTimePicker(
-              context: context,
-              initialTime: _outTime,
-              builder: _pickerTheme,
-            );
-            if (picked != null) {
-              setState(() => _outTime = picked);
-            }
-          },
-        ),
-
-        const SizedBox(height: 14),
-
-        // 9. Return Schedule
-        _buildDateTimeSection(
-          title: isWeekend ? 'RETURN SCHEDULE (MULTI-DAY LEAVE)' : 'RETURN SCHEDULE (SAME DAY)',
-          dateLabel: 'Return Date',
-          dateValue: DateFormat('dd MMM yyyy').format(_inDate),
-          icon: Icons.calendar_today_rounded,
-          onTap: isWeekend
-              ? () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _inDate,
-                    firstDate: _outDate,
-                    lastDate: DateTime.now().add(const Duration(days: 60)),
-                    builder: _pickerTheme,
-                  );
-                  if (picked != null) {
-                    setState(() => _inDate = picked);
-                  }
-                }
-              : () async {
-                  // For general outings, same day
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _outDate,
-                    firstDate: _outDate,
-                    lastDate: _outDate,
-                    builder: _pickerTheme,
-                  );
-                  if (picked != null) {
-                    setState(() => _inDate = picked);
-                  }
-                },
-          timeLabel: 'Return Time',
-          timeValue: _inTime.format(context),
-          onTimeTap: () async {
-            final picked = await showTimePicker(
-              context: context,
-              initialTime: _inTime,
-              builder: _pickerTheme,
-            );
-            if (picked != null) {
-              setState(() => _inTime = picked);
-            }
-          },
-        ),
-
-        if (isWeekend) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF2EFFB),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFD6C8F5)),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.timelapse_rounded,
-                  size: 16,
-                  color: Color(0xFF6B4EE8),
-                ),
-                const SizedBox(width: 8),
+                // Returning Section
                 Text(
-                  'Calculated Duration: ${_calculateWeekendDuration()}',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF4A34A4),
+                  'Returning',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _inkSoft,
                   ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildPillPicker(
+                        hint: 'Date',
+                        value: DateFormat('dd/MM/yyyy').format(_returningDate),
+                        icon: Icons.calendar_today_outlined,
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _returningDate,
+                            firstDate: _leavingDate,
+                            lastDate: DateTime.now().add(const Duration(days: 60)),
+                            builder: _pickerTheme,
+                          );
+                          if (picked != null) {
+                            setState(() => _returningDate = picked);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildPillPicker(
+                        hint: 'Time',
+                        value: _returningTime.format(context),
+                        icon: Icons.access_time_rounded,
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: _returningTime,
+                            builder: _pickerTheme,
+                          );
+                          if (picked != null) {
+                            setState(() => _returningTime = picked);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
+
+              const SizedBox(height: 32),
+
+              // Big Rounded Apply Button
+              SizedBox(
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitOuting,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC7DEC9), // Soft green accent pill from screenshot
+                    foregroundColor: const Color(0xFF132A15),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(27),
+                    ),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Color(0xFF132A15),
+                          ),
+                        )
+                      : Text(
+                          'Apply',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // Secondary Pill Button: View outing history
+              SizedBox(
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: () => setState(() => _showHistory = true),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _ink,
+                    side: const BorderSide(color: _line, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  icon: const Icon(Icons.history_rounded, size: 18),
+                  label: Text(
+                    'View outing history',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildApplyHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Outing',
+            style: GoogleFonts.dmSans(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: _ink,
             ),
           ),
         ],
+      ),
+    );
+  }
 
-        const SizedBox(height: 24),
-
-        // 10. Submit Outing Button
-        SizedBox(
-          height: 52,
-          child: ElevatedButton(
-            onPressed: _isSubmitting ? null : _submitOuting,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _navy,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: _navy.withValues(alpha: .55),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+  Widget _buildSegmentedToggle() {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: _soft,
+        borderRadius: BorderRadius.circular(27),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _togglePill(
+              title: 'Weekend',
+              selected: _outingType == 'weekend',
+              onTap: () => setState(() => _outingType = 'weekend'),
             ),
-            child: _isSubmitting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Text(
-                    'Submit Outing Request',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
           ),
-        ),
-      ],
+          Expanded(
+            child: _togglePill(
+              title: 'General',
+              selected: _outingType == 'general',
+              onTap: () => setState(() => _outingType = 'general'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildTypeSelector() {
-    return Row(
-      children: [
-        Expanded(
-          child: _typeCard(
-            title: 'General Outing',
-            subtitle: 'Day visit (Return today)',
-            icon: Icons.directions_walk_rounded,
-            selected: _outingType == 'general',
-            onTap: () {
-              setState(() {
-                _outingType = 'general';
-                _inDate = _outDate; // same day return
-                _selectedModeOfTravel = 'Campus Bus';
-              });
-            },
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _typeCard(
-            title: 'Weekend Outing',
-            subtitle: 'Night leave / Overnight',
-            icon: Icons.weekend_rounded,
-            selected: _outingType == 'weekend',
-            onTap: () {
-              setState(() {
-                _outingType = 'weekend';
-                if (_inDate.isBefore(_outDate) || _inDate == _outDate) {
-                  _inDate = _outDate.add(const Duration(days: 2));
-                }
-                _selectedModeOfTravel = 'Train / Express';
-              });
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _typeCard({
+  Widget _togglePill({
     required String title,
-    required String subtitle,
-    required IconData icon,
     required bool selected,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(22),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(12),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? _navy : _surface,
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(
-            color: selected ? _navy : _line,
+          color: selected ? _surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: selected
+              ? [
+                  const BoxShadow(
+                    color: Color(0x0C000000),
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          title,
+          style: GoogleFonts.dmSans(
+            fontSize: 14,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            color: selected ? _navy : _muted,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPillTextField({
+    required String hint,
+    required TextEditingController controller,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: _soft,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      alignment: Alignment.centerLeft,
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: GoogleFonts.dmSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: _ink,
+        ),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: GoogleFonts.dmSans(
+            fontSize: 13.5,
+            color: _muted,
+            fontWeight: FontWeight.w500,
+          ),
+          border: InputBorder.none,
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePickerCard({
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 54,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: _soft,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: selected
-                    ? Colors.white.withValues(alpha: .12)
-                    : _soft,
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Icon(
-                icon,
-                size: 18,
-                color: selected ? Colors.white : _blue,
+            Text(
+              value.isNotEmpty ? value : label,
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _ink,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.dmSans(
-                      color: selected ? Colors.white : _ink,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.dmSans(
-                      color: selected
-                          ? const Color(0xFFC1CAD7)
-                          : _muted,
-                      fontSize: 8.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const Icon(Icons.calendar_today_outlined, size: 18, color: _inkSoft),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField({
-    required String label,
-    required TextEditingController controller,
+  Widget _buildPillPicker({
     required String hint,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.spaceGrotesk(
-            color: _ink,
-            fontSize: 8.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .85,
-          ),
-        ),
-        const SizedBox(height: 7),
-        Container(
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _line),
-          ),
-          child: TextField(
-            controller: controller,
-            keyboardType: keyboardType,
-            style: GoogleFonts.dmSans(
-              color: _ink,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-            ),
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: GoogleFonts.dmSans(
-                color: _muted,
-                fontSize: 11.5,
-              ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 13,
-                vertical: 12,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDateTimeSection({
-    required String title,
-    required String dateLabel,
-    required String dateValue,
-    required IconData icon,
-    required VoidCallback onTap,
-    required String timeLabel,
-    required String timeValue,
-    required VoidCallback onTimeTap,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.spaceGrotesk(
-              color: _orange,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .85,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _pickButton(
-                  label: dateLabel,
-                  value: dateValue,
-                  icon: icon,
-                  onTap: onTap,
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: _pickButton(
-                  label: timeLabel,
-                  value: timeValue,
-                  icon: Icons.access_time_rounded,
-                  onTap: onTimeTap,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pickButton({
-    required String label,
     required String value,
     required IconData icon,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        height: 54,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: _soft,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _line),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, size: 14, color: _navy),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: GoogleFonts.dmSans(
-                      color: _muted,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w600,
-                    ),
+            Text(
+              value.isNotEmpty ? value : hint,
+              style: GoogleFonts.dmSans(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: _ink,
+              ),
+            ),
+            Icon(icon, size: 18, color: _inkSoft),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // HISTORY VIEW (Screenshot 3)
+  // ============================================================
+  Widget _buildHistoryView() {
+    final isWeekend = _outingType == 'weekend';
+    final historyTitle = isWeekend ? 'Weekend Outing History' : 'General Outing History';
+    final future = isWeekend ? _weekendOutingsFuture : _generalOutingsFuture;
+
+    return Column(
+      children: [
+        // Header with Back arrow
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _showHistory = false),
+                icon: const Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                historyTitle,
+                style: GoogleFonts.dmSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () => setState(_loadOutings),
+                icon: const Icon(Icons.refresh_rounded, size: 22, color: _ink),
+              ),
+            ],
+          ),
+        ),
+
+        // Search Bar with Filter Icon
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _line),
                   ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.search_rounded, size: 20, color: _muted),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (val) => setState(() {}),
+                          style: GoogleFonts.dmSans(fontSize: 13.5, color: _ink),
+                          decoration: InputDecoration(
+                            hintText: 'Search outings...',
+                            hintStyle: GoogleFonts.dmSans(fontSize: 13, color: _muted),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _line),
+                ),
+                child: IconButton(
+                  onPressed: () {
+                    // Toggle between weekend and general history
+                    setState(() {
+                      _outingType = _outingType == 'weekend' ? 'general' : 'weekend';
+                    });
+                  },
+                  icon: const Icon(Icons.tune_rounded, size: 20, color: _navy),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // History List
+        Expanded(
+          child: RefreshIndicator(
+            color: _blue,
+            backgroundColor: _surface,
+            onRefresh: () async => setState(_loadOutings),
+            child: FutureBuilder<dynamic>(
+              future: future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: _navy),
+                  );
+                }
+
+                var requests = _extractRequests(snapshot.data);
+
+                final query = _searchController.text.trim().toLowerCase();
+                if (query.isNotEmpty) {
+                  requests = requests.where((req) {
+                    final place = (req['place_of_visit'] ?? req['out_place'] ?? '').toString().toLowerCase();
+                    final purpose = (req['purpose_of_visit'] ?? req['reason'] ?? '').toString().toLowerCase();
+                    return place.contains(query) || purpose.contains(query);
+                  }).toList();
+                }
+
+                if (requests.isEmpty) {
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 80),
+                      Center(
+                        child: Column(
+                          children: [
+                            const Icon(Icons.event_busy_rounded, size: 40, color: _muted),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No outing records found.',
+                              style: GoogleFonts.dmSans(fontSize: 13, color: _muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
+                return ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                  itemCount: requests.length,
+                  itemBuilder: (context, index) {
+                    final req = requests[index];
+                    return _buildModernOutingCard(req, isWeekend);
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Card matching Screenshot 3
+  Widget _buildModernOutingCard(Map<String, dynamic> req, bool isWeekend) {
+    final status = req['status']?.toString() ??
+        req['leave_status']?.toString() ??
+        'Approved';
+
+    final isApproved = status.toLowerCase().contains('app') || status.toLowerCase().contains('acc');
+    final isPending = status.toLowerCase().contains('pend') || status.toLowerCase().contains('appl');
+
+    final place = req['place_of_visit']?.toString() ??
+        req['out_place']?.toString() ??
+        req['place']?.toString() ??
+        'Vijayawada';
+
+    final purpose = req['purpose_of_visit']?.toString() ??
+        req['reason']?.toString() ??
+        'Outing';
+
+    final outDate = req['from_date']?.toString() ??
+        req['out_date']?.toString() ??
+        req['date']?.toString() ??
+        '23-08-2026';
+
+    final outTime = req['from_time']?.toString() ??
+        req['out_time']?.toString() ??
+        req['time']?.toString() ??
+        '9:30 AM- 3:30PM';
+
+    final formattedDate = _formatCardDate(outDate);
+
+    return InkWell(
+      onTap: () => _openOutingDetailsModal(req, isWeekend),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _line),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x06000000),
+              blurRadius: 10,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Row: Date Pill on left, Status Pill on right
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _soft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today_outlined, size: 12, color: _inkSoft),
+                      const SizedBox(width: 5),
+                      Text(
+                        formattedDate,
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: _ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
+                  decoration: BoxDecoration(
+                    color: isApproved
+                        ? const Color(0xFFE5F5E9)
+                        : (isPending ? const Color(0xFFFEF4E8) : const Color(0xFFFDECE8)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isApproved ? _green : (isPending ? _orange : _red),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        status,
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: isApproved ? _green : (isPending ? _orange : _red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Place of Visit (Large title)
+            Text(
+              place,
+              style: GoogleFonts.dmSans(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: _ink,
+              ),
+            ),
+
+            const SizedBox(height: 2),
+
+            // Purpose (Subtitle)
+            Text(
+              purpose,
+              style: GoogleFonts.dmSans(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: _inkSoft,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Time Row
+            Row(
+              children: [
+                const Icon(Icons.access_time_rounded, size: 14, color: _inkSoft),
+                const SizedBox(width: 6),
+                Text(
+                  'Time  ',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _muted,
+                  ),
+                ),
+                Text(
+                  outTime,
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Pass available Chip at bottom left
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _soft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.description_outlined, size: 12, color: _inkSoft),
+                  const SizedBox(width: 5),
                   Text(
-                    value,
+                    'Pass available',
                     style: GoogleFonts.spaceGrotesk(
-                      color: _ink,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: _inkSoft,
                     ),
                   ),
                 ],
@@ -1569,7 +1074,326 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
           ],
         ),
       ),
+    ).animate().fadeIn(duration: 250.ms);
+  }
+
+  // ============================================================
+  // OUTING DETAILS BOTTOM SHEET MODAL (Screenshot 4)
+  // ============================================================
+  void _openOutingDetailsModal(Map<String, dynamic> req, bool isWeekend) {
+    final auth = ref.read(authProvider);
+    final dash = ref.read(dashboardProvider);
+    final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
+
+    final studentName = profile['student_name'] ?? auth.username ?? 'Student';
+    final regNo = profile['application_number'] ?? auth.username ?? '';
+    final hostelBlock = req['hostel_block']?.toString() ?? profile['hostel_block']?.toString() ?? 'MH-5';
+    final roomNo = req['room_number']?.toString() ?? profile['room_number']?.toString() ?? '1102';
+
+    final leaveId = req['leave_id']?.toString() ??
+        req['appl_id']?.toString() ??
+        req['booking_id']?.toString() ??
+        req['id']?.toString() ??
+        'W25401094831';
+
+    final place = req['place_of_visit']?.toString() ??
+        req['out_place']?.toString() ??
+        req['place']?.toString() ??
+        'Vijayawada';
+
+    final purpose = req['purpose_of_visit']?.toString() ??
+        req['reason']?.toString() ??
+        'Movie';
+
+    final outDate = req['from_date']?.toString() ??
+        req['out_date']?.toString() ??
+        req['date']?.toString() ??
+        '23-08-2026';
+
+    final outTime = req['from_time']?.toString() ??
+        req['out_time']?.toString() ??
+        req['time']?.toString() ??
+        '9:30 AM- 3:30PM';
+
+    final contactNo = req['contact_number']?.toString() ??
+        profile['mobile_number']?.toString() ??
+        '7780632515';
+
+    final parentContact = req['parent_phone']?.toString() ??
+        profile['parent_mobile_number']?.toString() ??
+        '9849322913';
+
+    final status = req['status']?.toString() ??
+        req['leave_status']?.toString() ??
+        'Approved';
+    final isPending = status.toLowerCase().contains('pend') || status.toLowerCase().contains('appl');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Modal Drag Handle
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _line,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Title
+                Text(
+                  'Outing Details',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Section 1: Outing Details
+                _buildModalSectionTitle('Outing Details'),
+                _buildModalDetailRow(Icons.location_on_outlined, 'Place of Visit', place),
+                _buildModalDetailRow(Icons.description_outlined, 'Purpose', purpose),
+                _buildModalDetailRow(Icons.person_outline_rounded, 'Registration Number', regNo),
+                _buildModalDetailRow(Icons.receipt_long_outlined, 'Booking ID', leaveId),
+
+                const SizedBox(height: 12),
+
+                // Section 2: Accommodation
+                _buildModalSectionTitle('Accommodation'),
+                _buildModalDetailRow(Icons.apartment_rounded, 'Hostel Block', hostelBlock),
+                _buildModalDetailRow(Icons.meeting_room_outlined, 'Room Number', roomNo),
+
+                const SizedBox(height: 12),
+
+                // Section 3: Schedule
+                _buildModalSectionTitle('Schedule'),
+                _buildModalDetailRow(Icons.calendar_today_outlined, 'Date', outDate),
+                _buildModalDetailRow(Icons.access_time_rounded, 'Time', outTime),
+
+                const SizedBox(height: 24),
+
+                // Action 1: View PDF (Green filled button)
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.of(modalCtx).pop();
+                      final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                        studentName: studentName,
+                        regNo: regNo,
+                        outingType: isWeekend ? 'Weekend' : 'General',
+                        placeOfVisit: place,
+                        purpose: purpose,
+                        dateTimeSlot: '$outDate & $outTime',
+                        contactNumber: contactNo,
+                        parentContactNumber: parentContact,
+                        bookingId: leaveId,
+                        hostelBlock: hostelBlock,
+                        roomNo: roomNo,
+                      );
+
+                      if (!mounted) return;
+                      final fileName = 'VITAP_Outing_$leaveId.pdf';
+                      await DownloadHelper.saveFile(
+                        context: context,
+                        fileName: fileName,
+                        content: pdfBytes,
+                        mimeType: 'application/pdf',
+                        openImmediately: true,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC7DEC9),
+                      foregroundColor: const Color(0xFF132A15),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.description_outlined, size: 18),
+                    label: Text(
+                      'View PDF',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Action 2: Download PDF (Green outline button)
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.of(modalCtx).pop();
+                      final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                        studentName: studentName,
+                        regNo: regNo,
+                        outingType: isWeekend ? 'Weekend' : 'General',
+                        placeOfVisit: place,
+                        purpose: purpose,
+                        dateTimeSlot: '$outDate & $outTime',
+                        contactNumber: contactNo,
+                        parentContactNumber: parentContact,
+                        bookingId: leaveId,
+                        hostelBlock: hostelBlock,
+                        roomNo: roomNo,
+                      );
+
+                      if (!mounted) return;
+                      final fileName = 'VITAP_Outing_Pass_$leaveId.pdf';
+                      await DownloadHelper.saveFile(
+                        context: context,
+                        fileName: fileName,
+                        content: pdfBytes,
+                        mimeType: 'application/pdf',
+                        openImmediately: false,
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _green,
+                      side: const BorderSide(color: _green, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: Text(
+                      'Download',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (isPending && leaveId.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(modalCtx).pop();
+                        _deleteOuting(leaveId, isWeekend);
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: const Color(0xFFFCEDEA),
+                        foregroundColor: _red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: Text(
+                        'Cancel Outing Request',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  Widget _buildModalSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        title,
+        style: GoogleFonts.dmSans(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: _inkSoft,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModalDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: _soft,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: _navy),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.dmSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: _muted,
+                ),
+              ),
+              Text(
+                value,
+                style: GoogleFonts.dmSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: _ink,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCardDate(String rawDate) {
+    try {
+      final parsed = DateFormat('dd-MM-yyyy').parse(rawDate);
+      return DateFormat('EEE, MMM d').format(parsed);
+    } catch (_) {
+      try {
+        final parsed = DateFormat('yyyy-MM-dd').parse(rawDate);
+        return DateFormat('EEE, MMM d').format(parsed);
+      } catch (_) {
+        return rawDate;
+      }
+    }
   }
 
   Widget _pickerTheme(BuildContext context, Widget? child) {
@@ -1583,78 +1407,6 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen>
         ),
       ),
       child: child!,
-    );
-  }
-
-  Widget _buildSectionHeading(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 15, color: _navy),
-        const SizedBox(width: 7),
-        Text(
-          title,
-          style: GoogleFonts.spaceGrotesk(
-            color: _ink,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .9,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmpty(String message, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _line),
-      ),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(icon, color: _muted, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: GoogleFonts.dmSans(color: _muted, fontSize: 11.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonOutings() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 30),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _line),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              color: _blue,
-            ),
-          ),
-          const SizedBox(height: 11),
-          Text(
-            'Loading outings...',
-            style: GoogleFonts.dmSans(
-              color: _muted,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

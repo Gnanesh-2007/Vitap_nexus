@@ -4,8 +4,11 @@ import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
 class DownloadHelper {
@@ -129,6 +132,214 @@ class DownloadHelper {
     await Share.shareXFiles(
       [xFile],
       text: title ?? 'Shared from VIT-AP VTOP Nexus',
+    );
+  }
+
+  /// Generates the exact official VIT-AP Hostel Out Pass PDF document
+  static Future<Uint8List> generateOfficialOutingPdfBytes({
+    required String studentName,
+    required String regNo,
+    required String outingType, // 'Weekend' or 'General'
+    required String placeOfVisit,
+    required String purpose,
+    required String dateTimeSlot,
+    required String contactNumber,
+    required String parentContactNumber,
+    required String bookingId,
+    String? applicationDate,
+    String? hostelBlock,
+    String? roomNo,
+  }) async {
+    final pdf = pw.Document();
+    final isWeekend = outingType.toLowerCase().contains('weekend');
+    final title = isWeekend ? 'HOSTEL WEEKEND OUT PASS' : 'HOSTEL GENERAL OUT PASS';
+    final dateStr = applicationDate ?? DateFormat('dd-MM-yyyy').format(DateTime.now());
+
+    final qrData = 'VIT-AP UNIVERSITY\nOUT PASS ID: $bookingId\nREG NO: $regNo\nNAME: $studentName\nROOM: ${hostelBlock ?? ""} - ${roomNo ?? ""}\nDATE: $dateTimeSlot\nVERIFIED VTOP DIGITAL PASS';
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 48, vertical: 36),
+        build: (pw.Context ctx) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              // Header Title
+              pw.Text(
+                'VIT-AP UNIVERSITY',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(0xFF7A1B28),
+                ),
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                'Vellore Institute of Technology – Andhra Pradesh',
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                '(State Private University Under The AP State Private Universities (Establishment and Regulation) Act, 2016)',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                'Amaravati, Andhra Pradesh – 522 237, India, Web : www.vitap.ac.in',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 22),
+
+              // Title Underlined
+              pw.Text(
+                title,
+                style: pw.TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: pw.FontWeight.bold,
+                  decoration: pw.TextDecoration.underline,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 18),
+
+              // Outing ID & Date on left, QR on right
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Outing ID : $bookingId',
+                        style: pw.TextStyle(
+                          fontSize: 10,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Text(
+                        'Date: $dateStr',
+                        style: pw.TextStyle(
+                          fontSize: 10,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.BarcodeWidget(
+                    barcode: pw.Barcode.qrCode(),
+                    data: qrData,
+                    width: 75,
+                    height: 75,
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 14),
+
+              // Numbered Info Spec
+              pw.Column(
+                children: [
+                  _pdfRow('1. Regd No', regNo),
+                  _pdfRow('2. Name', studentName.toUpperCase()),
+                  _pdfRow('3. Hostel Block', hostelBlock ?? 'MH-5'),
+                  _pdfRow('4. Hostel Room No', roomNo ?? '1102'),
+                  _pdfRow('5. Place Of Visit', placeOfVisit),
+                  _pdfRow('6. Purpose Of Visit', purpose),
+                  _pdfRow('7. Date & Time Slot', dateTimeSlot),
+                  _pdfRow('8. Contact No', contactNumber),
+                  _pdfRow('9. Parent Contact Number', parentContactNumber),
+                ],
+              ),
+
+              pw.Spacer(),
+
+              // Footer
+              pw.Text(
+                'VIT-AP - Apply Knowledge. Improve Life!™',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                'This is a system-generated document. No signature is required',
+                style: const pw.TextStyle(
+                  fontSize: 8.5,
+                  color: PdfColors.black,
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Text(
+                  '1/1',
+                  style: const pw.TextStyle(
+                    fontSize: 8,
+                    color: PdfColors.grey700,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  static pw.Widget _pdfRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 4),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(
+            width: 170,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.black,
+              ),
+            ),
+          ),
+          pw.SizedBox(
+            width: 25,
+            child: pw.Text(
+              ':',
+              style: pw.TextStyle(
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.black,
+              ),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Text(
+              value,
+              style: const pw.TextStyle(
+                fontSize: 10,
+                color: PdfColors.black,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
