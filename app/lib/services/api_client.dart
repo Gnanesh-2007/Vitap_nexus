@@ -532,6 +532,30 @@ class ApiClient {
   }
 
   // ============================================================
+  // ACADEMIC CALENDAR
+  // ============================================================
+
+  Future<Map<String, dynamic>> fetchAcademicCalendar({
+    required String username,
+    required String password,
+    String? semSubId,
+  }) async {
+    final response = await dio.post(
+      '/student/academic_calendar',
+      data: {
+        'registration_number': username,
+        'password': password,
+        'sem_sub_id': semSubId ?? '',
+      },
+    );
+
+    if (response.data is Map) {
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+    return {};
+  }
+
+  // ============================================================
   // ALL DATA
   // ============================================================
 

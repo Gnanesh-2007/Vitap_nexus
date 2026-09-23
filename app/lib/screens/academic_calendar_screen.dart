@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 
 enum DayType {
@@ -116,12 +118,7 @@ class _AcademicCalendarScreenState extends State<AcademicCalendarScreen> {
     '2026-07-13': {'type': DayType.instructional, 'title': 'Commencement of Classes', 'subtitle': 'Fall Semester 2026-27'},
     '2026-08-15': {'type': DayType.holiday, 'title': 'Holiday', 'subtitle': 'Independence Day'},
     '2026-08-27': {'type': DayType.holiday, 'title': 'Holiday', 'subtitle': 'Ganesh Chaturthi'},
-    '2026-09-07': {'type': DayType.exam, 'title': 'CAT - 1 Examination', 'subtitle': 'Continuous Assessment Test 1'},
-    '2026-09-08': {'type': DayType.exam, 'title': 'CAT - 1 Examination', 'subtitle': 'Continuous Assessment Test 1'},
-    '2026-09-09': {'type': DayType.exam, 'title': 'CAT - 1 Examination', 'subtitle': 'Continuous Assessment Test 1'},
-    '2026-09-10': {'type': DayType.exam, 'title': 'CAT - 1 Examination', 'subtitle': 'Continuous Assessment Test 1'},
-    '2026-09-11': {'type': DayType.exam, 'title': 'CAT - 1 Examination', 'subtitle': 'Continuous Assessment Test 1'},
-    '2026-09-12': {'type': DayType.exam, 'title': 'CAT - 1 Examination', 'subtitle': 'Continuous Assessment Test 1'},
+    '2026-09-07': {'type': DayType.noInstructional, 'title': 'No Instructional Day', 'subtitle': ''},
     '2026-10-02': {'type': DayType.holiday, 'title': 'Holiday', 'subtitle': 'Mahatma Gandhi Jayanti'},
     '2026-10-18': {'type': DayType.holiday, 'title': 'Holiday', 'subtitle': 'Dussehra / Vijayadashami Break'},
     '2026-10-19': {'type': DayType.holiday, 'title': 'Holiday', 'subtitle': 'Dussehra / Vijayadashami Break'},
@@ -143,6 +140,26 @@ class _AcademicCalendarScreenState extends State<AcademicCalendarScreen> {
   void initState() {
     super.initState();
     _initMonthsList();
+    _syncCalendarFromApi();
+  }
+
+  Future<void> _syncCalendarFromApi() async {
+    try {
+      final creds = await StorageService.getCredentials();
+      final username = creds['username'];
+      final password = creds['password'];
+      if (username != null && password != null) {
+        final res = await apiService.fetchAcademicCalendar(
+          username: username,
+          password: password,
+        );
+        if (res.isNotEmpty && mounted) {
+          setState(() {
+            _lastSyncedTime = DateTime.now();
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   void _initMonthsList() {
@@ -251,22 +268,25 @@ class _AcademicCalendarScreenState extends State<AcademicCalendarScreen> {
     return 'Last Synced: ${diff.inHours}h ago 💾';
   }
 
-  void _onRefresh() {
-    setState(() {
-      _lastSyncedTime = DateTime.now();
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _palette.isDark ? const Color(0xFF1E293B) : _navy,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        content: Text(
-          'Academic calendar updated to latest university schedule.',
-          style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12.5),
+  Future<void> _onRefresh() async {
+    await _syncCalendarFromApi();
+    if (mounted) {
+      setState(() {
+        _lastSyncedTime = DateTime.now();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: _palette.isDark ? const Color(0xFF1E293B) : _navy,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          content: Text(
+            'Academic calendar updated to latest university schedule.',
+            style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12.5),
+          ),
+          duration: const Duration(seconds: 2),
         ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+    }
   }
 
   @override

@@ -1002,11 +1002,49 @@ async def get_academic_calendar(
     client: VtopClient = Depends(get_vtop_client_from_header),
 ):
     """
-    Fetch or provide official VIT-AP Academic Calendar data.
+    Fetch live academic calendar from VTOP or provide official university schedule.
     """
     try:
+        import re
+        import time
+        from vitap_vtop_client.constants import HEADERS
+
+        csrf_token = getattr(client._logged_in_student, "csrf_token", None) or ""
+        username = client.username
+
+        calendar_endpoints = [
+            "/vtop/academics/common/AcademicCalendar",
+            "/vtop/academics/common/AcademicCalender",
+            "/vtop/academics/common/StudentAcademicCalendar",
+            "/vtop/academics/academicCalendar",
+            "/vtop/examinations/academicCalendar",
+        ]
+
+        vtop_live_events = []
+        for endpoint in calendar_endpoints:
+            try:
+                data_init = {
+                    "verifyMenu": "true",
+                    "authorizedID": username,
+                    "_csrf": csrf_token,
+                    "nocache": int(round(time.time() * 1000)),
+                }
+                resp = await client._client.post(endpoint, data=data_init, headers=HEADERS)
+                if resp.status_code == 200 and ("Instructional" in resp.text or "Holiday" in resp.text or "calendar" in resp.text.lower()):
+                    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', resp.text, re.DOTALL | re.IGNORECASE)
+                    for row in rows:
+                        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
+                        clean_cells = [re.sub(r'<[^>]+>', '', c).strip() for c in cells if c.strip()]
+                        if len(clean_cells) >= 2:
+                            vtop_live_events.append(clean_cells)
+                    if vtop_live_events:
+                        break
+            except Exception:
+                continue
+
         return {
             "status": "success",
+            "vtop_live_events": vtop_live_events if vtop_live_events else None,
             "academic_year": "2025-2026",
             "current_semester": "Winter 2025-26",
             "terms": ["Winter 2025-26", "Fall 2025-26", "Fall 2026-27"],
@@ -1037,7 +1075,7 @@ async def get_academic_calendar(
                 {"date": "2026-07-13", "type": "instructional", "title": "Commencement of Classes", "subtitle": "Fall Semester 2026-27"},
                 {"date": "2026-08-15", "type": "holiday", "title": "Holiday", "subtitle": "Independence Day"},
                 {"date": "2026-08-27", "type": "holiday", "title": "Holiday", "subtitle": "Ganesh Chaturthi"},
-                {"date": "2026-09-07", "type": "exam", "title": "CAT - 1 Examination", "subtitle": "Continuous Assessment Test 1"},
+                {"date": "2026-09-07", "type": "noInstructional", "title": "No Instructional Day", "subtitle": "Declared Holiday"},
                 {"date": "2026-10-02", "type": "holiday", "title": "Holiday", "subtitle": "Mahatma Gandhi Jayanti"},
                 {"date": "2026-10-18", "type": "holiday", "title": "Holiday", "subtitle": "Dussehra / Vijayadashami Break"},
                 {"date": "2026-11-08", "type": "holiday", "title": "Holiday", "subtitle": "Diwali / Deepavali"},
