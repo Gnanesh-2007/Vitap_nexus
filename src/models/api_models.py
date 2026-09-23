@@ -117,3 +117,18 @@ class FacultySearchRequest(BaseVtopRequest):
 class FacultyDetailsRequest(BaseVtopRequest):
     emp_id: str
 
+
+class AcademicCalendarRequest(BaseVtopRequest):
+    sem_sub_id: Optional[str] = ""
+    class_group_id: Optional[str] = "COMB"
+
+
+class CalendarMonthRequest(BaseVtopRequest):
+    sem_sub_id: Optional[str] = ""
+    cal_date: str
+    class_group_id: Optional[str] = "COMB"
+
+
+class CalendarClassGroupsRequest(BaseVtopRequest):
+    sem_sub_id: Optional[str] = ""
+

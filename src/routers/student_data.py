@@ -32,9 +32,18 @@ from src.models.api_models import (
     DownloadWeekendOutingFormRequest,
     FacultySearchRequest,
     FacultyDetailsRequest,
+    AcademicCalendarRequest,
+    CalendarMonthRequest,
+    CalendarClassGroupsRequest,
 )
 
 from vitap_vtop_client.client import VtopClient
+from vitap_vtop_client.academic_calendar import (
+    AcademicCalendarModel,
+    CalendarDayModel,
+    CalendarMonthRefModel,
+    ClassGroupModel,
+)
 
 from vitap_vtop_client.attendance import AttendanceModel
 from vitap_vtop_client.attendance.model.attendance_model import AttendanceDetailModel
@@ -1137,6 +1146,114 @@ async def get_faculty_details_endpoint(
             emp_id=request.emp_id
         )
         return details
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+# ============================================================
+# ACADEMIC CALENDAR
+# ============================================================
+
+@router.post(
+    "/academic_calendar",
+    response_model=AcademicCalendarModel,
+)
+async def get_academic_calendar_endpoint(
+    request: AcademicCalendarRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        sem_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
+        calendar = await client.get_academic_calendar(
+            sem_sub_id=sem_id,
+            class_group_id=request.class_group_id or "COMB",
+        )
+        return calendar
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+@router.post(
+    "/calendar_months",
+    response_model=List[CalendarMonthRefModel],
+)
+async def get_calendar_months_endpoint(
+    request: AcademicCalendarRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        sem_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
+        months = await client.get_calendar_months(
+            sem_sub_id=sem_id,
+            class_group_id=request.class_group_id or "COMB",
+        )
+        return months
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+@router.post(
+    "/calendar_month",
+    response_model=List[CalendarDayModel],
+)
+async def get_calendar_month_endpoint(
+    request: CalendarMonthRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        sem_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
+        days = await client.get_calendar_month(
+            sem_sub_id=sem_id,
+            cal_date=request.cal_date,
+            class_group_id=request.class_group_id or "COMB",
+        )
+        return days
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+@router.post(
+    "/calendar_class_groups",
+    response_model=List[ClassGroupModel],
+)
+async def get_calendar_class_groups_endpoint(
+    request: CalendarClassGroupsRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        sem_id = await _ensure_sem_sub_id(client, request.sem_sub_id)
+        groups = await client.get_calendar_class_groups(
+            sem_sub_id=sem_id,
+        )
+        return groups
 
     except VitapVtopClientError as e:
         handle_client_exception(e)
