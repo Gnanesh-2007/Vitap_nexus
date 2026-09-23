@@ -450,7 +450,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       return Scaffold(
         backgroundColor: _paper,
         body: SafeArea(
-          child: _buildDashboardSkeleton(authState),
+          child: _buildConnectingView(authState),
         ),
       );
     }
@@ -1693,12 +1693,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  Widget _buildDashboardSkeleton(AuthState authState) {
+  Widget _buildConnectingView(AuthState authState) {
+    final username = (authState.username ?? 'STUDENT').toUpperCase();
     return ListView(
-      physics: const NeverScrollableScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
       children: [
-        // 1. Header with Name Skeleton
+        // 1. Header with greeting and student ID
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -1719,7 +1720,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         width: 26,
                         height: 26,
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => Icon(
+                        errorBuilder: (context, error, stackTrace) => const Icon(
                           Icons.school_rounded,
                           color: Colors.white,
                           size: 20,
@@ -1743,7 +1744,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      (authState.username ?? 'STUDENT').toUpperCase(),
+                      username,
                       style: GoogleFonts.dmSans(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
@@ -1756,12 +1757,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ],
             ),
             Container(
-              width: 44,
-              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _line),
+                color: _blue.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _blue.withValues(alpha: .25)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: _blue,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                      .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                      .scale(begin: const Offset(0.7, 0.7), end: const Offset(1.3, 1.3), duration: 800.ms),
+                  const SizedBox(width: 6),
+                  Text(
+                    'CONNECTING',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      color: _blue,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1771,104 +1795,274 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         _buildDateStrip(),
         const SizedBox(height: 24),
 
-        // Skeleton Today Schedule Card
+        // 2. Main Connecting Hero Card
         Container(
-          height: 140,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           decoration: BoxDecoration(
             color: _surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(color: _line),
           ),
-          padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Row(
+              // Pulsing Radar Rings & Icon
+              Stack(
+                alignment: Alignment.center,
                 children: [
                   Container(
-                    width: 32,
-                    height: 32,
+                    width: 86,
+                    height: 86,
                     decoration: BoxDecoration(
-                      color: _soft,
-                      borderRadius: BorderRadius.circular(10),
+                      shape: BoxShape.circle,
+                      color: _blue.withValues(alpha: 0.08),
+                    ),
+                  )
+                      .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                      .scale(begin: const Offset(0.88, 0.88), end: const Offset(1.15, 1.15), duration: 1600.ms),
+                  Container(
+                    width: 66,
+                    height: 66,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _blue.withValues(alpha: 0.15),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 140,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: _soft,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: 200,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: _soft,
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                        ),
-                      ],
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _blue,
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.wifi_tethering_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
                     ),
                   ),
                 ],
               ),
+
+              const SizedBox(height: 20),
+
+              Text(
+                'Connecting to VTOP',
+                style: GoogleFonts.dmSans(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                  letterSpacing: -0.4,
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              Text(
+                'Setting up your workspace for $username. Establishing encrypted gateway session...',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(
+                  fontSize: 12.5,
+                  height: 1.45,
+                  color: _inkSoft,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Animated Progress Bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  height: 5,
+                  child: LinearProgressIndicator(
+                    backgroundColor: _line,
+                    valueColor: AlwaysStoppedAnimation<Color>(_blue),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Connection Pipeline Steps
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _paper,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _line),
+                ),
+                child: Column(
+                  children: [
+                    _buildPipelineStep(
+                      label: 'VTOP Server Handshake',
+                      isDone: true,
+                      inProgress: false,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(height: 1),
+                    ),
+                    _buildPipelineStep(
+                      label: 'Fetching Class Schedule & Timetable',
+                      isDone: false,
+                      inProgress: true,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(height: 1),
+                    ),
+                    _buildPipelineStep(
+                      label: 'Syncing Attendance & Marks',
+                      isDone: false,
+                      inProgress: false,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(height: 1),
+                    ),
+                    _buildPipelineStep(
+                      label: 'Warming Local 0ms Offline Cache',
+                      isDone: false,
+                      inProgress: false,
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-        )
-            .animate(onPlay: (controller) => controller.repeat())
-            .shimmer(duration: 1200.ms, color: Colors.white70),
+        ),
 
-        const SizedBox(height: 28),
-        _buildQuickAccessHeader(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
-        // Skeleton Quick Access Grid
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 12,
-            mainAxisExtent: 86,
+        // 3. Information Banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _line),
           ),
-          itemCount: 8,
-          itemBuilder: (context, index) {
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: _surface,
-                    shape: BoxShape.circle,
-                  ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _orange.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 6),
-                Container(
-                  width: 44,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _soft,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+                child: Icon(
+                  Icons.offline_bolt_rounded,
+                  color: _orange,
+                  size: 18,
                 ),
-              ],
-            );
-          },
-        )
-            .animate(onPlay: (controller) => controller.repeat())
-            .shimmer(duration: 1200.ms, color: Colors.white70),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'First-Time Setup',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Initial sync takes 3–5 seconds. Once loaded, all your schedules, marks and attendance are saved locally and will open instantaneously.',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 11,
+                        height: 1.4,
+                        color: _inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPipelineStep({
+    required String label,
+    required bool isDone,
+    required bool inProgress,
+  }) {
+    return Row(
+      children: [
+        if (isDone)
+          Icon(
+            Icons.check_circle_rounded,
+            size: 17,
+            color: _green,
+          )
+        else if (inProgress)
+          SizedBox(
+            width: 15,
+            height: 15,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(_blue),
+            ),
+          )
+        else
+          Icon(
+            Icons.radio_button_unchecked_rounded,
+            size: 17,
+            color: _inkMuted.withValues(alpha: .45),
+          ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              fontWeight: inProgress ? FontWeight.w700 : FontWeight.w500,
+              color: inProgress
+                  ? _ink
+                  : (isDone ? _ink : _inkMuted),
+            ),
+          ),
+        ),
+        if (isDone)
+          Text(
+            'DONE',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: _green,
+            ),
+          )
+        else if (inProgress)
+          Text(
+            'SYNCING',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: _blue,
+            ),
+          )
+        else
+          Text(
+            'QUEUED',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+              color: _inkMuted.withValues(alpha: .5),
+            ),
+          ),
       ],
     );
   }
