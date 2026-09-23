@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.security import APIKeyHeader
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -28,6 +29,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=500,
 )
 
 app.include_router(auth.router)
