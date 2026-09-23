@@ -19,9 +19,9 @@ import 'assignments_screen.dart';
 import 'vtop_webview_screen.dart';
 import 'profile_screen.dart';
 import 'exam_schedule.dart';
-import 'timetable_screen.dart';
 import 'attendance_screen.dart';
 import 'marks_screen.dart';
+import 'academic_calendar_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   final Function(int)? onNavigateTab;
@@ -221,11 +221,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     }
 
     if (item.action == 'calendar') {
-      if (widget.onNavigateTab != null) {
-        widget.onNavigateTab!(2);
-      } else {
-        _navigateScreen(const TimetableScreen());
-      }
+      _navigateScreen(const AcademicCalendarScreen());
       return;
     }
 
