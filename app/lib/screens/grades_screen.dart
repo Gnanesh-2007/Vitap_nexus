@@ -7,6 +7,7 @@ import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
+import 'cgpa_calculator_screen.dart';
 
 class GradesScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -429,6 +430,38 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             ),
           ),
           InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CgpaCalculatorScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: _blue.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _blue.withValues(alpha: .28)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calculate_rounded, size: 16, color: _blue),
+                  const SizedBox(width: 5),
+                  Text(
+                    'PLANNER',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: _blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          InkWell(
             onTap: () => setState(() => _fetchGrades(forceRefresh: true)),
             borderRadius: BorderRadius.circular(10),
             child: Container(
@@ -535,6 +568,45 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          // CGPA Simulator banner
+          InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CgpaCalculatorScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome_rounded, size: 14, color: const Color(0xFFF2B35B)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Simulate Future Semesters & Target CGPA',
+                        style: GoogleFonts.dmSans(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.white70),
+                ],
+              ),
             ),
           ),
         ],

@@ -23,6 +23,7 @@ import 'timetable_screen.dart';
 import 'attendance_screen.dart';
 import 'marks_screen.dart';
 import 'faculty_screen.dart';
+import 'cgpa_calculator_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   final Function(int)? onNavigateTab;
@@ -204,6 +205,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           action: 'marks',
         ),
         _QuickItem(
+          label: 'CGPA Plan',
+          icon: Icons.calculate_rounded,
+          accent: _green,
+          action: 'cgpa_planner',
+        ),
+        _QuickItem(
           label: 'Less',
           icon: Icons.keyboard_arrow_up_rounded,
           accent: _navy,
@@ -307,6 +314,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
       case 'payments':
         targetScreen = const PaymentsScreen();
+        break;
+
+      case 'cgpa_planner':
+        targetScreen = const CgpaCalculatorScreen();
         break;
 
       default:
