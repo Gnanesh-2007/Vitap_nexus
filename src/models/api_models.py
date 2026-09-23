@@ -101,3 +101,11 @@ class CourseAssignmentsRequest(BaseVtopRequest):
 class DownloadAssignmentFileRequest(BaseVtopRequest):
     download_url: str
 
+
+class DownloadGeneralOutingPassRequest(BaseVtopRequest):
+    leave_id: str
+
+
+class DownloadWeekendOutingFormRequest(BaseVtopRequest):
+    booking_id: str
+

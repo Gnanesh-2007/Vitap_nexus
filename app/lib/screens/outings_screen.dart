@@ -1129,6 +1129,60 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }
 
   // ============================================================
+  Future<List<int>> _obtainOutingPdfBytes({
+    required bool isWeekend,
+    required String leaveId,
+    required String studentName,
+    required String regNo,
+    required String place,
+    required String purpose,
+    required String dateTimeSlot,
+    required String contactNo,
+    required String parentContact,
+    required String hostelBlock,
+    required String roomNo,
+  }) async {
+    final auth = ref.read(authProvider);
+    final username = auth.username ?? '';
+    final password = auth.password ?? '';
+
+    if (username.isNotEmpty && password.isNotEmpty && leaveId.isNotEmpty) {
+      try {
+        final List<int> remoteBytes = isWeekend
+            ? await apiService.downloadWeekendOutingForm(
+                username: username,
+                password: password,
+                bookingId: leaveId,
+              )
+            : await apiService.downloadGeneralOutingPass(
+                username: username,
+                password: password,
+                leaveId: leaveId,
+              );
+        if (remoteBytes.isNotEmpty) {
+          return remoteBytes;
+        }
+      } catch (e) {
+        debugPrint('Remote outing PDF fetch failed, falling back to local: $e');
+      }
+    }
+
+    return await DownloadHelper.generateOfficialOutingPdfBytes(
+      studentName: studentName,
+      regNo: regNo,
+      outingType: isWeekend ? 'Weekend' : 'General',
+      placeOfVisit: place,
+      purpose: purpose,
+      dateTimeSlot: dateTimeSlot,
+      contactNumber: contactNo,
+      parentContactNumber: parentContact,
+      bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
+      hostelBlock: hostelBlock,
+      roomNo: roomNo,
+    );
+  }
+
+  // ============================================================
   // OUTING DETAILS BOTTOM SHEET MODAL (Screenshot 4)
   // ============================================================
   void _openOutingDetailsModal(Map<String, dynamic> req, bool isWeekend) {
@@ -1272,16 +1326,16 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                           final dateTimeSlot = isWeekend
                               ? '$outDate & $outTime'
                               : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
-                          final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                          final pdfBytes = await _obtainOutingPdfBytes(
+                            isWeekend: isWeekend,
+                            leaveId: leaveId,
                             studentName: studentName,
                             regNo: regNo,
-                            outingType: isWeekend ? 'Weekend' : 'General',
-                            placeOfVisit: place,
+                            place: place,
                             purpose: purpose,
                             dateTimeSlot: dateTimeSlot,
-                            contactNumber: contactNo,
-                            parentContactNumber: parentContact,
-                            bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
+                            contactNo: contactNo,
+                            parentContact: parentContact,
                             hostelBlock: hostelBlock,
                             roomNo: roomNo,
                           );
@@ -1304,7 +1358,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        icon: Icon(Icons.description_outlined, size: 18),
+                        icon: const Icon(Icons.description_outlined, size: 18),
                         label: Text(
                           'View PDF',
                           style: GoogleFonts.dmSans(
@@ -1327,16 +1381,16 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                           final dateTimeSlot = isWeekend
                               ? '$outDate & $outTime'
                               : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
-                          final pdfBytes = await DownloadHelper.generateOfficialOutingPdfBytes(
+                          final pdfBytes = await _obtainOutingPdfBytes(
+                            isWeekend: isWeekend,
+                            leaveId: leaveId,
                             studentName: studentName,
                             regNo: regNo,
-                            outingType: isWeekend ? 'Weekend' : 'General',
-                            placeOfVisit: place,
+                            place: place,
                             purpose: purpose,
                             dateTimeSlot: dateTimeSlot,
-                            contactNumber: contactNo,
-                            parentContactNumber: parentContact,
-                            bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
+                            contactNo: contactNo,
+                            parentContact: parentContact,
                             hostelBlock: hostelBlock,
                             roomNo: roomNo,
                           );
@@ -1358,7 +1412,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        icon: Icon(Icons.download_rounded, size: 18),
+                        icon: const Icon(Icons.download_rounded, size: 18),
                         label: Text(
                           'Download',
                           style: GoogleFonts.dmSans(

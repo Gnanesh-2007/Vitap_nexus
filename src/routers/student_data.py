@@ -28,6 +28,8 @@ from src.models.api_models import (
     DigitalAssignmentsRequest,
     CourseAssignmentsRequest,
     DownloadAssignmentFileRequest,
+    DownloadGeneralOutingPassRequest,
+    DownloadWeekendOutingFormRequest,
 )
 
 from vitap_vtop_client.client import VtopClient
@@ -624,6 +626,72 @@ async def delete_weekend_outing_endpoint(
         return {
             "message": res or "Weekend outing deleted successfully."
         }
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+# ============================================================
+# DOWNLOAD GENERAL OUTING PASS
+# ============================================================
+
+@router.post("/download_general_outing_pass")
+async def download_general_outing_pass_endpoint(
+    request: DownloadGeneralOutingPassRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        pdf_bytes = await client.download_general_outing_pass(
+            leave_id=request.leave_id
+        )
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition":
+                    f"attachment; filename=general_outing_{request.leave_id}.pdf"
+            },
+        )
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+# ============================================================
+# DOWNLOAD WEEKEND OUTING FORM
+# ============================================================
+
+@router.post("/download_weekend_outing_form")
+async def download_weekend_outing_form_endpoint(
+    request: DownloadWeekendOutingFormRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        pdf_bytes = await client.download_weekend_outing_form(
+            booking_id=request.booking_id
+        )
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition":
+                    f"attachment; filename=weekend_outing_{request.booking_id}.pdf"
+            },
+        )
 
     except VitapVtopClientError as e:
         handle_client_exception(e)

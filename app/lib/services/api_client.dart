@@ -1133,6 +1133,54 @@ class ApiClient {
 
     return response.data ?? [];
   }
+
+  // ============================================================
+  // DOWNLOAD GENERAL OUTING PASS
+  // ============================================================
+
+  Future<List<int>> downloadGeneralOutingPass({
+    required String username,
+    required String password,
+    required String leaveId,
+  }) async {
+    final response = await dio.post<List<int>>(
+      '/student/download_general_outing_pass',
+      data: {
+        'registration_number': username,
+        'password': password,
+        'leave_id': leaveId,
+      },
+      options: Options(
+        responseType: ResponseType.bytes,
+      ),
+    );
+
+    return response.data ?? [];
+  }
+
+  // ============================================================
+  // DOWNLOAD WEEKEND OUTING FORM
+  // ============================================================
+
+  Future<List<int>> downloadWeekendOutingForm({
+    required String username,
+    required String password,
+    required String bookingId,
+  }) async {
+    final response = await dio.post<List<int>>(
+      '/student/download_weekend_outing_form',
+      data: {
+        'registration_number': username,
+        'password': password,
+        'booking_id': bookingId,
+      },
+      options: Options(
+        responseType: ResponseType.bytes,
+      ),
+    );
+
+    return response.data ?? [];
+  }
 }
 
 
