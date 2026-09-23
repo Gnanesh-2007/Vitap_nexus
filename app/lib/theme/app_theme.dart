@@ -156,7 +156,9 @@ class AppTheme {
   // ───────────────────────────────────────────────────────────────────────────
   // LIGHT EDITORIAL THEME DATA
   // ───────────────────────────────────────────────────────────────────────────
-  static ThemeData get lightTheme {
+  static final ThemeData lightTheme = _buildLightTheme();
+
+  static ThemeData _buildLightTheme() {
     final base = ThemeData.light();
     final p = AppPalette.light;
 
@@ -245,7 +247,9 @@ class AppTheme {
   // ───────────────────────────────────────────────────────────────────────────
   // DARK EDITORIAL THEME DATA (ZERO NEON)
   // ───────────────────────────────────────────────────────────────────────────
-  static ThemeData get darkTheme {
+  static final ThemeData darkTheme = _buildDarkTheme();
+
+  static ThemeData _buildDarkTheme() {
     final base = ThemeData.dark();
     final p = AppPalette.dark;
 

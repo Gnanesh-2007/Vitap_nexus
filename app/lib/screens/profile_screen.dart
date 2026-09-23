@@ -316,7 +316,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => ref.read(themeModeProvider.notifier).toggleTheme(),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          ref.read(themeModeProvider.notifier).toggleTheme();
+        },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
