@@ -311,113 +311,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildPreferencesCard(AppPalette palette) {
-    final themeMode = ref.watch(themeModeProvider);
-    final isDark = themeMode == ThemeMode.dark;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          ref.read(themeModeProvider.notifier).toggleTheme();
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: palette.line),
-          ),
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeInOutCubic,
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: (isDark ? palette.blue : palette.orange).withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                  color: isDark ? palette.blue : palette.orange,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dark Appearance',
-                      style: GoogleFonts.dmSans(
-                        color: palette.ink,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isDark ? 'Matte Slate theme active' : 'Warm Paper theme active',
-                      style: GoogleFonts.dmSans(
-                        color: palette.inkSoft,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Smooth custom animated toggle pill
-              _buildSmoothSwitch(isDark, palette),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSmoothSwitch(bool isDark, AppPalette palette) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeInOutCubic,
-      width: 48,
-      height: 28,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: isDark ? palette.blue : palette.line,
-      ),
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeInOutCubic,
-        alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.16),
-                blurRadius: 4,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Icon(
-              isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-              size: 11,
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE47543),
-            ),
-          ),
-        ),
-      ),
-    );
+    return _ThemePreferenceCard(palette: palette);
   }
 
   Widget _buildHero({
@@ -1136,3 +1030,119 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 }
+
+// ============================================================
+// HARDWARE-ACCELERATED ULTRA-SMOOTH THEME TOGGLE CARD
+// ============================================================
+class _ThemePreferenceCard extends ConsumerWidget {
+  final AppPalette palette;
+
+  const _ThemePreferenceCard({required this.palette});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          ref.read(themeModeProvider.notifier).toggleTheme();
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.line),
+          ),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeInOutCubic,
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: (isDark ? palette.blue : palette.orange).withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                  color: isDark ? palette.blue : palette.orange,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Dark Appearance',
+                      style: GoogleFonts.dmSans(
+                        color: palette.ink,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isDark ? 'Matte Slate theme active' : 'Warm Paper theme active',
+                      style: GoogleFonts.dmSans(
+                        color: palette.inkSoft,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Ultra-smooth custom animated toggle pill
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeInOutCubic,
+                width: 48,
+                height: 28,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: isDark ? palette.blue : palette.line,
+                ),
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeInOutCubic,
+                  alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.16),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Icon(
+                        isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                        size: 11,
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE47543),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

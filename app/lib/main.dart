@@ -35,6 +35,7 @@ class VitapNexusApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+      themeAnimationDuration: Duration.zero,
       navigatorKey: navigatorKey,
       builder: (context, child) {
         return OtpListener(
