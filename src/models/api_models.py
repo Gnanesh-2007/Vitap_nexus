@@ -109,3 +109,11 @@ class DownloadGeneralOutingPassRequest(BaseVtopRequest):
 class DownloadWeekendOutingFormRequest(BaseVtopRequest):
     booking_id: str
 
+
+class FacultySearchRequest(BaseVtopRequest):
+    search_term: Optional[str] = ""
+
+
+class FacultyDetailsRequest(BaseVtopRequest):
+    emp_id: str
+

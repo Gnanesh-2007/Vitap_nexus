@@ -1181,6 +1181,59 @@ class ApiClient {
 
     return response.data ?? [];
   }
+
+  // ============================================================
+  // FACULTY DIRECTORY & SEARCH
+  // ============================================================
+
+  Future<List<dynamic>> fetchAllFaculty({
+    required String username,
+    required String password,
+  }) async {
+    final response = await dio.post(
+      '/student/faculty',
+      data: {
+        'registration_number': username,
+        'password': password,
+      },
+    );
+
+    return response.data as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> searchFaculty({
+    required String username,
+    required String password,
+    required String searchTerm,
+  }) async {
+    final response = await dio.post(
+      '/student/search_faculty',
+      data: {
+        'registration_number': username,
+        'password': password,
+        'search_term': searchTerm,
+      },
+    );
+
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchFacultyDetails({
+    required String username,
+    required String password,
+    required String empId,
+  }) async {
+    final response = await dio.post(
+      '/student/faculty_details',
+      data: {
+        'registration_number': username,
+        'password': password,
+        'emp_id': empId,
+      },
+    );
+
+    return response.data as Map<String, dynamic>;
+  }
 }
 
 

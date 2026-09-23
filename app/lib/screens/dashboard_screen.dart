@@ -22,6 +22,7 @@ import 'exam_schedule.dart';
 import 'timetable_screen.dart';
 import 'attendance_screen.dart';
 import 'marks_screen.dart';
+import 'faculty_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   final Function(int)? onNavigateTab;
@@ -103,6 +104,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   List<_QuickItem> _getQuickAccessItems() {
     final baseItems = [
       _QuickItem(
+        label: 'Faculty',
+        icon: Icons.badge_outlined,
+        accent: _navy,
+        action: 'faculty',
+      ),
+      _QuickItem(
         label: 'Biometric',
         icon: Icons.fingerprint_rounded,
         accent: _navy,
@@ -138,12 +145,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         accent: _orange,
         action: 'assignments',
       ),
-      _QuickItem(
-        label: 'Course Page',
-        icon: Icons.menu_book_rounded,
-        accent: _blue,
-        action: 'courses',
-      ),
     ];
 
     if (!_isQuickAccessExpanded) {
@@ -160,6 +161,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       // Inline expanded items - strictly NO DUPLICATES!
       return [
         ...baseItems,
+        _QuickItem(
+          label: 'Course Page',
+          icon: Icons.menu_book_rounded,
+          accent: _blue,
+          action: 'courses',
+        ),
         _QuickItem(
           label: 'Grades',
           icon: Icons.bar_chart_rounded,
@@ -180,7 +187,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ),
         _QuickItem(
           label: 'Profile',
-          icon: Icons.badge_outlined,
+          icon: Icons.person_rounded,
           accent: _navy,
           action: 'profile',
         ),
@@ -264,6 +271,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     late Widget targetScreen;
 
     switch (item.action) {
+      case 'faculty':
+        targetScreen = const FacultyScreen();
+        break;
+
       case 'biometric':
         targetScreen = const BiometricScreen();
         break;

@@ -30,6 +30,8 @@ from src.models.api_models import (
     DownloadAssignmentFileRequest,
     DownloadGeneralOutingPassRequest,
     DownloadWeekendOutingFormRequest,
+    FacultySearchRequest,
+    FacultyDetailsRequest,
 )
 
 from vitap_vtop_client.client import VtopClient
@@ -60,6 +62,10 @@ from vitap_vtop_client.course_page import (
 from vitap_vtop_client.digital_assignment.model.digital_assignment_model import (
     DigitalAssignmentModel,
     AssignmentRecordModel,
+)
+from vitap_vtop_client.faculty import (
+    FacultyModel,
+    FacultyDetailsModel,
 )
 
 from vitap_vtop_client.exceptions import VitapVtopClientError
@@ -1058,3 +1064,85 @@ async def download_assignment_file(
             status_code=500,
             detail=f"Unexpected error: {e}",
         )
+
+
+# ============================================================
+# FACULTY DIRECTORY
+# ============================================================
+
+@router.post(
+    "/faculty",
+    response_model=List[FacultyModel],
+)
+async def get_all_faculty_endpoint(
+    request: BaseVtopRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        faculty_list = await client.get_all_faculty()
+        return faculty_list
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+# ============================================================
+# FACULTY SEARCH
+# ============================================================
+
+@router.post(
+    "/search_faculty",
+    response_model=FacultyModel,
+)
+async def search_faculty_endpoint(
+    request: FacultySearchRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        faculty = await client.search_faculty(
+            search_term=request.search_term or ""
+        )
+        return faculty
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
+
+
+# ============================================================
+# FACULTY DETAILS
+# ============================================================
+
+@router.post(
+    "/faculty_details",
+    response_model=FacultyDetailsModel,
+)
+async def get_faculty_details_endpoint(
+    request: FacultyDetailsRequest,
+    client: VtopClient = Depends(get_vtop_client_from_header),
+):
+    try:
+        details = await client.get_faculty_details(
+            emp_id=request.emp_id
+        )
+        return details
+
+    except VitapVtopClientError as e:
+        handle_client_exception(e)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {e}",
+        )
