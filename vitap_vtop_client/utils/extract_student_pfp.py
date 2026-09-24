@@ -153,12 +153,23 @@ async def fetch_student_pfp(
     registration_number: str,
     csrf_token: str,
     photo_url: str | None = None,
+    application_number: str | None = None,
 ) -> str | None:
     """
     Fetches the student's ID photo directly from VTOP using STUDENT_IMAGE_UPLOAD_URL
     or the photo URL extracted from StudentProfileAllView.
     Returns base64 encoded string or None.
     """
+    photo_headers = {
+        **HEADERS,
+        "Referer": "https://vtop.vitap.ac.in/vtop/studentsRecord/StudentProfileAllView",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
+
+    ids_to_try = [registration_number]
+    if application_number and application_number != registration_number:
+        ids_to_try.append(application_number)
+
     candidates = []
 
     # 1. Dynamic URL found in StudentProfileAllView
@@ -170,38 +181,42 @@ async def fetch_student_pfp(
             if not normalized_url.startswith("/vtop"):
                 normalized_url = "/vtop" + normalized_url
         candidates.append(("GET", normalized_url, None))
-        candidates.append(("POST", normalized_url, {"authorizedID": registration_number, "_csrf": csrf_token}))
+        for ident in ids_to_try:
+            candidates.append(("POST", normalized_url, {"authorizedID": ident, "_csrf": csrf_token}))
 
-    # 2. STUDENT_IMAGE_UPLOAD_URL with query parameter
-    candidates.append(("GET", f"{STUDENT_IMAGE_UPLOAD_URL}?authorizedID={registration_number}", None))
+    for ident in ids_to_try:
+        # STUDENT_IMAGE_UPLOAD_URL with query parameter
+        candidates.append(("GET", f"{STUDENT_IMAGE_UPLOAD_URL}?authorizedID={ident}", None))
+        candidates.append(("GET", f"{STUDENT_IMAGE_UPLOAD_URL}?type=photo&authorizedID={ident}", None))
+        candidates.append(("GET", f"{STUDENT_IMAGE_UPLOAD_URL}?type=1&authorizedID={ident}", None))
 
-    # 3. STUDENT_IMAGE_UPLOAD_URL with VTOP standard POST payload
-    candidates.append((
-        "POST",
-        STUDENT_IMAGE_UPLOAD_URL,
-        {
-            'verifyMenu': 'true',
-            'authorizedID': registration_number,
-            '_csrf': csrf_token,
-            'nocache': int(round(time.time() * 1000))
-        }
-    ))
+        # STUDENT_IMAGE_UPLOAD_URL with standard VTOP form data
+        candidates.append((
+            "POST",
+            STUDENT_IMAGE_UPLOAD_URL,
+            {
+                'verifyMenu': 'true',
+                'authorizedID': ident,
+                '_csrf': csrf_token,
+                'nocache': int(round(time.time() * 1000))
+            }
+        ))
 
-    # 4. STUDENT_IMAGE_UPLOAD_URL with simple authorizedID POST payload
-    candidates.append(("POST", STUDENT_IMAGE_UPLOAD_URL, {'authorizedID': registration_number}))
+        # Simple POST
+        candidates.append(("POST", STUDENT_IMAGE_UPLOAD_URL, {'authorizedID': ident}))
 
-    # 5. STUDENT_IMAGE_UPLOAD_URL plain GET
+        # PFP_PATH
+        candidates.append(("GET", f"{PFP_PATH}{ident}", None))
+
+    # Plain GET without params (cookie session identifies student)
     candidates.append(("GET", STUDENT_IMAGE_UPLOAD_URL, None))
-
-    # 6. PFP_PATH
-    candidates.append(("GET", f"{PFP_PATH}{registration_number}", None))
 
     for method, url, data in candidates:
         try:
             if method == "POST":
-                res = await client.post(url, data=data, headers=HEADERS, timeout=6.0)
+                res = await client.post(url, data=data, headers=photo_headers, timeout=6.0)
             else:
-                res = await client.get(url, headers=HEADERS, timeout=6.0)
+                res = await client.get(url, headers=photo_headers, timeout=6.0)
 
             if res.status_code == 200 and len(res.content) > 100:
                 # Binary image check (JPEG, PNG, GIF, WebP)

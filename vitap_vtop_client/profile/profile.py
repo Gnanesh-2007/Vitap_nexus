@@ -63,7 +63,11 @@ async def fetch_profile(
         # Run concurrent sub-tasks
         nested = {
             "student photo": fetch_student_pfp(
-                client, registration_number, csrf_token, photo_url=photo_url
+                client,
+                registration_number,
+                csrf_token,
+                photo_url=photo_url,
+                application_number=profile.application_number,
             )
         }
         if include_grade_history:
@@ -79,7 +83,6 @@ async def fetch_profile(
         results = await asyncio.gather(*nested.values(), return_exceptions=True)
         for label, result in zip(labels, results):
             if isinstance(result, BaseException):
-                # Don't fail the entire profile if secondary photo/mentor fetch encounters an issue
                 if label == "student photo":
                     print(f"Student ID photo fetch encountered note: {result}")
                     continue
@@ -93,6 +96,17 @@ async def fetch_profile(
                 profile.grade_history = result
             elif label == "mentor details":
                 profile.mentor_details = result
+
+        # Critical safeguard: if student base64_pfp is identical to mentor base64_pfp,
+        # strip it immediately so mentor's face NEVER leaks into the student profile!
+        if (
+            profile.base64_pfp
+            and profile.mentor_details
+            and profile.mentor_details.base64_pfp
+            and profile.base64_pfp == profile.mentor_details.base64_pfp
+        ):
+            print("Stripped leaked mentor photo from student profile")
+            profile.base64_pfp = None
 
         return profile
 
