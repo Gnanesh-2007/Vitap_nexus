@@ -4,10 +4,7 @@ uvicorn[standard]==0.32.1
 pydantic==2.11.5
 pydantic-settings==2.9.1
 
-# VTOP Client (requires Python 3.13+)
-git+https://github.com/Udhay-Adithya/vitap-vtop-client.git
-
-# Pinned transitive deps to prevent pip backtracking
+# HTTP & Scraping Dependencies
 httpx==0.28.1
 beautifulsoup4==4.12.3
 bs4==0.0.2
