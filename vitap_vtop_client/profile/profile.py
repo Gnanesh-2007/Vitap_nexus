@@ -1,7 +1,8 @@
 import asyncio
+import base64
 import httpx
 import time
-from vitap_vtop_client.constants import PROFILE_URL, HEADERS
+from vitap_vtop_client.constants import PROFILE_URL, STUDENT_IMAGE_UPLOAD_URL, HEADERS
 from vitap_vtop_client.mentor import fetch_mentor_info
 from vitap_vtop_client.grade_history import fetch_grade_history
 from vitap_vtop_client.parsers.profile_parser import parse_student_profile
@@ -30,10 +31,6 @@ async def fetch_profile(
     those are two further requests. They do not depend on each other or on the
     profile response, so they run concurrently.
 
-    Grade history is the largest response the client fetches anywhere, around
-    137KB, so a caller that only wants the name and photo should turn it off
-    rather than pay for it on every call.
-
     Parameters:
         client (httpx.AsyncClient): The async HTTP client.
         registration_number (str): The student's username.
@@ -60,13 +57,35 @@ async def fetch_profile(
             'nocache': int(round(time.time() * 1000))
         }
 
-        # Up to three requests, and any of them can be the one that fails. Say
-        # which, rather than reporting whichever error happened to surface -- a
-        # timeout on the profile page itself used to come back blaming grade
-        # history, because that was the next call in the sequence.
         response = await client.post(PROFILE_URL, data=data, headers=HEADERS)
         response.raise_for_status()
         profile = parse_student_profile(response.text)
+
+        # If student photo was not embedded as base64 data URI in StudentProfileAllView,
+        # try fetching it from STUDENT_IMAGE_UPLOAD_URL
+        if not profile.base64_pfp:
+            try:
+                photo_data = {
+                    'verifyMenu': 'true',
+                    'authorizedID': registration_number,
+                    '_csrf': csrf_token,
+                    'nocache': int(round(time.time() * 1000))
+                }
+                photo_res = await client.post(
+                    STUDENT_IMAGE_UPLOAD_URL,
+                    data=photo_data,
+                    headers=HEADERS,
+                    timeout=8.0
+                )
+                if photo_res.status_code == 200 and len(photo_res.content) > 100:
+                    if photo_res.content.startswith(b'\xff\xd8\xff') or photo_res.content.startswith(b'\x89PNG') or photo_res.content.startswith(b'GIF'):
+                        profile.base64_pfp = base64.b64encode(photo_res.content).decode('utf-8')
+                    elif photo_res.text.startswith("data:image"):
+                        parts = photo_res.text.split(",", 1)
+                        if len(parts) > 1:
+                            profile.base64_pfp = parts[1].strip()
+            except Exception as e:
+                print(f"Student photo fallback fetch note: {e}")
 
         # Neither nested fetch depends on the other or on the profile response,
         # so they go out together rather than one after the other.
@@ -102,7 +121,6 @@ async def fetch_profile(
         VtopProfileError,
         VtopConnectionError,
     ) as e:
-        # Already described; wrapping again would only bury the cause.
         raise e
 
     except httpx.RequestError as e:

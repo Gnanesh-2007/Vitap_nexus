@@ -250,11 +250,20 @@ class VtopSessionError(VitapVtopClientError):
     def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message, status_code)
 
+
 class VtopCalendarError(VitapVtopClientError):
     """Raised for errors related to the academic calendar."""
 
     def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message, status_code)
+
+
+class VtopMenuUnavailableError(VitapVtopClientError):
+    """Raised when a requested VTOP menu/page is unavailable or not accessible for the user."""
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message, status_code)
+
 
 __all__ = [
     "VitapVtopClientError",
@@ -289,5 +298,6 @@ __all__ = [
     "VtopDigitalAssignmentUploadOtpIncorrectError",
     "VtopParsingError",
     "VtopSessionError",
-    "VtopCalendarError"
+    "VtopCalendarError",
+    "VtopMenuUnavailableError",
 ]
