@@ -2,14 +2,12 @@ from bs4 import BeautifulSoup
 
 from vitap_vtop_client.exceptions.exception import VtopParsingError
 from vitap_vtop_client.mentor.model import MentorModel
+from vitap_vtop_client.utils.extract_student_pfp import extract_mentor_pfp_base64
 
-def parse_mentor_details(html) -> MentorModel:
+
+def parse_mentor_details(html: str) -> MentorModel:
     soup = BeautifulSoup(html, "html.parser")
 
-    # Initialize the main dictionary
-    mentor_details = {}
-
-    # Temporary dictionary for collecting data
     temp_dict = {
         'faculty_id': None,
         'faculty_name': None,
@@ -19,11 +17,11 @@ def parse_mentor_details(html) -> MentorModel:
         'faculty_department': None,
         'faculty_email': None,
         'faculty_intercom': None,
-        'faculty_mobile_number': None
+        'faculty_mobile_number': None,
+        'base64_pfp': extract_mentor_pfp_base64(html),
     }
-    
+
     try:
-        # Find the relevant table or structure
         rows = soup.find_all('tr')
         for row in rows:
             columns = row.find_all('td')
@@ -52,9 +50,8 @@ def parse_mentor_details(html) -> MentorModel:
             elif 'Faculty Mobile Number' in values:
                 temp_dict['faculty_mobile_number'] = values[1]
 
-        # Construct the final dictionary from the temporary one
         mentor_details = {key: value for key, value in temp_dict.items() if value is not None}
         return MentorModel(**mentor_details)
-    
+
     except Exception as e:
-       raise VtopParsingError(f"An error occured while parsing Mentor Details: {e}")
+        raise VtopParsingError(f"An error occurred while parsing Mentor Details: {e}")
