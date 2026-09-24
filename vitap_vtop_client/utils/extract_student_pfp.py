@@ -1,11 +1,44 @@
 import base64
+import time
+import httpx
 from bs4 import BeautifulSoup
+from vitap_vtop_client.constants import STUDENT_IMAGE_UPLOAD_URL, PFP_PATH, HEADERS
+
+
+def extract_student_photo_url(html: str) -> str | None:
+    """
+    Extracts the image URL if the student photo is referenced via an endpoint
+    (e.g., /vtop/others/photo/getStudentIdPhotoAndSign1 or users/image).
+    """
+    if not html:
+        return None
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        for img in soup.find_all("img"):
+            src = img.get("src", "")
+            if not src or src.startswith("data:image"):
+                continue
+
+            src_lower = src.lower()
+            if any(k in src_lower for k in ["getstudentidphoto", "others/photo", "users/image", "studentphoto", "studentid"]):
+                return src
+
+            classes = " ".join(img.get("class", [])) if isinstance(img.get("class"), list) else (img.get("class") or "").lower()
+            img_id = (img.get("id") or "").lower()
+            img_alt = (img.get("alt") or "").lower()
+            if "border-primary" in classes or "student" in img_id or "student" in img_alt:
+                return src
+    except Exception:
+        pass
+    return None
 
 
 def extract_student_pfp_base64(html: str) -> str | None:
     """
     Extracts the STUDENT's photo base64 code from VTOP profile HTML.
     Specifically isolates the student's photo from mentor/proctor/faculty photos.
+    Returns None if no EXPLICIT student photo is found (never falls back to mentor photo).
     """
     if not html:
         return None
@@ -35,51 +68,25 @@ def extract_student_pfp_base64(html: str) -> str | None:
                     if len(parts) > 1 and len(parts[1].strip()) > 50:
                         return parts[1].strip()
 
-        # 3. Check candidate images that do NOT belong to an immediate proctor/faculty container
-        student_candidates = []
-        for img in soup.find_all("img"):
-            src = img.get("src", "")
-            if not src.startswith("data:image"):
+        # 3. Check images strictly inside a student details container
+        for container in soup.find_all(["table", "div", "section"]):
+            header = container.get_text(separator=" ")[:300].lower()
+            # Must NOT be a proctor/mentor container
+            if any(k in header for k in ["proctor", "mentor", "faculty advisor", "counsellor"]):
                 continue
-
-            parts = src.split(",", 1)
-            if len(parts) <= 1 or len(parts[1].strip()) <= 50:
-                continue
-            b64 = parts[1].strip()
-
-            # Inspect immediate 3 parent levels (e.g. td, tr, table, card)
-            is_proctor_or_faculty = False
-            current = img.parent
-            level = 0
-            while current and level < 4:
-                p_text = (current.get("id") or "") + " " + (" ".join(current.get("class", [])) if isinstance(current.get("class"), list) else "")
-                p_header = ""
-                if current.name in ["table", "div", "section", "fieldset", "tr"]:
-                    p_header = current.get_text(separator=" ")[:200].lower()
-
-                check_str = (p_text + " " + p_header).lower()
-                if any(k in check_str for k in ["proctor", "mentor", "faculty advisor", "faculty details"]):
-                    is_proctor_or_faculty = True
-                    break
-                current = current.parent
-                level += 1
-
-            if not is_proctor_or_faculty:
-                student_candidates.append(b64)
-
-        if student_candidates:
-            return student_candidates[0]
-
-        # 4. Fallback: first valid base64 image (skip small icons < 500 chars)
-        for img in soup.find_all("img"):
-            src = img.get("src", "")
-            if src.startswith("data:image"):
-                parts = src.split(",", 1)
-                if len(parts) > 1 and len(parts[1].strip()) > 500:
-                    return parts[1].strip()
+            # Must have student indicators
+            if any(k in header for k in ["student profile", "student name", "application number", "date of birth", "blood group"]):
+                for img in container.find_all("img"):
+                    src = img.get("src", "")
+                    if src.startswith("data:image"):
+                        parts = src.split(",", 1)
+                        if len(parts) > 1 and len(parts[1].strip()) > 50:
+                            return parts[1].strip()
 
     except Exception:
         pass
+
+    # DO NOT FALL BACK TO ARBITRARY BASE64 (prevents returning mentor photo)
     return None
 
 
@@ -138,4 +145,100 @@ def extract_mentor_pfp_base64(html: str) -> str | None:
 
     except Exception:
         pass
+    return None
+
+
+async def fetch_student_pfp(
+    client: httpx.AsyncClient,
+    registration_number: str,
+    csrf_token: str,
+    photo_url: str | None = None,
+) -> str | None:
+    """
+    Fetches the student's ID photo directly from VTOP using STUDENT_IMAGE_UPLOAD_URL
+    or the photo URL extracted from StudentProfileAllView.
+    Returns base64 encoded string or None.
+    """
+    candidates = []
+
+    # 1. Dynamic URL found in StudentProfileAllView
+    if photo_url:
+        normalized_url = photo_url
+        if not normalized_url.startswith("http"):
+            if not normalized_url.startswith("/"):
+                normalized_url = "/" + normalized_url
+            if not normalized_url.startswith("/vtop"):
+                normalized_url = "/vtop" + normalized_url
+        candidates.append(("GET", normalized_url, None))
+        candidates.append(("POST", normalized_url, {"authorizedID": registration_number, "_csrf": csrf_token}))
+
+    # 2. STUDENT_IMAGE_UPLOAD_URL with query parameter
+    candidates.append(("GET", f"{STUDENT_IMAGE_UPLOAD_URL}?authorizedID={registration_number}", None))
+
+    # 3. STUDENT_IMAGE_UPLOAD_URL with VTOP standard POST payload
+    candidates.append((
+        "POST",
+        STUDENT_IMAGE_UPLOAD_URL,
+        {
+            'verifyMenu': 'true',
+            'authorizedID': registration_number,
+            '_csrf': csrf_token,
+            'nocache': int(round(time.time() * 1000))
+        }
+    ))
+
+    # 4. STUDENT_IMAGE_UPLOAD_URL with simple authorizedID POST payload
+    candidates.append(("POST", STUDENT_IMAGE_UPLOAD_URL, {'authorizedID': registration_number}))
+
+    # 5. STUDENT_IMAGE_UPLOAD_URL plain GET
+    candidates.append(("GET", STUDENT_IMAGE_UPLOAD_URL, None))
+
+    # 6. PFP_PATH
+    candidates.append(("GET", f"{PFP_PATH}{registration_number}", None))
+
+    for method, url, data in candidates:
+        try:
+            if method == "POST":
+                res = await client.post(url, data=data, headers=HEADERS, timeout=6.0)
+            else:
+                res = await client.get(url, headers=HEADERS, timeout=6.0)
+
+            if res.status_code == 200 and len(res.content) > 100:
+                # Binary image check (JPEG, PNG, GIF, WebP)
+                if (
+                    res.content.startswith(b'\xff\xd8\xff')
+                    or res.content.startswith(b'\x89PNG')
+                    or res.content.startswith(b'GIF8')
+                    or res.content.startswith(b'RIFF')
+                    or res.headers.get("content-type", "").startswith("image/")
+                ):
+                    return base64.b64encode(res.content).decode("utf-8")
+
+                # Text check for data URI
+                if res.text.startswith("data:image"):
+                    parts = res.text.split(",", 1)
+                    if len(parts) > 1 and len(parts[1].strip()) > 50:
+                        return parts[1].strip()
+
+                # HTML response containing img tag
+                if "<img" in res.text:
+                    soup = BeautifulSoup(res.text, "html.parser")
+                    for img in soup.find_all("img"):
+                        src = img.get("src", "")
+                        if src.startswith("data:image"):
+                            parts = src.split(",", 1)
+                            if len(parts) > 1 and len(parts[1].strip()) > 50:
+                                return parts[1].strip()
+
+                # Plain base64 string
+                clean_text = res.text.strip().strip('"').strip("'")
+                if len(clean_text) > 200 and "<html" not in clean_text.lower() and "<!doctype" not in clean_text.lower():
+                    try:
+                        base64.b64decode(clean_text[:100] + "==")
+                        return clean_text
+                    except Exception:
+                        pass
+        except Exception:
+            continue
+
     return None
