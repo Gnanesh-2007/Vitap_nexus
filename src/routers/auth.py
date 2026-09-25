@@ -51,9 +51,19 @@ router = APIRouter(
 
 
 # ============================================================
-# SESSION STORE (STRICTLY SCOPED PER SESSION_ID)
+# SESSION STORE (STRICTLY SCOPED PER SESSION_ID & SERVERLESS RESILIENT)
 # ============================================================
 
+import base64
+import hashlib
+import hmac
+import json
+import os
+import zlib
+
+_SESSION_SECRET = os.getenv("API_KEY", "vitap-vtop-stateless-key").encode("utf-8")
+
+# In-memory hot cache for ultra-fast access in warm serverless instances
 # session_id -> VtopClient
 _session_store: dict[str, VtopClient] = {}
 
@@ -69,19 +79,101 @@ _session_lock = asyncio.Lock()
 SESSION_TTL_SECONDS = 12 * 60 * 60
 
 
+def encode_vtop_session(client: VtopClient, reg_no: str, is_authenticated: bool) -> str:
+    """
+    Serializes a VtopClient state (cookies, CSRF tokens, credentials)
+    into a compact, signed, tamper-proof token that survives across
+    stateless Vercel serverless function invocations and container recycles.
+    """
+    try:
+        cookies = {k: v for k, v in client._client.cookies.items()}
+        csrf = ""
+        if is_authenticated and client._logged_in_student:
+            csrf = client._logged_in_student.post_login_csrf_token or ""
+        elif client._pending_otp_csrf:
+            csrf = client._pending_otp_csrf or ""
+
+        payload = {
+            "u": reg_no.upper().strip(),
+            "p": client.password,
+            "c": cookies,
+            "csrf": csrf,
+            "auth": is_authenticated,
+            "ts": time.time(),
+        }
+        raw = json.dumps(payload).encode("utf-8")
+        compressed = zlib.compress(raw, 9)
+        encoded = base64.urlsafe_b64encode(compressed).decode("ascii")
+        sig = hmac.new(_SESSION_SECRET, encoded.encode("ascii"), hashlib.sha256).hexdigest()[:16]
+        return f"vtop_{sig}.{encoded}"
+    except Exception as e:
+        print(f"Error encoding session token: {e}")
+        return str(uuid.uuid4())
+
+
+def decode_vtop_session(token: str) -> Optional[dict]:
+    """
+    Validates and decodes a stateless session token.
+    """
+    if not token or not token.startswith("vtop_") or "." not in token:
+        return None
+    try:
+        prefix_sig, encoded = token.split(".", 1)
+        sig = prefix_sig.replace("vtop_", "")
+        expected_sig = hmac.new(_SESSION_SECRET, encoded.encode("ascii"), hashlib.sha256).hexdigest()[:16]
+        if not hmac.compare_digest(sig, expected_sig):
+            return None
+        compressed = base64.urlsafe_b64decode(encoded.encode("ascii"))
+        raw = zlib.decompress(compressed)
+        return json.loads(raw.decode("utf-8"))
+    except Exception as e:
+        print(f"Error decoding session token: {e}")
+        return None
+
+
 async def get_client_for_session(
     session_id: str,
     expected_username: Optional[str] = None,
 ) -> VtopClient:
     """
     Returns the existing authenticated/pending VtopClient.
-    Validates ownership if expected_username is provided.
+    If the serverless container recycled or changed, restores the client
+    state (including cookies and CSRF tokens) from the signed token.
     """
-
+    # 1. Fast in-memory check (warm container)
     async with _session_lock:
         client = _session_store.get(session_id)
         created_at = _session_created_at.get(session_id)
         owner_username = _session_usernames.get(session_id)
+
+    # 2. If not found in memory, restore from stateless token (serverless container switch)
+    if client is None and session_id.startswith("vtop_"):
+        data = decode_vtop_session(session_id)
+        if data:
+            reg_no = data.get("u", "").upper().strip()
+            created_at = data.get("ts", time.time())
+            owner_username = reg_no
+            client = VtopClient(
+                registration_number=reg_no,
+                password=data.get("p", ""),
+            )
+            cookies = data.get("c", {})
+            if cookies and isinstance(cookies, dict):
+                client._client.cookies.update(cookies)
+
+            if data.get("auth"):
+                from vitap_vtop_client.login.model.logged_in_student_model import LoggedInStudent
+                client._logged_in_student = LoggedInStudent(
+                    registration_number=reg_no,
+                    post_login_csrf_token=data.get("csrf", ""),
+                )
+            else:
+                client._pending_otp_csrf = data.get("csrf")
+
+            async with _session_lock:
+                _session_store[session_id] = client
+                _session_created_at[session_id] = created_at
+                _session_usernames[session_id] = owner_username
 
     if client is None:
         raise HTTPException(
@@ -115,7 +207,14 @@ async def get_client_for_session(
 async def get_session_username(session_id: str) -> Optional[str]:
     """Returns the registration number bound to a session."""
     async with _session_lock:
-        return _session_usernames.get(session_id)
+        uname = _session_usernames.get(session_id)
+    if uname:
+        return uname
+    if session_id.startswith("vtop_"):
+        data = decode_vtop_session(session_id)
+        if data:
+            return data.get("u", "").upper().strip()
+    return None
 
 
 async def release_session(session_id: str) -> None:
@@ -200,9 +299,9 @@ class LogoutRequest(BaseModel):
 async def login(request: LoginRequest):
     """
     Creates exactly ONE VtopClient bound to the student.
+    Returns a serverless-resilient session token that survives Vercel container recycles.
     """
 
-    session_id = str(uuid.uuid4())
     reg_no = request.registration_number.strip().upper()
 
     client = VtopClient(
@@ -214,6 +313,7 @@ async def login(request: LoginRequest):
         await client.login()
 
         # Login succeeded without OTP.
+        session_id = encode_vtop_session(client, reg_no, is_authenticated=True)
         async with _session_lock:
             _session_store[session_id] = client
             _session_created_at[session_id] = time.time()
@@ -226,6 +326,7 @@ async def login(request: LoginRequest):
         )
 
     except VtopLoginOtpRequiredError:
+        session_id = encode_vtop_session(client, reg_no, is_authenticated=False)
         async with _session_lock:
             _session_store[session_id] = client
             _session_created_at[session_id] = time.time()
@@ -265,20 +366,29 @@ async def login(request: LoginRequest):
 )
 async def verify_otp(request: VerifyOtpRequest):
     """
-    Verifies OTP using the EXACT SAME VtopClient created during /auth/login.
+    Verifies OTP using the EXACT SAME VtopClient created during /auth/login,
+    restoring cookies and pending CSRF token seamlessly if the serverless container switched.
     """
 
     client = await get_client_for_session(request.session_id)
+    reg_no = client.username.upper().strip()
 
     try:
         await client.verify_login_otp(request.otp)
 
-        # Refresh session timestamp after successful authentication.
+        # Generate fresh authenticated session token with post-login cookies
+        verified_session_id = encode_vtop_session(client, reg_no, is_authenticated=True)
         async with _session_lock:
+            _session_store[verified_session_id] = client
+            _session_created_at[verified_session_id] = time.time()
+            _session_usernames[verified_session_id] = reg_no
+            # Also keep old session_id mapped if client references it
+            _session_store[request.session_id] = client
             _session_created_at[request.session_id] = time.time()
+            _session_usernames[request.session_id] = reg_no
 
         return VerifyOtpResponse(
-            session_id=request.session_id,
+            session_id=verified_session_id,
             otp_required=False,
             message="OTP verified. Login complete.",
         )
@@ -316,14 +426,23 @@ async def verify_otp(request: VerifyOtpRequest):
 @router.post("/resend_otp")
 async def resend_otp(request: ResendOtpRequest):
     client = await get_client_for_session(request.session_id)
+    reg_no = client.username.upper().strip()
 
     try:
         await client.resend_login_otp()
+        # Ensure session token remains active
+        new_session_id = encode_vtop_session(client, reg_no, is_authenticated=False)
+        async with _session_lock:
+            _session_store[new_session_id] = client
+            _session_created_at[new_session_id] = time.time()
+            _session_usernames[new_session_id] = reg_no
+
         return {
+            "session_id": new_session_id,
             "message": (
                 "OTP resent. "
                 "Check your registered email/mobile."
-            )
+            ),
         }
     except VitapVtopClientError as e:
         raise HTTPException(
