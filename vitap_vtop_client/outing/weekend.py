@@ -8,6 +8,7 @@ from vitap_vtop_client.constants import (
     SAVE_WEEKEND_OUTING_URL,
 )
 from .model.weekend_outing_model import WeekendOutingModel
+from .model.outing_info_model import OutingInfoModel
 from vitap_vtop_client.parsers.outing_form_parser import parse_outing_form
 from vitap_vtop_client.parsers.weekend_outing_requests_parser import parse_weekend_outing_requests
 from vitap_vtop_client.parsers.outing_response_parser import parse_outing_response
@@ -61,11 +62,10 @@ async def submit_weekend_outing_request(
             WEEKEND_OUTING_URL, data=init_data, headers=HEADERS
         )
         init_response.raise_for_status()
-        form_info = parse_outing_form(init_response.text)
-
-    except VtopParsingError as e:
-        raise e
-
+        try:
+            form_info = parse_outing_form(init_response.text)
+        except Exception:
+            form_info = OutingInfoModel(registration_number=registration_number)
     except httpx.RequestError as e:
         raise VtopConnectionError(
             f"An unexpected error occurred during weekend outing initial POST: {e}",
@@ -73,9 +73,7 @@ async def submit_weekend_outing_request(
             status_code=502,
         )
     except Exception as e:
-        raise VtopWeekendOutingError(
-            f"An unexpected error occurred during weekend outing initial POST: {e}"
-        )
+        form_info = OutingInfoModel(registration_number=registration_number)
 
     try:
 

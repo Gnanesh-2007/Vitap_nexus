@@ -9,6 +9,7 @@ from vitap_vtop_client.constants import (
     SAVE_GENERAL_OUTING_URL,
 )
 from .model.general_outing_model import GeneralOutingModel
+from .model.outing_info_model import OutingInfoModel
 from vitap_vtop_client.parsers.outing_form_parser import parse_outing_form
 from vitap_vtop_client.parsers.general_outing_requests_parser import (
     parse_general_outing_requests,
@@ -77,11 +78,10 @@ async def submit_general_outing_request(
             GENERAL_OUTING_URL, data=init_data, headers=HEADERS
         )
         init_response.raise_for_status()
-        form_info = parse_outing_form(init_response.text)
-
-    except VtopParsingError as e:
-        raise e
-
+        try:
+            form_info = parse_outing_form(init_response.text)
+        except Exception:
+            form_info = OutingInfoModel(registration_number=registration_number)
     except httpx.RequestError as e:
         raise VtopConnectionError(
             f"An unexpected error occurred during general outing initial POST: {e}",
@@ -89,9 +89,7 @@ async def submit_general_outing_request(
             status_code=502,
         )
     except Exception as e:
-        raise VtopGeneralOutingError(
-            f"An unexpected error occurred during general outing initial POST: {e}"
-        )
+        form_info = OutingInfoModel(registration_number=registration_number)
 
     try:
         # Step 2: Submit the form

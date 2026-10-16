@@ -47,7 +47,7 @@ HOD_DETAILS_URL = "/vtop/hrms/viewHodDeanDetails"
 PAYMENTS_URL = "/vtop/finance/Payments"
 PAYMENT_RECEIPT_URL = "/vtop/p2p/getReceiptsApplno"
 PRINT_PAYMENT_RECEIPT_URL = "/vtop/finance/dupReceiptNewP2P"
-VIRTUAL_ACCOUNT_URL = "/vtop/admissions/studentVirtualAccountNo "
+VIRTUAL_ACCOUNT_URL = "/vtop/admissions/studentVirtualAccountNo"
 
 # Curriculum URL
 CURRICULUM_URL = "/vtop/academics/common/Curriculum"
@@ -69,7 +69,7 @@ VIEW_ATTENDANCE_DETAIL_URL = "/vtop/processViewAttendanceDetail"
 # Course Page URL
 COURSE_PAGE_URL = "/vtop/academics/common/StudentCoursePage"
 
-# Makrs URL
+# Marks URL
 MARKS_URL = "/vtop/examinations/StudentMarkView"
 VIEW_MARKS_URL = "/vtop/examinations/doStudentMarkView"
 
@@ -87,7 +87,8 @@ DELETE_WEEKEND_OUTING_FORM = "/vtop/hostel/deleteBookingInfo"
 # General Outing URL
 GENERAL_OUTING_URL = "/vtop/hostel/StudentGeneralOuting"
 SAVE_GENERAL_OUTING_URL = "/vtop/hostel/saveGeneralOutingForm"
-EDIT_GENRAL_OUTING_URL = "/vtop/hostel/updateGeneralOutingInfo"
+EDIT_GENERAL_OUTING_URL = "/vtop/hostel/updateGeneralOutingInfo"
+EDIT_GENRAL_OUTING_URL = EDIT_GENERAL_OUTING_URL
 DELETE_GENERAL_OUTING_URL = "/vtop/hostel/deleteGeneralOutingInfo"
 
 

@@ -67,6 +67,7 @@ def parse_weekend_outing_requests(html: str) -> WeekendOutingModel:
                 download_index = 10
                 booking_id = _booking_id_from_link(cols[download_index])
 
+            has_link = bool(_booking_id_from_link(cols[download_index]))
             requests.append(
                 WeekendOutingRequest(
                     serial=col(0),
@@ -82,10 +83,12 @@ def parse_weekend_outing_requests(html: str) -> WeekendOutingModel:
                     booking_id=booking_id,
                     action=action,
                     status=status,
-                    # VTOP only issues the form once the request is accepted,
-                    # so the status is checked alongside the booking id.
                     can_download=bool(booking_id)
-                    and status.lower().strip() == "outing request accepted",
+                    and (
+                        has_link
+                        or "accepted" in status.lower()
+                        or "approved" in status.lower()
+                    ),
                 )
             )
 
