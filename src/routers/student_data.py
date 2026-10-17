@@ -77,7 +77,13 @@ from vitap_vtop_client.faculty import (
     FacultyDetailsModel,
 )
 
-from vitap_vtop_client.exceptions import VitapVtopClientError
+from vitap_vtop_client.exceptions import (
+    VitapVtopClientError,
+    VtopSessionError,
+    VtopLoginError,
+    VtopLoginOtpRequiredError,
+    VtopCsrfError,
+)
 
 from src.utils.handle_client_exception import handle_client_exception
 
@@ -96,6 +102,8 @@ async def _ensure_sem_sub_id(client: VtopClient, sem_sub_id: str | None) -> str:
         sem_data = await client.get_semesters()
         if sem_data and sem_data.semesters:
             return sem_data.semesters[0].id
+    except (VtopSessionError, VtopLoginError, VtopLoginOtpRequiredError, VtopCsrfError):
+        raise
     except Exception:
         pass
     return sem_sub_id or ""
@@ -182,12 +190,32 @@ async def get_all_student_data(
             return_exceptions=True,
         )
 
+        for r in results:
+            if isinstance(r, (VtopSessionError, VtopLoginError, VtopLoginOtpRequiredError, VtopCsrfError)):
+                raise r
+
         profile_data = results[0] if not isinstance(results[0], Exception) else None
         attendance_data = results[1] if not isinstance(results[1], Exception) else None
         timetable_data = results[2] if not isinstance(results[2], Exception) else None
         exam_schedule_data = results[3] if not isinstance(results[3], Exception) else None
         grade_history_data = results[4] if not isinstance(results[4], Exception) else None
         marks_data = results[5] if not isinstance(results[5], Exception) else None
+
+        if all(
+            x is None
+            for x in (
+                profile_data,
+                attendance_data,
+                timetable_data,
+                exam_schedule_data,
+                grade_history_data,
+                marks_data,
+            )
+        ):
+            for r in results:
+                if isinstance(r, VitapVtopClientError):
+                    raise r
+            raise VtopSessionError("VTOP session expired or returned no data.")
 
         comprehensive_data = ComprehensiveDataResponse(
             profile=profile_data,
