@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VITAP Nexus</string>
+    <string name="widget_timetable_name">Day timeline</string>
+    <string name="widget_timetable_desc">Your current class, what\'s next, and the whole day as a live timeline.</string>
+    <string name="widget_next_class_name">Next class</string>
+    <string name="widget_next_class_desc">A live countdown ring to your next class.</string>
+    <string name="widget_attendance_name">Attendance</string>
+    <string name="widget_attendance_desc">Every subject\'s attendance at a glance. Make it taller for a detailed list.</string>
+    <string name="widget_skip_check_name">Skip check</string>
+    <string name="widget_skip_check_desc">Which of your upcoming classes are safe to skip, and what it does to your attendance.</string>
+    <string name="widget_exam_name">Exam countdown</string>
+    <string name="widget_exam_desc">Days left until your next exam.</string>
+</resources>

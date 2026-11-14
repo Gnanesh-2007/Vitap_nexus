@@ -17,7 +17,6 @@ class DownloadHelper {
   /// Primary color constants for consistent theme
   static const Color _navy = Color(0xFF172B4D);
   static const Color _green = Color(0xFF278B68);
-  static const Color _orange = Color(0xFFE47543);
 
   /// Saves official file content (bytes, PDF, or text) from VTOP directly to public
   /// device storage (Downloads folder) using native Android MediaStore / FileSaver,
@@ -28,6 +27,7 @@ class DownloadHelper {
     required dynamic content, // String, Uint8List, List<int>, or List<dynamic>
     String? mimeType,
     bool openImmediately = false,
+    bool promptSaveAs = true,
   }) async {
     try {
       final sanitizedName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
@@ -45,36 +45,108 @@ class DownloadHelper {
         throw Exception('Unsupported file content format');
       }
 
-      // 1. Always write to accessible local storage first so openFile & shareFile are 100% reliable
+      // 1. Extract base name and extension
+      String baseName = sanitizedName;
+      String ext = 'pdf';
+      final dotIndex = sanitizedName.lastIndexOf('.');
+      if (dotIndex != -1 && dotIndex < sanitizedName.length - 1) {
+        baseName = sanitizedName.substring(0, dotIndex);
+        ext = sanitizedName.substring(dotIndex + 1).toLowerCase();
+      }
+
+      final resolvedMimeType = _resolveMimeType(ext);
+
+      // Web platform fast path: directly trigger browser download
+      if (kIsWeb) {
+        await FileSaver.instance.saveFile(
+          name: baseName,
+          bytes: bytes,
+          fileExtension: ext,
+          mimeType: resolvedMimeType,
+          customMimeType: mimeType,
+        );
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: _navy,
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Color(0xFF48CF9B), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Downloaded $sanitizedName successfully.',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return sanitizedName;
+      }
+
+      // Mobile / Desktop native storage path — Target Public Downloads directly
       Directory? dir;
-      if (!kIsWeb) {
-        if (Platform.isAndroid) {
-          try {
-            dir = await getExternalStorageDirectory();
-          } catch (_) {}
-        } else if (!Platform.isIOS) {
+      if (Platform.isAndroid) {
+        final publicDownloads = Directory('/storage/emulated/0/Download');
+        if (publicDownloads.existsSync()) {
+          dir = publicDownloads;
+        } else {
           try {
             dir = await getDownloadsDirectory();
           } catch (_) {}
         }
+      } else if (!Platform.isIOS) {
+        try {
+          dir = await getDownloadsDirectory();
+        } catch (_) {}
       }
       dir ??= await getApplicationDocumentsDirectory();
       final localFilePath = '${dir.path}/$sanitizedName';
       final file = File(localFilePath);
-      await file.writeAsBytes(bytes, flush: true);
-
-      // 2. Also register in public Downloads/Documents via FileSaver
       try {
-        await FileSaver.instance.saveFile(
-          name: sanitizedName,
-          bytes: bytes,
-          mimeType: sanitizedName.toLowerCase().endsWith('.pdf')
-              ? MimeType.pdf
-              : (mimeType != null ? MimeType.other : MimeType.pdf),
-          customMimeType: mimeType,
-        );
-      } catch (fsErr) {
-        debugPrint('FileSaver.saveFile error: $fsErr');
+        await file.writeAsBytes(bytes, flush: true);
+      } catch (_) {
+        final fallbackDir = await getApplicationDocumentsDirectory();
+        final fallbackFile = File('${fallbackDir.path}/$sanitizedName');
+        await fallbackFile.writeAsBytes(bytes, flush: true);
+      }
+
+      // Save to device storage / Prompt native Save As file picker
+      if (promptSaveAs) {
+        try {
+          await FileSaver.instance.saveAs(
+            name: baseName,
+            bytes: bytes,
+            fileExtension: ext,
+            mimeType: resolvedMimeType,
+            customMimeType: mimeType,
+          );
+        } catch (fsErr) {
+          debugPrint('FileSaver.saveAs error / cancelled: $fsErr');
+        }
+      } else {
+        try {
+          await FileSaver.instance.saveFile(
+            name: baseName,
+            bytes: bytes,
+            fileExtension: ext,
+            mimeType: resolvedMimeType,
+            customMimeType: mimeType,
+          );
+        } catch (fsErr) {
+          debugPrint('FileSaver.saveFile error: $fsErr');
+        }
       }
 
       if (openImmediately) {
@@ -82,10 +154,15 @@ class DownloadHelper {
       }
 
       if (context.mounted) {
-        _showDownloadSuccessBanner(
+        showDownloadModal(
           context: context,
           filePath: localFilePath,
           fileName: sanitizedName,
+          fileBytes: bytes,
+          baseName: baseName,
+          ext: ext,
+          mimeType: resolvedMimeType,
+          customMimeType: mimeType,
         );
       }
       return localFilePath;
@@ -99,7 +176,7 @@ class DownloadHelper {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
               friendlyMsg,
-              style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w500),
+              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w500),
             ),
           ),
         );
@@ -108,8 +185,38 @@ class DownloadHelper {
     }
   }
 
+  static MimeType _resolveMimeType(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'pdf':
+        return MimeType.pdf;
+      case 'png':
+        return MimeType.png;
+      case 'jpg':
+      case 'jpeg':
+        return MimeType.jpeg;
+      case 'doc':
+      case 'docx':
+        return MimeType.microsoftWord;
+      case 'xls':
+      case 'xlsx':
+        return MimeType.microsoftExcel;
+      case 'ppt':
+      case 'pptx':
+        return MimeType.microsoftPresentation;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return MimeType.zip;
+      case 'txt':
+        return MimeType.text;
+      default:
+        return MimeType.other;
+    }
+  }
+
   /// Opens the file using the native device application (Chrome/PDF/Viewer)
-  static Future<OpenResult> openFile(String filePath) async {
+  static Future<OpenResult?> openFile(String filePath) async {
+    if (kIsWeb) return null;
     return await OpenFilex.open(filePath);
   }
 
@@ -791,112 +898,272 @@ class DownloadHelper {
 ''';
   }
 
-  /// Shows an interactive bottom sheet or SnackBar with immediate Open and Share actions
-  static void _showDownloadSuccessBanner({
+  /// Shows a comprehensive, interactive bottom sheet modal with immediate Open,
+  /// Save to Device Storage, and Share actions.
+  static void showDownloadModal({
     required BuildContext context,
     required String filePath,
     required String fileName,
+    required Uint8List fileBytes,
+    required String baseName,
+    required String ext,
+    required MimeType mimeType,
+    String? customMimeType,
   }) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 8),
-        backgroundColor: _navy,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(14, 0, 14, 16),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF2E3F5F), width: 1),
-        ),
-        content: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: _green.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _green.withValues(alpha: 0.4)),
-              ),
-              child: const Icon(
-                Icons.download_done_rounded,
-                color: Color(0xFF48CF9B),
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Saved to Public Downloads',
-                    style: GoogleFonts.dmSans(
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    fileName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.spaceGrotesk(
-                      color: Colors.white70,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Open Button
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                openFile(filePath);
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: _orange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                'OPEN',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            // Share Button
-            IconButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                shareFile(filePath, title: fileName);
-              },
-              tooltip: 'Share / Save to Files',
-              constraints: const BoxConstraints(),
-              padding: const EdgeInsets.all(6),
-              icon: const Icon(
-                Icons.share_rounded,
-                color: Colors.white70,
-                size: 18,
-              ),
-            ),
-          ],
-        ),
+    // Format file size nicely
+    final sizeKb = fileBytes.lengthInBytes / 1024;
+    final sizeStr = sizeKb > 1024
+        ? '${(sizeKb / 1024).toStringAsFixed(1)} MB'
+        : '${sizeKb.toStringAsFixed(0)} KB';
+
+    // Pick icon and color for extension
+    IconData fileIcon = Icons.insert_drive_file_rounded;
+    Color iconColor = const Color(0xFF172B4D);
+    Color iconBg = const Color(0xFFE9EEF5);
+
+    if (ext == 'pdf') {
+      fileIcon = Icons.picture_as_pdf_rounded;
+      iconColor = const Color(0xFFC84C43);
+      iconBg = const Color(0xFFFDE8E6);
+    } else if (ext == 'zip' || ext == 'rar' || ext == '7z') {
+      fileIcon = Icons.folder_zip_rounded;
+      iconColor = const Color(0xFFE47543);
+      iconBg = const Color(0xFFFDEEE6);
+    } else if (ext == 'doc' || ext == 'docx') {
+      fileIcon = Icons.description_rounded;
+      iconColor = const Color(0xFF2E66E7);
+      iconBg = const Color(0xFFE8EFFF);
+    } else if (ext == 'xls' || ext == 'xlsx') {
+      fileIcon = Icons.table_chart_rounded;
+      iconColor = const Color(0xFF278B68);
+      iconBg = const Color(0xFFE6F5EE);
+    } else if (ext == 'png' || ext == 'jpg' || ext == 'jpeg') {
+      fileIcon = Icons.image_rounded;
+      iconColor = const Color(0xFF7A1B28);
+      iconBg = const Color(0xFFF8E7E9);
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1A2332) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF17202A);
+    final subColor = isDark ? Colors.white70 : const Color(0xFF6E7681);
+    final cardBorder = isDark ? const Color(0xFF2C3B50) : const Color(0xFFE2DED5);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bgColor,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (modalCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4.5,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // File Header Card
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF222E42) : const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cardBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(fileIcon, color: iconColor, size: 26),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fileName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _green.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    ext.toUpperCase(),
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: _green,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  sizeStr,
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontSize: 11,
+                                    color: subColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(Icons.check_circle_rounded, size: 13, color: _green),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Downloaded',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    color: _green,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Primary Action: Open File
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(modalCtx).pop();
+                      openFile(filePath);
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                    label: Text(
+                      'Open File',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _navy,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Secondary Row: Save As... + Share
+                Row(
+                  children: [
+                    // Save to folder / Save As
+                    Expanded(
+                      child: SizedBox(
+                        height: 46,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            Navigator.of(modalCtx).pop();
+                            try {
+                              await FileSaver.instance.saveAs(
+                                name: baseName,
+                                bytes: fileBytes,
+                                fileExtension: ext,
+                                mimeType: mimeType,
+                                customMimeType: customMimeType,
+                              );
+                            } catch (e) {
+                              debugPrint('SaveAs error: $e');
+                            }
+                          },
+                          icon: const Icon(Icons.drive_file_move_outline, size: 17),
+                          label: Text(
+                            'Save to Device',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: textColor,
+                            side: BorderSide(color: cardBorder),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Share
+                    Expanded(
+                      child: SizedBox(
+                        height: 46,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(modalCtx).pop();
+                            shareFile(filePath, title: fileName);
+                          },
+                          icon: const Icon(Icons.share_rounded, size: 17),
+                          label: Text(
+                            'Share / Export',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: textColor,
+                            side: BorderSide(color: cardBorder),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
+

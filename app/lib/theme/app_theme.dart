@@ -1,8 +1,134 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// AppPalette provides unified, responsive color tokens for both
-/// Light Editorial and Dark Editorial (Zero-Neon) design systems.
+/// All 7 Material 3 dynamic seed themes matching the reference app:
+/// Blue, Sakura, Forest, Lemonade, Vapour Wave, Nightfall, Cocoa.
+enum NexusSeedTheme {
+  blue('Blue', Colors.blue),
+  sakura('Sakura', Color.fromARGB(255, 252, 180, 241)),
+  forest('Forest', Color(0xFFB2C5B3)),
+  lime('Lemonade', Color.fromARGB(255, 251, 236, 106)),
+  vapourWave('Vapour Wave', Color(0xFF1fc3ff)),
+  nightfall('Nightfall', Color(0xFF0262A5)),
+  cocoa('Cocoa', Color.fromARGB(255, 255, 202, 184));
+
+  const NexusSeedTheme(this.displayName, this.seedColor);
+
+  final String displayName;
+  final Color seedColor;
+
+  static NexusSeedTheme fromName(String? name) {
+    if (name == null) return NexusSeedTheme.blue;
+    return NexusSeedTheme.values.firstWhere(
+      (theme) => theme.name == name,
+      orElse: () => NexusSeedTheme.blue,
+    );
+  }
+}
+
+/// Circular 3-quadrant Material 3 theme preview indicator (matches reference app's CircularThemeIndicator)
+class CircularThemeIndicator extends StatelessWidget {
+  final NexusSeedTheme theme;
+  final bool isDarkMode;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const CircularThemeIndicator({
+    super.key,
+    required this.theme,
+    required this.isDarkMode,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: theme.seedColor,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+      brightness: isDarkMode ? Brightness.dark : Brightness.light,
+    );
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.transparent,
+                width: 3,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                    width: 0.5,
+                  ),
+                ),
+                child: ClipOval(
+                  child: Column(
+                    children: [
+                      // Top half - PrimaryContainer color
+                      Expanded(
+                        child: Container(
+                          color: colorScheme.primaryContainer,
+                        ),
+                      ),
+                      // Bottom half split vertically
+                      Expanded(
+                        child: Row(
+                          children: [
+                            // Bottom left - SurfaceContainer color
+                            Expanded(
+                              child: Container(
+                                color: colorScheme.surfaceContainer,
+                              ),
+                            ),
+                            // Bottom right - Primary color
+                            Expanded(
+                              child: Container(
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            theme.displayName,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// AppPalette provides unified, responsive color tokens that dynamically adapt
+/// to the active Material 3 seed theme, Dark Mode, and AMOLED Mode.
 class AppPalette {
   final Color paper;
   final Color surface;
@@ -34,44 +160,64 @@ class AppPalette {
     required this.isDark,
   });
 
-  /// Light Editorial Palette (Warm paper + ivory + deep navy ink)
+  /// Default Light Palette
   static const light = AppPalette(
-    paper: Color(0xFFF4F2ED),
-    surface: Color(0xFFFFFEFB),
-    soft: Color(0xFFF0EEE8),
-    line: Color(0xFFE2DED5),
+    paper: Color(0xFFF8F9FC),
+    surface: Color(0xFFFFFFFF),
+    soft: Color(0xFFEEF1F7),
+    line: Color(0xFFE0E5EE),
     ink: Color(0xFF17202A),
-    inkSoft: Color(0xFF56616D),
-    inkMuted: Color(0xFF8A929A),
-    navy: Color(0xFF172B4D),
-    blue: Color(0xFF356AE6),
+    inkSoft: Color(0xFF47525E),
+    inkMuted: Color(0xFF68737E),
+    navy: Color(0xFF1E56A0),
+    blue: Color(0xFF2563EB),
     green: Color(0xFF278B68),
     orange: Color(0xFFE47543),
     red: Color(0xFFC84C43),
     isDark: false,
   );
 
-  /// Dark Editorial Palette (Deep matte charcoal + slate + zero neon)
+  /// Default Dark Palette
   static const dark = AppPalette(
-    paper: Color(0xFF111418),
-    surface: Color(0xFF1A1F26),
-    soft: Color(0xFF222933),
-    line: Color(0xFF2D3642),
-    ink: Color(0xFFF1F5F9),
-    inkSoft: Color(0xFF94A3B8),
-    inkMuted: Color(0xFF64748B),
+    paper: Color(0xFF0E131B),
+    surface: Color(0xFF171E29),
+    soft: Color(0xFF202938),
+    line: Color(0xFF2A3649),
+    ink: Color(0xFFF8FAFC),
+    inkSoft: Color(0xFFB4C3D6),
+    inkMuted: Color(0xFF8496AE),
     navy: Color(0xFF93C5FD),
-    blue: Color(0xFF3B82F6),
+    blue: Color(0xFF60A5FA),
     green: Color(0xFF10B981),
-    orange: Color(0xFFD97706),
+    orange: Color(0xFFFB923C),
     red: Color(0xFFEF4444),
     isDark: true,
   );
 
-  /// Returns the current palette based on the active theme brightness
+  /// Dynamically derives the palette from the active Theme's ColorScheme and AMOLED mode
   static AppPalette of(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? dark : light;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final isAmoled = isDark && theme.scaffoldBackgroundColor == Colors.black;
+
+    return AppPalette(
+      paper: isAmoled ? Colors.black : cs.surface,
+      surface: isAmoled
+          ? const Color(0xFF121212)
+          : (isDark ? cs.surfaceContainer : cs.surfaceContainerLow),
+      soft: isAmoled ? const Color(0xFF1C1C1E) : cs.surfaceContainerHigh,
+      line: cs.outlineVariant.withValues(alpha: isDark ? 0.45 : 0.65),
+      ink: cs.onSurface,
+      inkSoft: cs.onSurfaceVariant,
+      inkMuted: cs.outline,
+      navy: cs.primary,
+      blue: cs.primary,
+      green: isDark ? const Color(0xFF10B981) : const Color(0xFF278B68),
+      orange: isDark ? const Color(0xFFFB923C) : const Color(0xFFE47543),
+      red: cs.error,
+      isDark: isDark,
+    );
   }
 
   // Convenient aliases
@@ -81,11 +227,55 @@ class AppPalette {
   Color get success => green;
   Color get warning => orange;
   Color get danger => red;
+  Color get info => blue;
+  Color get onNavy => isDark ? const Color(0xFF0F172A) : Colors.white;
+  Color get heroBg => isDark ? surface : navy;
+  Color get buttonBg => blue;
+
+  // Surface Hierarchy
+  Color get surfaceSubtle => soft;
+  Color get surfaceElevated => surface;
+
+  // Academic status colors
+  Color get attendanceSafe => green;
+  Color get attendanceWarning => orange;
+  Color get attendanceCritical => red;
+
+  Color attendanceColor(double percentage) {
+    if (percentage >= 85.0) return green;
+    if (percentage >= 75.0) return blue;
+    if (percentage >= 65.0) return orange;
+    return red;
+  }
+
+  // Shadows
+  List<BoxShadow> get cardShadow => [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
+          blurRadius: 10,
+          offset: const Offset(0, 2),
+        ),
+      ];
+
+  List<BoxShadow> get elevatedShadow => [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.08),
+          blurRadius: 20,
+          offset: const Offset(0, 6),
+        ),
+      ];
+
+  // Motion Presets
+  static const Duration fastDuration = Duration(milliseconds: 140);
+  static const Duration normalDuration = Duration(milliseconds: 220);
+  static const Duration smoothDuration = Duration(milliseconds: 360);
+  static const Curve springCurve = Curves.easeOutCubic;
+  static const Curve bounceCurve = Curves.elasticOut;
 }
 
 class AppTheme {
   // ───────────────────────────────────────────────────────────────────────────
-  // Backward compatibility static color getters (Defaulting to light tokens)
+  // Backward compatibility static color getters
   // ───────────────────────────────────────────────────────────────────────────
 
   static const Color background = Color(0xFFF4F2ED);
@@ -114,7 +304,6 @@ class AppTheme {
   static const Color warning = Color(0xFFE47543);
   static const Color error = Color(0xFFC84C43);
 
-  // Clean flat gradients for compatibility
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primary, primary],
   );
@@ -153,89 +342,94 @@ class AppTheme {
 
   static List<BoxShadow> get cyanGlow => primaryGlow;
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // LIGHT EDITORIAL THEME DATA
-  // ───────────────────────────────────────────────────────────────────────────
-  static final ThemeData lightTheme = _buildLightTheme();
+  /// Builds a complete Material 3 ThemeData from a [NexusSeedTheme], [isDarkMode], and [isAmoled]
+  static ThemeData getThemeData({
+    required NexusSeedTheme seedTheme,
+    required bool isDarkMode,
+    bool isAmoled = false,
+  }) {
+    final brightness = isDarkMode ? Brightness.dark : Brightness.light;
+    final cs = ColorScheme.fromSeed(
+      seedColor: seedTheme.seedColor,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+      brightness: brightness,
+    );
 
-  static ThemeData _buildLightTheme() {
-    final base = ThemeData.light();
-    final p = AppPalette.light;
+    final base = isDarkMode ? ThemeData.dark(useMaterial3: true) : ThemeData.light(useMaterial3: true);
+    final scaffoldBg = (isDarkMode && isAmoled) ? Colors.black : cs.surface;
+    final cardBg = (isDarkMode && isAmoled)
+        ? const Color(0xFF121212)
+        : (isDarkMode ? cs.surfaceContainer : cs.surfaceContainerLow);
 
     return base.copyWith(
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: p.paper,
-      primaryColor: p.blue,
-      canvasColor: p.paper,
-      colorScheme: ColorScheme.light(
-        primary: p.blue,
-        secondary: p.navy,
-        surface: p.surface,
-        error: p.red,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
-        onSurface: p.ink,
-        onError: Colors.white,
-      ),
-      textTheme: GoogleFonts.dmSansTextTheme(base.textTheme).apply(
-        bodyColor: p.ink,
-        displayColor: p.ink,
+      brightness: brightness,
+      colorScheme: cs,
+      scaffoldBackgroundColor: scaffoldBg,
+      canvasColor: scaffoldBg,
+      primaryColor: cs.primary,
+      textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).apply(
+        bodyColor: cs.onSurface,
+        displayColor: cs.onSurface,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: p.paper,
-        foregroundColor: p.ink,
+        backgroundColor: scaffoldBg,
+        foregroundColor: cs.onSurface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: p.ink),
+        iconTheme: IconThemeData(color: cs.onSurface),
       ),
       cardTheme: CardThemeData(
-        color: p.surface,
+        color: cardBg,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: p.line, width: 1),
+          side: BorderSide(
+            color: cs.outlineVariant.withValues(alpha: isDarkMode ? 0.35 : 0.5),
+            width: 1,
+          ),
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: p.line,
+        color: cs.outlineVariant.withValues(alpha: isDarkMode ? 0.45 : 0.65),
         thickness: 1,
         space: 1,
       ),
       iconTheme: IconThemeData(
-        color: p.ink,
+        color: cs.onSurface,
         size: 22,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: p.surface,
+        fillColor: cardBg,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.line),
+          borderSide: BorderSide(color: cs.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.line),
+          borderSide: BorderSide(color: cs.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.blue, width: 1.5),
+          borderSide: BorderSide(color: cs.primary, width: 1.5),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: p.navy,
-          foregroundColor: Colors.white,
+          backgroundColor: cs.primary,
+          foregroundColor: cs.onPrimary,
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: p.surface,
+        backgroundColor: cardBg,
         surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: p.surface,
+        modalBackgroundColor: cardBg,
         elevation: 8,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -244,96 +438,15 @@ class AppTheme {
     );
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // DARK EDITORIAL THEME DATA (ZERO NEON)
-  // ───────────────────────────────────────────────────────────────────────────
-  static final ThemeData darkTheme = _buildDarkTheme();
+  static final ThemeData lightTheme = getThemeData(
+    seedTheme: NexusSeedTheme.blue,
+    isDarkMode: false,
+  );
 
-  static ThemeData _buildDarkTheme() {
-    final base = ThemeData.dark();
-    final p = AppPalette.dark;
-
-    return base.copyWith(
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: p.paper,
-      primaryColor: p.blue,
-      canvasColor: p.paper,
-      colorScheme: ColorScheme.dark(
-        primary: p.blue,
-        secondary: p.navy,
-        surface: p.surface,
-        error: p.red,
-        onPrimary: Colors.white,
-        onSecondary: const Color(0xFF0F172A),
-        onSurface: p.ink,
-        onError: Colors.white,
-      ),
-      textTheme: GoogleFonts.dmSansTextTheme(base.textTheme).apply(
-        bodyColor: p.ink,
-        displayColor: p.ink,
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: p.paper,
-        foregroundColor: p.ink,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
-        iconTheme: IconThemeData(color: p.ink),
-      ),
-      cardTheme: CardThemeData(
-        color: p.surface,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: p.line, width: 1),
-        ),
-      ),
-      dividerTheme: DividerThemeData(
-        color: p.line,
-        thickness: 1,
-        space: 1,
-      ),
-      iconTheme: IconThemeData(
-        color: p.ink,
-        size: 22,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: p.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.line),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.line),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: p.blue, width: 1.5),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: p.blue,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-      bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: p.surface,
-        surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: p.surface,
-        elevation: 8,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-      ),
-    );
-  }
+  static final ThemeData darkTheme = getThemeData(
+    seedTheme: NexusSeedTheme.blue,
+    isDarkMode: true,
+  );
 
   static ThemeData get appTheme => lightTheme;
 }

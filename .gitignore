@@ -50,3 +50,8 @@ app/*.iml
 # ─── OS ──────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# ─── Rust (on-device engine) ─────────────────────
+app/rust/target/
+app/android/.gradle/
+app/android/local.properties

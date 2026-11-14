@@ -1,0 +1,66 @@
+[package]
+name = "lib_vtop"
+version = "2.0.0"
+edition = "2021"
+description = "A minimal libre package for scraping VTOP "
+license = "Apache-2.0"
+repository = "https://github.com/Udhay-Adithya/vitap_student_app"
+homepage = "https://github.com/Udhay-Adithya/vitap_student_app"
+documentation = "https://docs.rs/lib_vtop"
+readme = "README.md"
+keywords = ["vtop", "api", "education"]
+categories = ["api-bindings", "web-programming"]
+authors = ["VITAP Students <sanjay@nullvijayawada.org>"]
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+flutter_rust_bridge = "=2.12.0"
+reqwest = { version = "0.13.2", default-features = false, features = ["stream", "rustls", "json", "multipart", "cookies"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2"
+webpki-roots = "0.26"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.149"
+scraper = "0.26.0"
+regex = "1.12.3"
+base = "0.1.0"
+base64 = "0.22.1"
+tokio = { version = "1.51.1", features = ["macros", "rt-multi-thread"] }
+urlencoding = "2"
+chrono = "0.4.44"
+env_logger = "0.11.10"
+dotenv = "0.15"
+ndarray = "0.17.2"
+image = "0.25.10"
+lazy_static = "1.5.0"
+
+[dev-dependencies]
+tokio-test = "0.4.5"
+# Already in the tree via reqwest; used to build synthetic responses in tests.
+http = "1"
+env_logger = "0.11.8"
+flutter_rust_bridge_codegen = "2.12.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+[profile.release]
+panic = "abort" # Strip expensive panic clean-up logic
+codegen-units = 1 # Compile crates one after another so the compiler can optimize better
+lto = true # Enables link to optimizations
+opt-level = "s" # Optimize for binary size
+strip = true # Remove debug symbols
+
+[profile.test]
+opt-level = 0
+debug = true
+
+[[bin]]
+name = "dryrun"
+path = "src/dryrun.rs"
+
+[[bin]]
+name = "faculty_fetch"
+path = "src/faculty_fetch.rs"

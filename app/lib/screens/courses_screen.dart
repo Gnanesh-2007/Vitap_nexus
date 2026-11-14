@@ -1,7 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
@@ -9,6 +11,33 @@ import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/download_helper.dart';
 import '../utils/error_formatter.dart';
+import '../widgets/motion/nexus_motion.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
+
+String _extractFacultyName(String faculty) {
+  final parts = faculty.split(' - ');
+  if (parts.length >= 2) {
+    return parts[1].trim();
+  }
+  return faculty.trim();
+}
+
+String _getCourseTypeLabel(String type) {
+  switch (type.toUpperCase().trim()) {
+    case 'ETH':
+    case 'TH':
+      return 'Theory';
+    case 'ELA':
+    case 'LO':
+      return 'Lab';
+    case 'EPJ':
+      return 'Project';
+    case 'SS':
+      return 'Soft Skill';
+    default:
+      return type;
+  }
+}
 
 class CoursesScreen extends ConsumerStatefulWidget {
   const CoursesScreen({super.key});
@@ -19,6 +48,7 @@ class CoursesScreen extends ConsumerStatefulWidget {
 
 class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   late Future<Map<String, dynamic>> _coursesFuture;
+  Map<String, dynamic>? _cachedData;
 
   // Selected Course
   Map<String, dynamic>? _selectedCourse;
@@ -27,13 +57,8 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   List<dynamic> _classSections = [];
   bool _isLoadingSections = false;
 
-  // Selected Slot filter (e.g. 'All', 'D1/TD1', 'D1/TDD1', etc.)
+  // Selected Base Slot filter (e.g. 'All', 'A1', 'B1', 'D1', 'E1', etc.)
   String _selectedSlot = 'All';
-
-  // Details for the currently viewed faculty section
-  Map<String, dynamic>? _currentCourseDetail;
-  bool _isLoadingDetail = false;
-  bool _isDownloading = false;
 
   // Campus Editorial Palette
   AppPalette get _palette => AppPalette.of(context);
@@ -44,7 +69,6 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   Color get _navy => _palette.navy;
   Color get _blue => _palette.blue;
   Color get _orange => _palette.orange;
-  Color get _green => _palette.green;
   Color get _red => _palette.red;
   Color get _muted => _palette.inkMuted;
   Color get _line => _palette.line;
@@ -59,14 +83,25 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   @override
   void initState() {
     super.initState();
+    final mem = StorageService.getMemoryCache('courses');
+    if (mem is Map && mem.isNotEmpty) {
+      _cachedData = Map<String, dynamic>.from(mem);
+    }
     _loadCourses();
   }
 
   void _loadCourses({bool forceRefresh = false}) {
-    _coursesFuture = _getCoursesData(forceRefresh: forceRefresh);
+    _coursesFuture = _getCoursesData(forceRefresh: forceRefresh).then((data) {
+      if (mounted && data.isNotEmpty) {
+        setState(() => _cachedData = data);
+      }
+      return data;
+    });
   }
 
-  Future<Map<String, dynamic>> _getCoursesData({bool forceRefresh = false}) async {
+  Future<Map<String, dynamic>> _getCoursesData({
+    bool forceRefresh = false,
+  }) async {
     if (!forceRefresh) {
       final mem = StorageService.getMemoryCache('courses');
       if (mem is Map && mem.isNotEmpty) {
@@ -93,8 +128,11 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
         return fresh;
       }
     } catch (e) {
-      debugPrint('CoursesScreen: Courses fetch failed ($e). Checking offline cache...');
-      final fallback = StorageService.getMemoryCache('courses') ??
+      debugPrint(
+        'CoursesScreen: Courses fetch failed ($e). Checking offline cache...',
+      );
+      final fallback =
+          StorageService.getMemoryCache('courses') ??
           await StorageService.getCache('courses');
       if (fallback is Map && fallback.isNotEmpty) {
         return Map<String, dynamic>.from(fallback);
@@ -102,7 +140,8 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       rethrow;
     }
 
-    final fallback = StorageService.getMemoryCache('courses') ??
+    final fallback =
+        StorageService.getMemoryCache('courses') ??
         await StorageService.getCache('courses');
     if (fallback is Map && fallback.isNotEmpty) {
       return Map<String, dynamic>.from(fallback);
@@ -112,9 +151,10 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
 
   Future<void> _selectCourse(Map<String, dynamic> course) async {
     final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
-    final semId = auth.activeSemesterId ?? '';
+    final creds = await StorageService.getCredentials();
+    final username = auth.username ?? creds['username'] ?? '';
+    final password = auth.password ?? creds['password'] ?? '';
+    final semId = auth.activeSemesterId ?? creds['semesterId'] ?? '';
     final courseValue = course['value']?.toString() ?? '';
 
     setState(() {
@@ -122,7 +162,6 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       _classSections = [];
       _selectedSlot = 'All';
       _isLoadingSections = true;
-      _currentCourseDetail = null;
     });
 
     try {
@@ -143,79 +182,49 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingSections = false);
-      _showMessage(ErrorFormatter.format(e, fallback: 'Unable to load course faculties. Please try again.'), color: _red);
+      _showMessage(
+        ErrorFormatter.format(
+          e,
+          fallback: 'Unable to load course faculties. Please try again.',
+        ),
+        color: _red,
+      );
     }
   }
 
-  Future<void> _loadFacultyDetailAndOpenModal(dynamic section) async {
-    final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
-    final semId = auth.activeSemesterId ?? '';
-
+  void _openLecturesPage(dynamic section) {
     final erpId = section['erp_id']?.toString() ?? '';
-    final classId = section['class_id']?.toString() ??
+    final classId =
+        section['class_id']?.toString() ??
         (_selectedCourse?['value']?.toString() ?? '');
+    final faculty = section['faculty']?.toString() ?? 'Faculty';
+    final slot = section['slot']?.toString() ?? '';
+    final courseCode =
+        section['course_code']?.toString() ??
+        _selectedCourse?['course_code']?.toString() ??
+        '';
+    final courseType =
+        section['course_type']?.toString() ??
+        _selectedCourse?['course_type']?.toString() ??
+        '';
+    final courseTitle =
+        section['course_title']?.toString() ??
+        _selectedCourse?['course_title']?.toString() ??
+        _formatCourseDisplayTitle(_selectedCourse ?? {});
 
-    setState(() {
-      _isLoadingDetail = true;
-      _currentCourseDetail = null;
-    });
-
-    // Open modal bottom sheet immediately with loading state
-    _showFacultyWorkspaceBottomSheet(section);
-
-    try {
-      final detail = await apiService.fetchCourseDetail(
-        username: username,
-        password: password,
-        semSubId: semId,
-        erpId: erpId,
-        classId: classId,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _currentCourseDetail = detail;
-        _isLoadingDetail = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingDetail = false;
-      });
-      _showMessage(ErrorFormatter.format(e, fallback: 'Unable to load course materials. Please try again.'), color: _red);
-    }
-  }
-
-  Future<void> _downloadMaterial(String downloadPath, String filename) async {
-    if (downloadPath.isEmpty) return;
-    final auth = ref.read(authProvider);
-
-    setState(() => _isDownloading = true);
-    try {
-      final bytes = await apiService.downloadCourseMaterial(
-        username: auth.username ?? '',
-        password: auth.password ?? '',
-        downloadPath: downloadPath,
-      );
-
-      if (!mounted) return;
-      setState(() => _isDownloading = false);
-
-      final cleanName = filename.isNotEmpty ? filename : 'Course_Material.pdf';
-      await DownloadHelper.saveFile(
-        context: context,
-        fileName: cleanName,
-        content: bytes,
-        mimeType: 'application/pdf',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isDownloading = false);
-      _showMessage(ErrorFormatter.format(e, fallback: 'Download could not be completed. Please try again.'), color: _red);
-    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CourseLecturesScreen(
+          courseTitle: courseTitle,
+          courseCode: courseCode,
+          courseType: courseType,
+          slot: slot,
+          faculty: faculty,
+          erpId: erpId,
+          classId: classId,
+        ),
+      ),
+    );
   }
 
   void _showMessage(String msg, {required Color color}) {
@@ -237,15 +246,38 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     );
   }
 
-  List<String> _extractSlots(List<dynamic> entries) {
-    final List<String> slots = [];
-    for (final e in entries) {
-      final s = (e['slot']?.toString() ?? '').trim();
-      if (s.isNotEmpty && !slots.contains(s)) {
-        slots.add(s);
+  /// Extracts unique base slots modeled after vitap_student_app_ref/course_page.dart
+  List<String> _extractUniqueSlots(List<dynamic> entries) {
+    final slotSet = <String>{};
+    for (final entry in entries) {
+      final rawSlot = (entry['slot']?.toString() ?? '').trim();
+      if (rawSlot.isEmpty) continue;
+      final parts = rawSlot.split('+');
+      for (final part in parts) {
+        final cleaned = part.trim().replaceAll(RegExp(r'^T'), '');
+        if (cleaned.isNotEmpty) {
+          slotSet.add(cleaned);
+        }
       }
     }
-    return slots;
+
+    final sortedSlots = slotSet.toList()
+      ..sort((a, b) {
+        final regex = RegExp(r'^([A-Z]+)(\d+)$');
+        final matchA = regex.firstMatch(a);
+        final matchB = regex.firstMatch(b);
+
+        if (matchA != null && matchB != null) {
+          final prefixCompare = matchA.group(1)!.compareTo(matchB.group(1)!);
+          if (prefixCompare != 0) return prefixCompare;
+          return int.parse(
+            matchA.group(2)!,
+          ).compareTo(int.parse(matchB.group(2)!));
+        }
+        return a.compareTo(b);
+      });
+
+    return ['All', ...sortedSlots];
   }
 
   String _formatCourseDisplayTitle(Map<String, dynamic> course) {
@@ -254,13 +286,40 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     final label = (course['label']?.toString() ?? '').trim();
 
     if (title.isNotEmpty && type.isNotEmpty) {
-      return '$title - $type';
+      return '$title - ${_getCourseTypeLabel(type)}';
     } else if (title.isNotEmpty) {
       return title;
     } else if (label.isNotEmpty) {
       return label;
     }
     return 'Choose a course';
+  }
+
+  Future<void> _onRefresh() async {
+    try {
+      final fresh = await _getCoursesData(forceRefresh: true);
+      if (mounted && fresh.isNotEmpty) {
+        setState(() => _cachedData = fresh);
+      }
+      if (_selectedCourse != null) {
+        await _selectCourse(_selectedCourse!);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No internet connection. Showing saved data.',
+            style: GoogleFonts.dmSans(
+              color: _palette.onNavy,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _navy,
+        ),
+      );
+    }
   }
 
   @override
@@ -271,13 +330,15 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
         child: RefreshIndicator(
           color: _blue,
           backgroundColor: _surface,
-          onRefresh: () async {
-            setState(() => _loadCourses(forceRefresh: true));
-            await _coursesFuture;
-          },
+          onRefresh: _onRefresh,
           child: FutureBuilder<Map<String, dynamic>>(
             future: _coursesFuture,
             builder: (context, snapshot) {
+              final data = _cachedData ?? snapshot.data;
+              if (data != null && data.isNotEmpty) {
+                return _buildCoursesContent(data);
+              }
+
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return _buildLoading();
               }
@@ -286,53 +347,52 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                 return _buildError(
                   ErrorFormatter.format(
                     snapshot.error,
-                    fallback: 'Unable to load registered courses. Please check your connection and try again.',
+                    fallback:
+                        'Unable to load registered courses. Please check your connection and try again.',
                   ),
                 );
               }
 
-              final data = snapshot.data ?? {};
-              final courses = (data['courses'] as List<dynamic>?) ?? [];
-
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 14),
-
-                  // Top Course Selection Box (Image 1 & 3 Model)
-                  _buildCourseSelectorBox(courses),
-                  const SizedBox(height: 18),
-
-                  // If no course is selected -> Show Center Empty State (Image 1)
-                  if (_selectedCourse == null)
-                    _buildInitialEmptyState()
-                  else ...[
-                    // When course is selected:
-                    if (_isLoadingSections)
-                      _buildSectionsLoading()
-                    else ...[
-                      // Horizontal Slot Filters (Image 3 Model)
-                      _buildSlotFilterBar(),
-                      const SizedBox(height: 20),
-
-                      // Faculty Section Title
-                      _buildFacultySectionHeader(),
-                      const SizedBox(height: 12),
-
-                      // Faculty List Cards (Image 3 Model)
-                      _buildFacultyList(),
-                    ],
-                  ],
-                ],
-              );
+              return _buildCoursesContent(data ?? {});
             },
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCoursesContent(Map<String, dynamic> data) {
+    final courses = (data['courses'] as List<dynamic>?) ?? [];
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      children: [
+        _buildHeader(),
+        const SizedBox(height: 16),
+
+        // Course Selector Box (modeled after vitap_student_app_ref/course_page.dart)
+        _buildCourseSelectorBox(courses),
+        const SizedBox(height: 16),
+
+        if (_selectedCourse == null)
+          _buildInitialEmptyState()
+        else ...[
+          if (_isLoadingSections)
+            _buildSectionsLoading()
+          else ...[
+            if (_classSections.isNotEmpty) ...[
+              _buildSlotFilterBar(),
+              const SizedBox(height: 18),
+            ],
+            _buildFacultySectionHeader(),
+            const SizedBox(height: 12),
+            _buildFacultyList(),
+          ],
+        ],
+      ],
     );
   }
 
@@ -353,11 +413,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _line),
             ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              color: _navy,
-              size: 19,
-            ),
+            child: Icon(Icons.arrow_back_rounded, color: _navy, size: 19),
           ),
         ),
         const SizedBox(width: 13),
@@ -365,10 +421,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'ACADEMICS',
-                style: _micro.copyWith(color: _orange),
-              ),
+              Text('ACADEMICS', style: _micro.copyWith(color: _orange)),
               const SizedBox(height: 3),
               Text(
                 'Course Page',
@@ -393,11 +446,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _line),
             ),
-            child: Icon(
-              Icons.refresh_rounded,
-              color: _navy,
-              size: 18,
-            ),
+            child: Icon(Icons.refresh_rounded, color: _navy, size: 18),
           ),
         ),
       ],
@@ -405,7 +454,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   }
 
   // ============================================================
-  // TOP COURSE SELECTOR BOX (Images 1 & 3)
+  // TOP COURSE SELECTOR BOX
   // ============================================================
   Widget _buildCourseSelectorBox(List<dynamic> courses) {
     final isSelected = _selectedCourse != null;
@@ -413,132 +462,66 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
         ? _formatCourseDisplayTitle(_selectedCourse!)
         : 'Choose a course';
 
-    return InkWell(
+    return NexusCard(
+      variant: NexusCardVariant.standard,
       onTap: () => _openCoursePickerBottomSheet(courses),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? _navy : _line,
-            width: isSelected ? 1.4 : 1,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      borderColor: isSelected ? _navy : _line,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Select Course',
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isSelected ? _blue : _muted,
+            ),
           ),
-          boxShadow: isSelected
-              ? const [
-                  BoxShadow(
-                    color: Color(0x0A172B4D),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  displayTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? _ink : _muted,
                   ),
-                ]
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Course',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-                color: isSelected ? _blue : _muted,
-                letterSpacing: 0.5,
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: _soft,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.auto_stories_outlined,
-                    size: 17,
-                    color: _navy,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    displayTitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14.5,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected ? _ink : _muted,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: _inkSoft,
-                  size: 22,
-                ),
-              ],
-            ),
-          ],
-        ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: _inkSoft,
+                size: 22,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   // ============================================================
-  // EMPTY INITIAL STATE (Image 1)
+  // EMPTY INITIAL STATE
   // ============================================================
   Widget _buildInitialEmptyState() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 110, horizontal: 20),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: _surface,
-              shape: BoxShape.circle,
-              border: Border.all(color: _line),
-            ),
-            child: Icon(
-              Icons.menu_book_rounded,
-              size: 38,
-              color: _muted,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'Select a course',
-            style: GoogleFonts.dmSans(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: _inkSoft,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tap the course selector above to choose a subject',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.dmSans(
-              fontSize: 12,
-              color: _muted,
-            ),
-          ),
-        ],
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 80, horizontal: 20),
+      child: NexusEmptyState(
+        title: 'Select a course',
+        description: 'Choose a course from the dropdown above',
+        icon: Icons.school_outlined,
       ),
-    ).animate().fadeIn(duration: 300.ms);
+    );
   }
 
   // ============================================================
-  // COURSE PICKER BOTTOM SHEET (Image 2)
+  // COURSE PICKER BOTTOM SHEET
   // ============================================================
   void _openCoursePickerBottomSheet(List<dynamic> courses) {
     String searchQuery = '';
@@ -557,7 +540,10 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
               final q = searchQuery.trim().toLowerCase();
               if (q.isEmpty) return true;
               final code = (c['course_code'] ?? '').toString().toLowerCase();
-              final title = (c['course_title'] ?? c['label'] ?? '').toString().toLowerCase();
+              final title =
+                  (c['course_title'] ?? c['label'] ?? '')
+                      .toString()
+                      .toLowerCase();
               final type = (c['course_type'] ?? '').toString().toLowerCase();
               return code.contains(q) || title.contains(q) || type.contains(q);
             }).toList();
@@ -572,7 +558,6 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Handle
                     Center(
                       child: Container(
                         width: 38,
@@ -584,12 +569,10 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Header
                     Row(
                       children: [
                         Text(
-                          'Choose Course',
+                          'Select Course',
                           style: GoogleFonts.dmSans(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
@@ -598,7 +581,10 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                         ),
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: _soft,
                             borderRadius: BorderRadius.circular(8),
@@ -615,14 +601,13 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-
-                    // Search input
                     Container(
                       height: 44,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: _soft,
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _line),
                       ),
                       child: Row(
                         children: [
@@ -640,7 +625,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                                 fontWeight: FontWeight.w600,
                               ),
                               decoration: InputDecoration(
-                                hintText: 'Search course code or name...',
+                                hintText: 'Search course code or title...',
                                 hintStyle: GoogleFonts.dmSans(
                                   fontSize: 12.5,
                                   color: _muted,
@@ -653,26 +638,34 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-
-                    // Course list (matching Image 2)
+                    const SizedBox(height: 12),
                     Expanded(
                       child: filtered.isEmpty
                           ? Center(
                               child: Text(
                                 'No matching courses found',
-                                style: GoogleFonts.dmSans(color: _muted, fontSize: 13),
+                                style: GoogleFonts.dmSans(
+                                  color: _muted,
+                                  fontSize: 13,
+                                ),
                               ),
                             )
                           : ListView.separated(
                               physics: const BouncingScrollPhysics(),
                               itemCount: filtered.length,
-                              separatorBuilder: (context, index) => Divider(height: 1, color: _line),
+                              separatorBuilder: (_, _) =>
+                                  Divider(height: 1, color: _line),
                               itemBuilder: (context, index) {
-                                final course = filtered[index];
-                                final isChosen = _selectedCourse?['value'] == course['value'];
+                                final course =
+                                    Map<String, dynamic>.from(
+                                      filtered[index] as Map,
+                                    );
+                                final isChosen =
+                                    _selectedCourse?['value'] ==
+                                    course['value'];
                                 final title = _formatCourseDisplayTitle(course);
-                                final code = course['course_code']?.toString() ?? '';
+                                final code =
+                                    course['course_code']?.toString() ?? '';
 
                                 return InkWell(
                                   onTap: () {
@@ -681,31 +674,40 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                                   },
                                   borderRadius: BorderRadius.circular(10),
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                      horizontal: 8,
+                                    ),
                                     child: Row(
                                       children: [
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               if (code.isNotEmpty)
                                                 Text(
                                                   code.toUpperCase(),
-                                                  style: GoogleFonts.spaceGrotesk(
-                                                    fontSize: 9.5,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: _blue,
-                                                    letterSpacing: 0.5,
-                                                  ),
+                                                  style:
+                                                      GoogleFonts.spaceGrotesk(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: _blue,
+                                                        letterSpacing: 0.5,
+                                                      ),
                                                 ),
                                               const SizedBox(height: 2),
                                               Text(
                                                 title,
                                                 style: GoogleFonts.dmSans(
                                                   fontSize: 14.5,
-                                                  fontWeight:
-                                                      isChosen ? FontWeight.w800 : FontWeight.w600,
-                                                  color: isChosen ? _blue : _ink,
+                                                  fontWeight: isChosen
+                                                      ? FontWeight.w800
+                                                      : FontWeight.w600,
+                                                  color: isChosen
+                                                      ? _blue
+                                                      : _ink,
                                                 ),
                                               ),
                                             ],
@@ -735,11 +737,10 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   }
 
   // ============================================================
-  // SLOT FILTER BAR (Image 3)
+  // BASE SLOT FILTER BAR (modeled after vitap_student_app_ref/course_page.dart)
   // ============================================================
   Widget _buildSlotFilterBar() {
-    final slots = _extractSlots(_classSections);
-    final allSlots = ['All', ...slots];
+    final allSlots = _extractUniqueSlots(_classSections);
 
     return SizedBox(
       height: 38,
@@ -747,91 +748,18 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: allSlots.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final slot = allSlots[index];
           final isSelected = _selectedSlot == slot;
 
-          return InkWell(
+          return NexusFilterChip(
+            label: slot,
+            isSelected: isSelected,
             onTap: () => setState(() => _selectedSlot = slot),
-            borderRadius: BorderRadius.circular(19),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? _navy : _surface,
-                borderRadius: BorderRadius.circular(19),
-                border: Border.all(
-                  color: isSelected ? _navy : _line,
-                  width: 1.2,
-                ),
-                boxShadow: isSelected
-                    ? const [
-                        BoxShadow(
-                          color: Color(0x14172B4D),
-                          blurRadius: 8,
-                          offset: Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isSelected) ...[
-                    Icon(Icons.check_rounded, size: 14, color: Colors.white),
-                    const SizedBox(width: 5),
-                  ],
-                  Text(
-                    slot,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected ? Colors.white : _ink,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           );
         },
       ),
-    );
-  }
-
-  // ============================================================
-  // FACULTY SECTION HEADER (Image 3)
-  // ============================================================
-  Widget _buildFacultySectionHeader() {
-    final filtered = _getFilteredFaculties();
-
-    return Row(
-      children: [
-        Text(
-          'Select Faculty',
-          style: GoogleFonts.dmSans(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: _ink,
-          ),
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _soft,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            '${filtered.length} FACULTIES',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 8.5,
-              fontWeight: FontWeight.w800,
-              color: _navy,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -840,37 +768,51 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       return _classSections;
     }
     return _classSections
-        .where((s) => (s['slot']?.toString() ?? '').trim() == _selectedSlot)
+        .where((s) => (s['slot']?.toString() ?? '').contains(_selectedSlot))
         .toList();
   }
 
   // ============================================================
-  // FACULTY LIST CARDS (Image 3)
+  // FACULTY SECTION HEADER
+  // ============================================================
+  Widget _buildFacultySectionHeader() {
+    return Text(
+      'Select Faculty',
+      style: GoogleFonts.dmSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w800,
+        color: _ink,
+      ),
+    );
+  }
+
+  // ============================================================
+  // FACULTY LIST CARDS (ClassEntryCard model)
   // ============================================================
   Widget _buildFacultyList() {
     final filtered = _getFilteredFaculties();
 
     if (filtered.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _line),
-        ),
-        child: Center(
-          child: Text(
-            'No faculty sections found for slot "$_selectedSlot".',
-            style: GoogleFonts.dmSans(color: _muted, fontSize: 13),
-          ),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: NexusEmptyState(
+          title: 'No faculty sections found',
+          description: _selectedSlot == 'All'
+              ? 'No class sections available for this course.'
+              : 'No faculty sections found for slot "$_selectedSlot".',
+          icon: Icons.inbox_outlined,
         ),
       );
     }
 
     return Column(
-      children: filtered.map((section) {
-        final facultyName = section['faculty']?.toString() ?? 'Faculty';
-        final courseCode = section['course_code']?.toString() ??
+      children: filtered.asMap().entries.map((entry) {
+        final index = entry.key;
+        final section = entry.value;
+        final rawFaculty = section['faculty']?.toString() ?? 'Faculty';
+        final facultyName = _extractFacultyName(rawFaculty);
+        final courseCode =
+            section['course_code']?.toString() ??
             _selectedCourse?['course_code']?.toString() ??
             '';
         final slot = section['slot']?.toString() ?? '';
@@ -878,453 +820,51 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
             ? '$courseCode - $slot'
             : (slot.isNotEmpty ? slot : courseCode);
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _line),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x06000000),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _loadFacultyDetailAndOpenModal(section),
-              borderRadius: BorderRadius.circular(18),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            facultyName,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w700,
-                              color: _ink,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            subtitle,
-                            style: GoogleFonts.spaceGrotesk(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _inkSoft,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: _inkSoft,
-                      size: 22,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    ).animate().fadeIn(duration: 250.ms);
-  }
-
-  // ============================================================
-  // FACULTY WORKSPACE MODAL (Syllabus, Notes, Reference Material)
-  // ============================================================
-  void _showFacultyWorkspaceBottomSheet(dynamic section) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: _surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (modalCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            final faculty = section['faculty']?.toString() ?? 'Faculty';
-            final slot = section['slot']?.toString() ?? '';
-            final courseCode = section['course_code']?.toString() ??
-                _selectedCourse?['course_code']?.toString() ??
-                '';
-            final courseTitle = _selectedCourse?['course_title']?.toString() ??
-                _formatCourseDisplayTitle(_selectedCourse ?? {});
-
-            final syllabusPath =
-                _currentCourseDetail?['syllabus_download_path']?.toString() ?? '';
-            final coursePlanPath =
-                _currentCourseDetail?['course_plan_download_path']?.toString() ?? '';
-            final downloadGeneralPath =
-                _currentCourseDetail?['download_general_materials_path']?.toString() ?? '';
-            final downloadAllPath =
-                _currentCourseDetail?['download_all_path']?.toString() ?? '';
-            final lectures =
-                (_currentCourseDetail?['lectures'] as List<dynamic>?) ?? [];
-
-            return SafeArea(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.86,
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle
-                    Center(
-                      child: Container(
-                        width: 38,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: _line,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Faculty & Course Title Card
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: _navy,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                courseCode.toUpperCase(),
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFFBFD1FF),
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                              const Spacer(),
-                              if (slot.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    slot,
-                                    style: GoogleFonts.spaceGrotesk(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            courseTitle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.person_outline_rounded,
-                                  size: 15, color: Color(0xFFD9E3FF)),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  faculty,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white.withValues(alpha: 0.9),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Material / Download buttons
-                    if (_isLoadingDetail)
-                      Expanded(
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: _navy,
-                          ),
-                        ),
-                      )
-                    else
-                      Expanded(
-                        child: ListView(
-                          physics: const BouncingScrollPhysics(),
-                          children: [
-                            // Quick Action Buttons
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                if (syllabusPath.isNotEmpty)
-                                  _buildActionButton(
-                                    icon: Icons.menu_book_outlined,
-                                    label: 'Syllabus',
-                                    color: _blue,
-                                    onTap: () => _downloadMaterial(
-                                        syllabusPath, '$courseCode-Syllabus.pdf'),
-                                  ),
-                                if (coursePlanPath.isNotEmpty)
-                                  _buildActionButton(
-                                    icon: Icons.calendar_today_outlined,
-                                    label: 'Course Plan',
-                                    color: _green,
-                                    onTap: () => _downloadMaterial(
-                                        coursePlanPath, '$courseCode-CoursePlan.pdf'),
-                                  ),
-                                if (downloadGeneralPath.isNotEmpty)
-                                  _buildActionButton(
-                                    icon: Icons.library_books_outlined,
-                                    label: 'Ref Materials',
-                                    color: const Color(0xFF6575C5),
-                                    onTap: () => _downloadMaterial(
-                                        downloadGeneralPath, '$courseCode-GeneralRef.zip'),
-                                  ),
-                                if (downloadAllPath.isNotEmpty)
-                                  _buildActionButton(
-                                    icon: Icons.folder_zip_outlined,
-                                    label: 'Download All',
-                                    color: _orange,
-                                    onTap: () => _downloadMaterial(
-                                        downloadAllPath, '$courseCode-Materials.zip'),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-
-                            // Lecture Topics Header
-                            Row(
-                              children: [
-                                Text(
-                                  'LECTURE NOTES & TOPICS',
-                                  style: _micro.copyWith(color: _ink),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  '${lectures.length} SESSIONS',
-                                  style: GoogleFonts.spaceGrotesk(
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: _muted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Lectures List
-                            if (lectures.isEmpty)
-                              Container(
-                                padding: const EdgeInsets.all(28),
-                                decoration: BoxDecoration(
-                                  color: _soft,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'No lecture materials uploaded yet.',
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 12.5,
-                                      color: _muted,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              ...lectures.map((lec) => _buildLectureItem(lec)),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: _isDownloading ? null : onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-        decoration: BoxDecoration(
-          color: _soft,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _line),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: _ink,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLectureItem(dynamic lec) {
-    final slNo = lec['sl_no']?.toString() ?? '';
-    final date = (lec['formatted_date'] ?? lec['date'] ?? lec['class_date'] ?? '').toString();
-    final topic = (lec['topic'] ?? 'Lecture Session').toString();
-    
-    final rawMaterials = lec['reference_materials'] ?? lec['materials'] ?? [];
-    final List<dynamic> materials = rawMaterials is List ? rawMaterials : [];
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _soft,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (slNo.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _surface,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _line),
-                  ),
-                  child: Text(
-                    '#$slNo',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      color: _navy,
-                    ),
-                  ),
-                ),
-              const Spacer(),
-              if (date.isNotEmpty)
-                Text(
-                  date,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: _inkSoft,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            topic,
-            style: GoogleFonts.dmSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: _ink,
-            ),
-          ),
-          if (materials.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: materials.map((m) {
-                final matTitle = (m['label'] ?? m['material_title'] ?? m['title'] ?? 'Reference Material').toString();
-                final downloadPath = (m['download_path'] ?? '').toString();
-                final cleanExt = matTitle.toLowerCase().endsWith('.pdf') ? '' : '.pdf';
-                final filename = (m['filename'] ?? '$matTitle$cleanExt').toString();
-
-                if (downloadPath.isEmpty) return const SizedBox.shrink();
-
-                return InkWell(
-                  onTap: () => _downloadMaterial(downloadPath, filename),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: _surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFC7D7F8)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+        return AnimeStaggerItem(
+          index: index,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: NexusCard(
+              variant: NexusCardVariant.standard,
+              onTap: () => _openLecturesPage(section),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.download_rounded, size: 13, color: _blue),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            matTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: _blue,
-                            ),
+                        Text(
+                          facultyName,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: _ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _inkSoft,
                           ),
                         ),
                       ],
                     ),
                   ),
-                );
-              }).toList(),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: _inkSoft,
+                    size: 16,
+                  ),
+                ],
+              ),
             ),
-          ],
-        ],
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -1339,18 +879,12 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
           SizedBox(
             width: 32,
             height: 32,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: _navy,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2.5, color: _navy),
           ),
           const SizedBox(height: 14),
           Text(
             'Loading course page...',
-            style: GoogleFonts.dmSans(
-              color: _muted,
-              fontSize: 13,
-            ),
+            style: GoogleFonts.dmSans(color: _muted, fontSize: 13),
           ),
         ],
       ),
@@ -1366,17 +900,637 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
           SizedBox(
             width: 26,
             height: 26,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.2,
-              color: _navy,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2.2, color: _navy),
           ),
           const SizedBox(height: 12),
           Text(
             'Loading faculty sections...',
+            style: GoogleFonts.dmSans(color: _muted, fontSize: 12.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError(dynamic error) {
+    final cleanMessage = ErrorFormatter.format(
+      error,
+      fallback: 'Unable to load courses right now. Pull down or tap retry.',
+    );
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _loadCourses(forceRefresh: true));
+      },
+      color: _blue,
+      backgroundColor: _surface,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        children: [
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: _red.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    color: _red,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Failed to Load Courses',
+                  style: GoogleFonts.dmSans(
+                    color: _ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  cleanMessage,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                    color: _muted,
+                    fontSize: 12.5,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: () =>
+                      setState(() => _loadCourses(forceRefresh: true)),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Retry'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _navy,
+                    foregroundColor: _palette.isDark
+                        ? const Color(0xFF0F172A)
+                        : Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// DEDICATED LECTURES SCREEN (Modeled after vitap_student_app_ref/lectures_page.dart)
+// ============================================================================
+class CourseLecturesScreen extends ConsumerStatefulWidget {
+  final String courseTitle;
+  final String courseCode;
+  final String courseType;
+  final String slot;
+  final String faculty;
+  final String erpId;
+  final String classId;
+
+  const CourseLecturesScreen({
+    super.key,
+    required this.courseTitle,
+    required this.courseCode,
+    required this.courseType,
+    required this.slot,
+    required this.faculty,
+    required this.erpId,
+    required this.classId,
+  });
+
+  @override
+  ConsumerState<CourseLecturesScreen> createState() =>
+      _CourseLecturesScreenState();
+}
+
+class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
+  Map<String, dynamic>? _courseDetail;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  // Tracks which material/action is currently downloading or opening:
+  // e.g. 'view_syllabus', 'dl_syllabus', 'dl_all', 'view_<path>', 'dl_<path>'
+  String? _busyKey;
+
+  AppPalette get _palette => AppPalette.of(context);
+  Color get _paper => _palette.paper;
+  Color get _surface => _palette.surface;
+  Color get _ink => _palette.ink;
+  Color get _navy => _palette.navy;
+  Color get _blue => _palette.blue;
+  Color get _orange => _palette.orange;
+  Color get _green => _palette.green;
+  Color get _red => _palette.red;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
+  Color get _soft => _palette.soft;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDetail();
+  }
+
+  Future<void> _fetchDetail() async {
+    final auth = ref.read(authProvider);
+    final creds = await StorageService.getCredentials();
+    final username = auth.username ?? creds['username'] ?? '';
+    final password = auth.password ?? creds['password'] ?? '';
+    final semId = auth.activeSemesterId ?? creds['semesterId'] ?? '';
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final detail = await apiService.fetchCourseDetail(
+        username: username,
+        password: password,
+        semSubId: semId,
+        erpId: widget.erpId,
+        classId: widget.classId,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _courseDetail = detail;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = ErrorFormatter.format(
+          e,
+          fallback: 'Unable to load lectures and materials. Please try again.',
+        );
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// Resolves authentic file extension based on magic bytes and fallback filename
+  String _resolveFileNameWithMagicBytes(
+    List<int> bytes,
+    String desiredName, {
+    String defaultExt = 'pdf',
+  }) {
+    String cleanName = desiredName.trim().isNotEmpty
+        ? desiredName.trim()
+        : 'material.$defaultExt';
+
+    if (bytes.length >= 4) {
+      if (bytes[0] == 0x25 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x44 &&
+          bytes[3] == 0x46) {
+        // %PDF
+        final base = cleanName.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '');
+        return '$base.pdf';
+      } else if (bytes[0] == 0x50 &&
+          bytes[1] == 0x4B &&
+          bytes[2] == 0x03 &&
+          bytes[3] == 0x04) {
+        // PK.. (ZIP or Office Open XML .docx / .pptx / .xlsx)
+        final lower = cleanName.toLowerCase();
+        if (lower.endsWith('.docx') ||
+            lower.endsWith('.pptx') ||
+            lower.endsWith('.xlsx') ||
+            lower.endsWith('.zip')) {
+          return cleanName;
+        }
+        final base = cleanName.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '');
+        return '$base.$defaultExt';
+      }
+    }
+
+    if (!cleanName.contains('.')) {
+      return '$cleanName.$defaultExt';
+    }
+    return cleanName;
+  }
+
+  Future<void> _handleMaterialAction({
+    required String key,
+    required String downloadPath,
+    required String suggestedFileName,
+    required bool openOnly,
+    String defaultExt = 'pdf',
+  }) async {
+    if (downloadPath.isEmpty || _busyKey != null) return;
+
+    final auth = ref.read(authProvider);
+    final creds = await StorageService.getCredentials();
+    final username = auth.username ?? creds['username'] ?? '';
+    final password = auth.password ?? creds['password'] ?? '';
+
+    setState(() => _busyKey = key);
+    try {
+      final bytes = await apiService.downloadCourseMaterial(
+        username: username,
+        password: password,
+        downloadPath: downloadPath,
+      );
+
+      if (!mounted) return;
+
+      if (bytes.isEmpty) {
+        throw Exception(
+          'The requested material file is empty or unavailable on VTOP.',
+        );
+      }
+
+      if (bytes.length < 1000) {
+        final text = String.fromCharCodes(bytes);
+        if (text.contains('<html') ||
+            text.contains('<!DOCTYPE') ||
+            text.contains('Session expired') ||
+            text.contains('Invalid session')) {
+          throw Exception(
+            'VTOP session expired or file not reachable. Please refresh and try again.',
+          );
+        }
+      }
+
+      final resolvedName = _resolveFileNameWithMagicBytes(
+        bytes,
+        suggestedFileName,
+        defaultExt: defaultExt,
+      );
+      final sanitizedName = resolvedName.replaceAll(
+        RegExp(r'[\\/:*?"<>|]'),
+        '_',
+      );
+
+      if (openOnly) {
+        final tempDir = await getTemporaryDirectory();
+        final tempPath = '${tempDir.path}/$sanitizedName';
+        final file = File(tempPath);
+        await file.writeAsBytes(bytes, flush: true);
+        if (mounted) {
+          setState(() => _busyKey = null);
+        }
+        await DownloadHelper.openFile(tempPath);
+      } else {
+        final ext = sanitizedName.contains('.')
+            ? sanitizedName.split('.').last.toLowerCase()
+            : defaultExt;
+        final mimeType = ext == 'zip'
+            ? 'application/zip'
+            : (ext == 'pdf'
+                  ? 'application/pdf'
+                  : 'application/octet-stream');
+
+        if (mounted) {
+          setState(() => _busyKey = null);
+        }
+        if (!mounted) return;
+        await DownloadHelper.saveFile(
+          context: context,
+          fileName: sanitizedName,
+          content: bytes,
+          mimeType: mimeType,
+          openImmediately: false,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busyKey = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: _red,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          content: Text(
+            ErrorFormatter.format(
+              e,
+              fallback: 'Unable to download material. Please try again.',
+            ),
             style: GoogleFonts.dmSans(
-              color: _muted,
+              color: Colors.white,
               fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final syllabusPath =
+        _courseDetail?['syllabus_download_path']?.toString() ?? '';
+    final downloadAllPath =
+        _courseDetail?['download_all_path']?.toString() ??
+        _courseDetail?['download_general_materials_path']?.toString() ??
+        '';
+    final lectures = (_courseDetail?['lectures'] as List<dynamic>?) ?? [];
+
+    return Scaffold(
+      backgroundColor: _paper,
+      appBar: AppBar(
+        backgroundColor: _paper,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: Icon(Icons.arrow_back_rounded, color: _ink),
+        ),
+        title: Text(
+          widget.courseTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.dmSans(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: _ink,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _fetchDetail,
+            icon: Icon(Icons.refresh_rounded, color: _navy, size: 20),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Course Info Header + DownloadActionsRow (modeled after lectures_page.dart)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surface,
+              border: Border(
+                top: BorderSide(color: _line),
+                bottom: BorderSide(color: _line),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _extractFacultyName(widget.faculty),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (widget.courseCode.isNotEmpty)
+                      _buildInfoChip(widget.courseCode, _blue),
+                    if (widget.courseType.isNotEmpty)
+                      _buildInfoChip(widget.courseType, _orange),
+                    if (widget.slot.isNotEmpty)
+                      _buildInfoChip(widget.slot, _green),
+                  ],
+                ),
+                if (syllabusPath.isNotEmpty || downloadAllPath.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _buildDownloadActionsRow(
+                    syllabusPath: syllabusPath,
+                    downloadAllPath: downloadAllPath,
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Lectures List
+          Expanded(
+            child: _isLoading
+                ? Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: _navy,
+                    ),
+                  )
+                : _errorMessage != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 42,
+                            color: _red,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13.5,
+                              color: _muted,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: _fetchDetail,
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: const Text('Retry'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _navy,
+                              foregroundColor: _palette.isDark
+                                  ? const Color(0xFF0F172A)
+                                  : Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : lectures.isEmpty
+                ? const Center(
+                    child: NexusEmptyState(
+                      title: 'No lectures found',
+                      description:
+                          'No lecture sessions or reference materials uploaded yet.',
+                      icon: Icons.event_note_outlined,
+                    ),
+                  )
+                : RefreshIndicator(
+                    color: _blue,
+                    backgroundColor: _surface,
+                    onRefresh: _fetchDetail,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: lectures.length,
+                      itemBuilder: (context, index) {
+                        final lecture = lectures[index];
+                        return AnimeStaggerItem(
+                          index: index,
+                          child: _buildLectureCard(lecture),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.spaceGrotesk(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  /// DownloadActionsRow modeled after vitap_student_app_ref/download_actions_row.dart
+  Widget _buildDownloadActionsRow({
+    required String syllabusPath,
+    required String downloadAllPath,
+  }) {
+    final isViewingSyllabus = _busyKey == 'view_syllabus';
+    final isDownloadingSyllabus = _busyKey == 'dl_syllabus';
+    final isDownloadingAll = _busyKey == 'dl_all';
+    final isAnyBusy = _busyKey != null;
+
+    return Column(
+      children: [
+        if (syllabusPath.isNotEmpty)
+          Row(
+            children: [
+              Expanded(
+                child: _buildHeaderActionButton(
+                  icon: Icons.visibility_outlined,
+                  label: 'View Syllabus',
+                  isLoading: isViewingSyllabus,
+                  isDisabled: isAnyBusy,
+                  onPressed: () => _handleMaterialAction(
+                    key: 'view_syllabus',
+                    downloadPath: syllabusPath,
+                    suggestedFileName: '${widget.courseCode}_syllabus.docx',
+                    openOnly: true,
+                    defaultExt: 'docx',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildHeaderActionButton(
+                  icon: Icons.download_rounded,
+                  label: 'Syllabus',
+                  isLoading: isDownloadingSyllabus,
+                  isDisabled: isAnyBusy,
+                  onPressed: () => _handleMaterialAction(
+                    key: 'dl_syllabus',
+                    downloadPath: syllabusPath,
+                    suggestedFileName: '${widget.courseCode}_syllabus.docx',
+                    openOnly: false,
+                    defaultExt: 'docx',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        if (syllabusPath.isNotEmpty && downloadAllPath.isNotEmpty)
+          const SizedBox(height: 8),
+        if (downloadAllPath.isNotEmpty)
+          SizedBox(
+            width: double.infinity,
+            child: _buildHeaderActionButton(
+              icon: Icons.folder_zip_outlined,
+              label: 'Download All',
+              isLoading: isDownloadingAll,
+              isDisabled: isAnyBusy,
+              onPressed: () => _handleMaterialAction(
+                key: 'dl_all',
+                downloadPath: downloadAllPath,
+                suggestedFileName: '${widget.courseCode}_all_materials.zip',
+                openOnly: false,
+                defaultExt: 'zip',
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderActionButton({
+    required IconData icon,
+    required String label,
+    required bool isLoading,
+    required bool isDisabled,
+    required VoidCallback onPressed,
+  }) {
+    final fg = _palette.isDark ? const Color(0xFF0F172A) : Colors.white;
+    return FilledButton.tonal(
+      onPressed: isDisabled ? null : onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: _navy,
+        foregroundColor: fg,
+        disabledBackgroundColor: _soft,
+        disabledForegroundColor: _muted,
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isLoading)
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+            )
+          else
+            Icon(icon, size: 17),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -1384,52 +1538,229 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     );
   }
 
-  Widget _buildError(String error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFCEDEA),
-                shape: BoxShape.circle,
+  /// LectureCard modeled after vitap_student_app_ref/lecture_card.dart
+  Widget _buildLectureCard(dynamic lec) {
+    final slNo = lec['sl_no']?.toString() ?? '';
+    final formattedDate =
+        (lec['formatted_date'] ?? lec['date'] ?? lec['class_date'] ?? '')
+            .toString();
+    final rawDate = (lec['date'] ?? formattedDate).toString().replaceAll(
+      '-',
+      '_',
+    );
+    final day = (lec['day'] ?? '').toString();
+    final topic = (lec['topic'] ?? '').toString().trim();
+
+    final rawMaterials = lec['reference_materials'] ?? lec['materials'] ?? [];
+    final List<dynamic> materials = rawMaterials is List ? rawMaterials : [];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row: Date + Day on left, Material Count Badge on right
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formattedDate,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: _ink,
+                      ),
+                    ),
+                    if (day.isNotEmpty)
+                      Text(
+                        day,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: _muted,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              child: Icon(Icons.error_outline_rounded, color: _red, size: 28),
+              if (materials.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _blue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        size: 14,
+                        color: _blue,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${materials.length}',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: _blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // Topic
+          Text(
+            topic.isEmpty ? 'No topic specified' : topic,
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: topic.isEmpty ? _muted : _ink,
+              fontStyle: topic.isEmpty ? FontStyle.italic : FontStyle.normal,
             ),
-            const SizedBox(height: 14),
-            Text(
-              'Failed to Load Courses',
-              style: GoogleFonts.dmSans(
-                color: _ink,
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.dmSans(
-                color: _muted,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => setState(() => _loadCourses(forceRefresh: true)),
-              icon: Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Retry'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _navy,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
+          ),
+
+          // Reference Materials Rows (each with View & Download buttons)
+          if (materials.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Divider(height: 1, color: _line),
+            const SizedBox(height: 10),
+            ...materials.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final m = entry.value;
+              final label =
+                  (m['label'] ??
+                          m['material_title'] ??
+                          m['title'] ??
+                          'Reference Material ${idx + 1}')
+                      .toString();
+              final downloadPath = (m['download_path'] ?? '').toString();
+              if (downloadPath.isEmpty) return const SizedBox.shrink();
+
+              final viewKey = 'view_$downloadPath';
+              final dlKey = 'dl_$downloadPath';
+              final isThisBusy = _busyKey == viewKey || _busyKey == dlKey;
+              final isAnyBusy = _busyKey != null;
+
+              final sanitizedLabel = label.replaceAll(' ', '_');
+              final filename =
+                  '${widget.courseCode}_lecture_${slNo}_${rawDate}_$sanitizedLabel.pdf';
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _blue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: isThisBusy
+                          ? Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _blue,
+                              ),
+                            )
+                          : Icon(
+                              Icons.insert_drive_file_outlined,
+                              size: 16,
+                              color: _blue,
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _ink,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _buildSmallActionButton(
+                      icon: Icons.visibility_outlined,
+                      tooltip: 'View',
+                      onTap: isAnyBusy
+                          ? null
+                          : () => _handleMaterialAction(
+                              key: viewKey,
+                              downloadPath: downloadPath,
+                              suggestedFileName: filename,
+                              openOnly: true,
+                            ),
+                    ),
+                    const SizedBox(width: 6),
+                    _buildSmallActionButton(
+                      icon: Icons.download_rounded,
+                      tooltip: 'Download',
+                      onTap: isAnyBusy
+                          ? null
+                          : () => _handleMaterialAction(
+                              key: dlKey,
+                              downloadPath: downloadPath,
+                              suggestedFileName: filename,
+                              openOnly: false,
+                            ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onTap,
+  }) {
+    final isDisabled = onTap == null;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: isDisabled ? _soft : _blue.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: isDisabled ? _muted : _blue,
+          ),
         ),
       ),
     );

@@ -102,14 +102,25 @@ class ErrorFormatter {
         lower.contains('connection refused') ||
         lower.contains('network is unreachable') ||
         lower.contains('handshakeexception') ||
+        lower.contains('terminated during handshake') ||
+        lower.contains('handshake') ||
         lower.contains('connection reset') ||
-        lower.contains('connection closed')) {
+        lower.contains('connection closed') ||
+        lower.contains('connection error')) {
       return 'No internet connection or server is unreachable. Please check your network.';
     }
 
     // Timeout
     if (lower.contains('timed out') || lower.contains('timeoutexception') || lower.contains('timeout')) {
       return 'Server took too long to respond. Please try again in a few moments.';
+    }
+
+    // Status Code patterns in raw string
+    if (lower.contains('status code of 401') || lower.contains('status code of 403') || lower.contains('status code 401') || lower.contains('status code 403')) {
+      return 'Session expired. Please log in again to continue.';
+    }
+    if (lower.contains('status code of 5') || lower.contains('status code 5')) {
+      return 'VTOP server encountered an internal error. Please try again later.';
     }
 
     // Login & Credentials
@@ -123,6 +134,9 @@ class ErrorFormatter {
     }
 
     // OTP verification
+    if (lower.contains('awaiting otp') || lower.contains('verify_login_otp') || lower.contains('call verify_login_otp')) {
+      return 'Your VTOP session requires OTP verification. Please enter the OTP code to continue.';
+    }
     if (lower.contains('invalid otp') || lower.contains('wrong otp') || lower.contains('incorrect otp')) {
       return 'The OTP entered is incorrect. Please check and re-enter the code.';
     }

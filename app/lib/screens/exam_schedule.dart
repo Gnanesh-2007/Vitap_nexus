@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -7,7 +7,8 @@ import 'package:intl/intl.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
-import '../utils/error_formatter.dart';
+import '../widgets/motion/nexus_motion.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
 
 class ExamScheduleScreen extends ConsumerStatefulWidget {
   const ExamScheduleScreen({super.key});
@@ -19,8 +20,15 @@ class ExamScheduleScreen extends ConsumerStatefulWidget {
 
 class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   int _selectedCategoryIndex = 0;
+  final PageController _pager = PageController();
 
-  // Campus Editorial Palette
+  @override
+  void dispose() {
+    _pager.dispose();
+    super.dispose();
+  }
+
+  // Responsive dynamic palette getters
   AppPalette get _palette => AppPalette.of(context);
   Color get _paper => _palette.paper;
   Color get _surface => _palette.surface;
@@ -45,7 +53,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
           SnackBar(
             backgroundColor: const Color(0xFF2A1C1C),
             content: Text(
-              ErrorFormatter.format(e, fallback: 'Unable to update exam schedule. Please try again.'),
+              'Could not update exam schedule: $e',
               style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12),
             ),
           ),
@@ -140,13 +148,18 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _onRefresh,
+                notificationPredicate: (n) => n.depth <= 1,
                 color: _navy,
                 backgroundColor: _surface,
-                child: examAsync.when(
-                  data: (groups) => _buildContent(groups),
-                  loading: () => _buildLoading(),
-                  error: (err, _) => _buildError(err),
-                ),
+                child: (examAsync.hasValue && examAsync.value!.isNotEmpty)
+                    ? _buildContent(examAsync.value!)
+                    : (StorageService.getMemoryCache('exam_schedule') is List && (StorageService.getMemoryCache('exam_schedule') as List).isNotEmpty)
+                        ? _buildContent(List<dynamic>.from(StorageService.getMemoryCache('exam_schedule')))
+                        : examAsync.when(
+                            data: (groups) => _buildContent(groups),
+                            loading: () => _buildLoading(),
+                            error: (err, _) => _buildError(err),
+                          ),
               ),
             ),
           ],
@@ -288,106 +301,97 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
     final validIndex = _selectedCategoryIndex < groups.length
         ? _selectedCategoryIndex
         : 0;
-    final currentGroup = groups[validIndex] as Map<String, dynamic>? ?? {};
-    final subjects = (currentGroup['subjects'] as List<dynamic>?) ?? [];
 
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+    final tabs = <ShadcnTab>[];
+    for (final g in groups) {
+      final m = g is Map ? g : const {};
+      final count = (m['subjects'] as List?)?.length ?? 0;
+      tabs.add(ShadcnTab(
+        label: _formatExamType((m['exam_type'] ?? 'Exam').toString()),
+        badge: count > 0 ? '$count' : null,
+      ));
+    }
+
+    return Column(
       children: [
-        _buildCategoryPills(groups, validIndex),
-        const SizedBox(height: 18),
-        if (subjects.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _line),
-            ),
-            child: Center(
-              child: Text(
-                'No subjects scheduled for this category.',
-                style: GoogleFonts.dmSans(
-                  color: _muted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+        // Sliding top bar: follows the page swipe live.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+          child: AnimatedBuilder(
+            animation: _pager,
+            builder: (context, _) {
+              final page = (_pager.hasClients && _pager.page != null)
+                  ? _pager.page!
+                  : validIndex.toDouble();
+              return ShadcnTabs(
+                tabs: tabs,
+                selectedIndex: validIndex,
+                progress: page,
+                onTabSelected: (i) {
+                  if (_pager.hasClients) {
+                    _pager.animateToPage(
+                      i,
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeOutCubic,
+                    );
+                  } else {
+                    setState(() => _selectedCategoryIndex = i);
+                  }
+                },
+              );
+            },
+          ),
+        ),
+        Expanded(
+          child: PageView.builder(
+            controller: _pager,
+            itemCount: groups.length,
+            onPageChanged: (i) {
+              HapticFeedback.selectionClick();
+              setState(() => _selectedCategoryIndex = i);
+            },
+            itemBuilder: (context, gi) {
+              final group = groups[gi] as Map<String, dynamic>? ?? {};
+              final subjects = (group['subjects'] as List<dynamic>?) ?? [];
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
-              ),
-            ),
-          )
-        else
-          ...subjects.asMap().entries.map((entry) {
-            final exam = entry.value as Map<String, dynamic>? ?? {};
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _buildExamCard(exam, entry.key),
-            );
-          }),
-      ],
-    );
-  }
-
-  // ── Category Pills (CAT-1, CAT-2, FAT) ──
-  Widget _buildCategoryPills(List<dynamic> groups, int selectedIdx) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: groups.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final group = entry.value as Map<String, dynamic>? ?? {};
-          final rawType = (group['exam_type'] ?? 'Exam').toString();
-          final formattedTitle = _formatExamType(rawType);
-          final isSelected = idx == selectedIdx;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _selectedCategoryIndex = idx;
-                });
-              },
-              borderRadius: BorderRadius.circular(24),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? _navy : _surface,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: isSelected ? _navy : _line,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: _navy.withValues(alpha: 0.16),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                children: [
+                  if (subjects.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: _surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: _line),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'No subjects scheduled for this category.',
+                          style: GoogleFonts.dmSans(
+                            color: _muted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
-                        ]
-                      : null,
-                ),
-                child: Text(
-                  formattedTitle,
-                  style: GoogleFonts.dmSans(
-                    color: isSelected ? Colors.white : _muted,
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+                        ),
+                      ),
+                    )
+                  else
+                    ...subjects.asMap().entries.map((entry) {
+                      final exam = entry.value as Map<String, dynamic>? ?? {};
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _buildExamCard(exam, entry.key),
+                      );
+                    }),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -415,214 +419,176 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
     final isCompleted = status == 'Completed';
     final isToday = status == 'Today';
 
-    final Color statusDotColor;
-    final Color statusBgColor;
-    final Color statusTextColor;
-
-    if (isCompleted) {
-      statusDotColor = _green;
-      statusBgColor = const Color(0xFFE8F4EF);
-      statusTextColor = _green;
-    } else if (isToday) {
-      statusDotColor = _blue;
-      statusBgColor = const Color(0xFFEAF0FD);
-      statusTextColor = _blue;
-    } else {
-      statusDotColor = _orange;
-      statusBgColor = const Color(0xFFF9ECE7);
-      statusTextColor = _orange;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _line),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0617202A),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Row: Date • Slot Pill (Left) & Status Badge (Right)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (dateBadgeText.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+    final innerContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top Row: Date • Slot Pill (Left) & Status Badge (Right)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            if (dateBadgeText.isNotEmpty)
+              ShadcnBadge(
+                label: dateBadgeText,
+                variant: ShadcnBadgeVariant.secondary,
+              )
+            else
+              const SizedBox.shrink(),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isToday) ...[
+                  AnimeRadarWave(
+                    size: 9,
+                    color: _blue,
                   ),
-                  decoration: BoxDecoration(
-                    color: _soft,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _line),
-                  ),
-                  child: Text(
-                    dateBadgeText,
-                    style: GoogleFonts.spaceGrotesk(
-                      color: _navy,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                )
-              else
-                const SizedBox.shrink(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
+                  const SizedBox(width: 6),
+                ],
+                ShadcnBadge(
+                  label: isToday
+                      ? 'TODAY'
+                      : (isCompleted ? 'COMPLETED' : 'UPCOMING'),
+                  icon: isToday
+                      ? Icons.bolt_rounded
+                      : (isCompleted
+                          ? Icons.check_circle_rounded
+                          : Icons.schedule_rounded),
+                  variant: isToday
+                      ? ShadcnBadgeVariant.info
+                      : (isCompleted
+                          ? ShadcnBadgeVariant.success
+                          : ShadcnBadgeVariant.warning),
                 ),
-                decoration: BoxDecoration(
-                  color: statusBgColor,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: statusDotColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      status,
-                      style: GoogleFonts.spaceGrotesk(
-                        color: statusTextColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-
-          // Course Name & Code
-          Text(
-            courseName,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.dmSans(
-              color: _ink,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              height: 1.25,
-            ),
-          ),
-          if (courseCode.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              courseCode,
-              style: GoogleFonts.spaceGrotesk(
-                color: _muted,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
+              ],
             ),
           ],
-          const SizedBox(height: 16),
+        ),
+        const SizedBox(height: 15),
 
-          // 2x2 Details Grid (Time, Venue, Seat Location, Seat Number)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left Column (Time & Seat Location)
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildFieldMetric(
-                      icon: Icons.access_time_rounded,
-                      label: 'Time',
-                      value: examTime.isNotEmpty ? examTime : '—',
-                    ),
-                    const SizedBox(height: 14),
-                    _buildFieldMetric(
-                      icon: Icons.event_seat_rounded,
-                      label: 'Seat Location',
-                      value: seatLocation.isNotEmpty ? seatLocation : '—',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-
-              // Right Column (Venue & Seat Number)
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildFieldMetric(
-                      icon: Icons.location_on_rounded,
-                      label: 'Venue',
-                      value: venue.isNotEmpty ? venue : '—',
-                    ),
-                    const SizedBox(height: 14),
-                    _buildFieldMetric(
-                      icon: Icons.tag_rounded,
-                      label: 'Seat Number',
-                      value: seatNumber.isNotEmpty ? seatNumber : '—',
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        // Course Name & Code
+        Text(
+          courseName,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.dmSans(
+            color: _ink,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            height: 1.25,
           ),
+        ),
+        if (courseCode.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          ShadcnBadge(
+            label: courseCode,
+            variant: ShadcnBadgeVariant.outline,
+          ),
+        ],
+        const SizedBox(height: 16),
 
-          // Bottom Reporting Inset Capsule
-          if (reportingTime.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
-              ),
-              decoration: BoxDecoration(
-                color: _soft,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _line),
-              ),
-              child: Row(
+        // 2x2 Details Grid (Time, Venue, Seat Location, Seat Number)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left Column (Time & Seat Location)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.access_time_rounded,
-                    size: 15,
-                    color: _navy,
+                  _buildFieldMetric(
+                    icon: Icons.access_time_rounded,
+                    label: 'Time',
+                    value: examTime.isNotEmpty ? examTime : '—',
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Reporting: $reportingTime',
-                    style: GoogleFonts.spaceGrotesk(
-                      color: _ink,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  const SizedBox(height: 14),
+                  _buildFieldMetric(
+                    icon: Icons.event_seat_rounded,
+                    label: 'Seat Location',
+                    value: seatLocation.isNotEmpty ? seatLocation : '—',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Right Column (Venue & Seat Number)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildFieldMetric(
+                    icon: Icons.location_on_rounded,
+                    label: 'Venue',
+                    value: venue.isNotEmpty ? venue : '—',
+                  ),
+                  const SizedBox(height: 14),
+                  _buildFieldMetric(
+                    icon: Icons.tag_rounded,
+                    label: 'Seat Number',
+                    value: seatNumber.isNotEmpty ? seatNumber : '—',
                   ),
                 ],
               ),
             ),
           ],
+        ),
+
+        // Bottom Reporting Inset Capsule
+        if (reportingTime.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              color: _soft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _line),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.access_time_rounded,
+                  size: 15,
+                  color: _navy,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Reporting: $reportingTime',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: _ink,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
-      ),
-    ).animate().fadeIn(duration: 250.ms, delay: Duration(milliseconds: idx * 60));
+      ],
+    );
+
+    final Widget cardWidget = isToday
+        ? KokonutShineCard(
+            borderRadius: 18,
+            padding: const EdgeInsets.all(18),
+            isShining: true,
+            shineColors: [
+              _blue,
+              _green,
+              _orange,
+              _navy,
+            ],
+            child: innerContent,
+          )
+        : ShadcnCard(
+            borderRadius: 18,
+            padding: const EdgeInsets.all(18),
+            child: innerContent,
+          );
+
+    return cardWidget;
   }
 
   Widget _buildFieldMetric({
@@ -710,7 +676,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                       color: const Color(0xFFFCEDEA),
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.error_outline_rounded,
                       color: Color(0xFFC84C43),
                       size: 30,
@@ -739,14 +705,14 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: _onRefresh,
-                    icon: Icon(Icons.refresh_rounded, size: 16),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
                     label: Text(
                       'Try Again',
                       style: GoogleFonts.dmSans(fontWeight: FontWeight.w800),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _navy,
-                      foregroundColor: Colors.white,
+                      foregroundColor: _palette.onNavy,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

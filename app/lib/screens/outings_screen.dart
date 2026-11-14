@@ -1,15 +1,39 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/vtop_providers.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/download_helper.dart';
 import '../utils/error_formatter.dart';
+import '../widgets/motion/nexus_motion.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
+
+/// Outing constants modeled after vitap_student_app_ref AppConstants
+class OutingConstants {
+  static const List<String> outingPlaces = [
+    'Vijayawada',
+    'Guntur',
+    'Tenali',
+    'Eluru',
+    'Others',
+  ];
+
+  static const List<String> outingTimeSlots = [
+    '9:30 AM- 3:30PM',
+    '10:30 AM- 4:30PM',
+    '11:30 AM- 5:30PM',
+    '12:30 PM- 6:30PM',
+  ];
+}
 
 class OutingsScreen extends ConsumerStatefulWidget {
   const OutingsScreen({super.key});
@@ -25,32 +49,33 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   // Selected Outing Type: 'weekend' or 'general'
   String _outingType = 'weekend';
 
-  // Controllers & Form State
-  final _placeController = TextEditingController();
+  // Weekend Form State
+  String _selectedWeekendPlace = OutingConstants.outingPlaces.first;
+  final _customWeekendPlaceController = TextEditingController();
+  String _selectedWeekendSlot = OutingConstants.outingTimeSlots.first;
+  late DateTime _outingDate;
+
+  // General Form State
+  final _generalPlaceController = TextEditingController();
+  late DateTime _leavingDate;
+  TimeOfDay _leavingTime = const TimeOfDay(hour: 9, minute: 30);
+  late DateTime _returningDate;
+  TimeOfDay _returningTime = const TimeOfDay(hour: 18, minute: 30);
+
+  // Shared Controllers
   final _purposeController = TextEditingController();
   final _contactController = TextEditingController();
   final _searchController = TextEditingController();
 
-  // Weekend Time Slots
-  final List<String> _weekendSlots = [
-    '9:30 AM- 3:30PM',
-    '10:30 AM- 4:30PM',
-    '11:30 AM- 5:30PM',
-    '12:30 PM- 6:30PM',
-  ];
-  String _selectedWeekendSlot = '9:30 AM- 3:30PM';
-
-  // Schedule Dates & Times
-  DateTime _outingDate = DateTime.now().add(const Duration(days: 1));
-  DateTime _leavingDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _leavingTime = const TimeOfDay(hour: 9, minute: 30);
-  DateTime _returningDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _returningTime = const TimeOfDay(hour: 18, minute: 30);
+  // History Sort State (Recent first vs Oldest first)
+  bool _isRecentFirst = true;
 
   bool _isSubmitting = false;
 
   late Future<dynamic> _generalOutingsFuture;
   late Future<dynamic> _weekendOutingsFuture;
+  dynamic _cachedGeneral;
+  dynamic _cachedWeekend;
 
   // Editorial campus palette
   AppPalette get _palette => AppPalette.of(context);
@@ -70,19 +95,65 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _outingDate = _nextAllowedWeekendDate(now);
+    _leavingDate = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    _returningDate = _leavingDate;
+
+    _cachedGeneral = StorageService.getMemoryCache('general_outings');
+    _cachedWeekend = StorageService.getMemoryCache('weekend_outings');
+    _prefillContactFromProfile();
     _loadOutings();
+  }
+
+  void _prefillContactFromProfile() {
+    final memProfile = StorageService.getMemoryCache('profile');
+    if (memProfile is Map) {
+      final mobile = (memProfile['mobile_number'] ?? memProfile['phone'] ?? '').toString().trim();
+      final digits = mobile.replaceAll(RegExp(r'\D'), '');
+      if (digits.length >= 10) {
+        _contactController.text = digits.substring(digits.length - 10);
+      }
+    }
+  }
+
+  static DateTime _nextAllowedWeekendDate(DateTime from) {
+    var cursor = DateTime(from.year, from.month, from.day);
+    for (var i = 0; i < 8; i++) {
+      if (cursor.weekday == DateTime.sunday || cursor.weekday == DateTime.monday) {
+        return cursor;
+      }
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return DateTime(from.year, from.month, from.day).add(const Duration(days: 1));
   }
 
   void _loadOutings() {
     final auth = ref.read(authProvider);
-    _generalOutingsFuture = apiService.fetchGeneralOutings(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-    );
-    _weekendOutingsFuture = apiService.fetchWeekendOutings(
-      username: auth.username ?? '',
-      password: auth.password ?? '',
-    );
+    _generalOutingsFuture = apiService
+        .fetchGeneralOutings(
+          username: auth.username ?? '',
+          password: auth.password ?? '',
+        )
+        .then((data) {
+          if (data != null) {
+            StorageService.setCache('general_outings', data);
+            if (mounted) setState(() => _cachedGeneral = data);
+          }
+          return data;
+        });
+    _weekendOutingsFuture = apiService
+        .fetchWeekendOutings(
+          username: auth.username ?? '',
+          password: auth.password ?? '',
+        )
+        .then((data) {
+          if (data != null) {
+            StorageService.setCache('weekend_outings', data);
+            if (mounted) setState(() => _cachedWeekend = data);
+          }
+          return data;
+        });
   }
 
   List<Map<String, dynamic>> _extractRequests(dynamic data) {
@@ -101,17 +172,57 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
   @override
   void dispose() {
-    _placeController.dispose();
+    _customWeekendPlaceController.dispose();
+    _generalPlaceController.dispose();
     _purposeController.dispose();
     _contactController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _submitOuting() async {
-    final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
+  String? _validateContactNumber(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return 'Please enter a 10-digit contact number.';
+    }
+    final digitsOnly = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digitsOnly.length != 10) {
+      return 'Contact number must be 10 digits.';
+    }
+    if (!RegExp(r'^[6-9]\d{9}$').hasMatch(digitsOnly)) {
+      return 'Enter a valid Indian mobile number.';
+    }
+    return null;
+  }
+
+  String? _validateGeneralSpan({
+    required DateTime leaveDate,
+    required TimeOfDay leaveTime,
+    required DateTime returnDate,
+    required TimeOfDay returnTime,
+  }) {
+    final leave = DateTime(
+      leaveDate.year,
+      leaveDate.month,
+      leaveDate.day,
+      leaveTime.hour,
+      leaveTime.minute,
+    );
+    final ret = DateTime(
+      returnDate.year,
+      returnDate.month,
+      returnDate.day,
+      returnTime.hour,
+      returnTime.minute,
+    );
+    if (!ret.isAfter(leave)) {
+      return 'Return date & time must be after departure.';
+    }
+    return null;
+  }
+
+  Future<void> _handleApplyPressed() async {
+    FocusScope.of(context).unfocus();
 
     final purpose = _purposeController.text.trim();
     if (purpose.isEmpty) {
@@ -119,55 +230,255 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
-
-    try {
-      String message = '';
-
-      if (_outingType == 'weekend') {
-        final contact = _contactController.text.trim();
-        if (contact.isEmpty) {
-          _showMessage('Please enter parent / emergency contact number.', color: _red);
-          setState(() => _isSubmitting = false);
-          return;
-        }
-
-        final outDateStr = DateFormat('dd-MMM-yyyy').format(_outingDate);
-        message = await apiService.submitWeekendOuting(
-          username: username,
-          password: password,
-          outPlace: _placeController.text.trim().isEmpty ? 'Vijayawada' : _placeController.text.trim(),
-          purposeOfVisit: purpose,
-          outingDate: outDateStr,
-          outTime: _selectedWeekendSlot,
-          contactNumber: contact,
-        );
-      } else {
-        final place = _placeController.text.trim();
-        if (place.isEmpty) {
-          _showMessage('Please enter the place of visit.', color: _red);
-          setState(() => _isSubmitting = false);
-          return;
-        }
-
-        final outDateStr = DateFormat('dd-MMM-yyyy').format(_leavingDate);
-        final inDateStr = DateFormat('dd-MMM-yyyy').format(_returningDate);
-        final outTimeStr =
-            '${_leavingTime.hour.toString().padLeft(2, '0')}:${_leavingTime.minute.toString().padLeft(2, '0')}';
-        final inTimeStr =
-            '${_returningTime.hour.toString().padLeft(2, '0')}:${_returningTime.minute.toString().padLeft(2, '0')}';
-
-        message = await apiService.submitGeneralOuting(
-          username: username,
-          password: password,
-          outPlace: place,
-          purposeOfVisit: purpose,
-          outingDate: outDateStr,
-          outTime: outTimeStr,
-          inDate: inDateStr,
-          inTime: inTimeStr,
-        );
+    if (_outingType == 'weekend') {
+      final contactErr = _validateContactNumber(_contactController.text);
+      if (contactErr != null) {
+        _showMessage(contactErr, color: _red);
+        return;
       }
+
+      final place = _selectedWeekendPlace == 'Others' &&
+              _customWeekendPlaceController.text.trim().isNotEmpty
+          ? _customWeekendPlaceController.text.trim()
+          : _selectedWeekendPlace;
+
+      final confirmed = await _showOutingConfirmSheet(
+        title: 'Weekend Outing',
+        fields: [
+          MapEntry(
+            'Date',
+            '${DateFormat('dd MMM yyyy').format(_outingDate)} (${DateFormat('EEEE').format(_outingDate)})',
+          ),
+          MapEntry('Time slot', _selectedWeekendSlot),
+          MapEntry('Place', place),
+          MapEntry('Purpose', purpose),
+          MapEntry('Contact', _contactController.text.trim()),
+        ],
+      );
+      if (!confirmed) return;
+
+      await _submitWeekend(place: place, purpose: purpose);
+    } else {
+      final place = _generalPlaceController.text.trim();
+      if (place.isEmpty) {
+        _showMessage('Please enter the place of visit.', color: _red);
+        return;
+      }
+
+      final spanErr = _validateGeneralSpan(
+        leaveDate: _leavingDate,
+        leaveTime: _leavingTime,
+        returnDate: _returningDate,
+        returnTime: _returningTime,
+      );
+      if (spanErr != null) {
+        _showMessage(spanErr, color: _red);
+        return;
+      }
+
+      final leaveTimeStr =
+          '${_leavingTime.hour.toString().padLeft(2, '0')}:${_leavingTime.minute.toString().padLeft(2, '0')}';
+      final returnTimeStr =
+          '${_returningTime.hour.toString().padLeft(2, '0')}:${_returningTime.minute.toString().padLeft(2, '0')}';
+
+      final days = _returningDate.difference(_leavingDate).inDays;
+      final durationLabel = days == 0
+          ? 'Same day'
+          : '$days ${days == 1 ? "day" : "days"}';
+
+      final confirmed = await _showOutingConfirmSheet(
+        title: 'General Outing',
+        fields: [
+          MapEntry(
+            'Leaving',
+            '${DateFormat('dd MMM yyyy').format(_leavingDate)} at $leaveTimeStr',
+          ),
+          MapEntry(
+            'Returning',
+            '${DateFormat('dd MMM yyyy').format(_returningDate)} at $returnTimeStr',
+          ),
+          MapEntry('Duration', durationLabel),
+          MapEntry('Place', place),
+          MapEntry('Purpose', purpose),
+        ],
+      );
+      if (!confirmed) return;
+
+      await _submitGeneral(
+        place: place,
+        purpose: purpose,
+        outTimeStr: leaveTimeStr,
+        inTimeStr: returnTimeStr,
+      );
+    }
+  }
+
+  Future<bool> _showOutingConfirmSheet({
+    required String title,
+    required List<MapEntry<String, String>> fields,
+  }) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _line,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  title,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Check the details before this goes to VTOP',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: _inkSoft,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _soft,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _line),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < fields.length; i++) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 96,
+                                child: Text(
+                                  fields[i].key,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: _muted,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  fields[i].value,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _ink,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (i < fields.length - 1)
+                          Divider(height: 1, thickness: 0.6, color: _line),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(modalCtx).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _navy,
+                      foregroundColor: _palette.isDark
+                          ? const Color(0xFF0F172A)
+                          : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      'Confirm and apply',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 44,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(modalCtx).pop(false),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _inkSoft,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      'Go back and edit',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  Future<void> _submitWeekend({
+    required String place,
+    required String purpose,
+  }) async {
+    final auth = ref.read(authProvider);
+    final username = auth.username ?? '';
+    final password = auth.password ?? '';
+    final contact = _contactController.text.trim();
+
+    setState(() => _isSubmitting = true);
+    try {
+      final outDateStr = DateFormat('dd-MMM-yyyy').format(_outingDate);
+      final message = await apiService.submitWeekendOuting(
+        username: username,
+        password: password,
+        outPlace: place,
+        purposeOfVisit: purpose,
+        outingDate: outDateStr,
+        outTime: _selectedWeekendSlot,
+        contactNumber: contact,
+      );
 
       if (!mounted) return;
 
@@ -181,20 +492,89 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
       );
 
       if (!isError) {
-        _placeController.clear();
         _purposeController.clear();
-        _contactController.clear();
+        _customWeekendPlaceController.clear();
       }
 
       setState(() {
         _isSubmitting = false;
         _loadOutings();
-        _showHistory = true; // Switch to history view to see the submitted outing
+        if (!isError) {
+          _showHistory = true;
+        }
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      _showMessage(ErrorFormatter.format(e, fallback: 'Unable to submit outing request. Please try again.'), color: _red);
+      _showMessage(
+        ErrorFormatter.format(
+          e,
+          fallback: 'Unable to submit weekend outing request. Please try again.',
+        ),
+        color: _red,
+      );
+    }
+  }
+
+  Future<void> _submitGeneral({
+    required String place,
+    required String purpose,
+    required String outTimeStr,
+    required String inTimeStr,
+  }) async {
+    final auth = ref.read(authProvider);
+    final username = auth.username ?? '';
+    final password = auth.password ?? '';
+
+    setState(() => _isSubmitting = true);
+    try {
+      final outDateStr = DateFormat('dd-MMM-yyyy').format(_leavingDate);
+      final inDateStr = DateFormat('dd-MMM-yyyy').format(_returningDate);
+
+      final message = await apiService.submitGeneralOuting(
+        username: username,
+        password: password,
+        outPlace: place,
+        purposeOfVisit: purpose,
+        outingDate: outDateStr,
+        outTime: outTimeStr,
+        inDate: inDateStr,
+        inTime: inTimeStr,
+      );
+
+      if (!mounted) return;
+
+      final isError = message.toLowerCase().startsWith('error') ||
+          message.toLowerCase().contains('failed') ||
+          message.toLowerCase().contains('not allowed');
+
+      _showMessage(
+        ErrorFormatter.cleanRawMessage(message),
+        color: isError ? _red : _green,
+      );
+
+      if (!isError) {
+        _generalPlaceController.clear();
+        _purposeController.clear();
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _loadOutings();
+        if (!isError) {
+          _showHistory = true;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _showMessage(
+        ErrorFormatter.format(
+          e,
+          fallback: 'Unable to submit general outing request. Please try again.',
+        ),
+        color: _red,
+      );
     }
   }
 
@@ -202,14 +582,15 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     final auth = ref.read(authProvider);
 
     try {
+      String msg;
       if (isWeekend) {
-        await apiService.deleteWeekendOuting(
+        msg = await apiService.deleteWeekendOuting(
           username: auth.username ?? '',
           password: auth.password ?? '',
           bookingId: id,
         );
       } else {
-        await apiService.deleteGeneralOuting(
+        msg = await apiService.deleteGeneralOuting(
           username: auth.username ?? '',
           password: auth.password ?? '',
           leaveId: id,
@@ -218,12 +599,65 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
       if (!mounted) return;
 
-      _showMessage('Outing request cancelled successfully.', color: _green);
+      _showMessage(
+        msg.isNotEmpty ? ErrorFormatter.cleanRawMessage(msg) : 'Outing request cancelled successfully.',
+        color: _green,
+      );
       setState(_loadOutings);
     } catch (e) {
       if (!mounted) return;
-      _showMessage(ErrorFormatter.format(e, fallback: 'Failed to cancel outing request. Please try again.'), color: _red);
+      _showMessage(
+        ErrorFormatter.format(
+          e,
+          fallback: 'Failed to cancel outing request. Please try again.',
+        ),
+        color: _red,
+      );
     }
+  }
+
+  /// Fetches REAL PDF bytes from VTOP for Weekend or General Outing
+  Future<Uint8List> _fetchRealOutingPdfBytes({
+    required String id,
+    required bool isWeekend,
+  }) async {
+    final auth = ref.read(authProvider);
+    final creds = await StorageService.getCredentials();
+    final username = auth.username ?? creds['username'] ?? '';
+    final password = auth.password ?? creds['password'] ?? '';
+
+    if (id.trim().isEmpty) {
+      throw Exception('Outing pass ID is missing. Please refresh outing history and try again.');
+    }
+
+    final List<int> rawBytes = isWeekend
+        ? await apiService.downloadWeekendOutingForm(
+            username: username,
+            password: password,
+            bookingId: id.trim(),
+          )
+        : await apiService.downloadGeneralOutingPass(
+            username: username,
+            password: password,
+            leaveId: id.trim(),
+          );
+
+    if (rawBytes.isEmpty) {
+      throw Exception('VTOP returned an empty outing pass file.');
+    }
+
+    // Check if VTOP returned an HTML error/login page instead of a PDF
+    if (rawBytes.length < 1500) {
+      final text = String.fromCharCodes(rawBytes);
+      if (text.contains('<html') ||
+          text.contains('<!DOCTYPE') ||
+          text.contains('Session expired') ||
+          text.contains('Invalid session')) {
+        throw Exception('VTOP session expired or pass is not ready yet. Please refresh and try again.');
+      }
+    }
+
+    return Uint8List.fromList(rawBytes);
   }
 
   void _showMessage(String message, {required Color color}) {
@@ -237,7 +671,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
           message,
           style: GoogleFonts.dmSans(
             color: Colors.white,
-            fontSize: 12,
+            fontSize: 12.5,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -256,7 +690,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }
 
   // ============================================================
-  // APPLY VIEW (Screenshots 1 & 2)
+  // APPLY VIEW (vitap_student_app_ref Weekend & General Tabs)
   // ============================================================
   Widget _buildApplyView() {
     final isWeekend = _outingType == 'weekend';
@@ -266,7 +700,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
         _buildApplyHeader(),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
             children: [
               // Outing Type Toggle (Weekend | General)
               _buildSegmentedToggle(),
@@ -274,64 +708,40 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
               const SizedBox(height: 22),
 
               if (isWeekend) ...[
-                // Time Slot Section
-                Text(
-                  'Time slot',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _inkSoft,
-                  ),
-                ),
+                // 1. Time Slot Choice Chips (OutingConstants.outingTimeSlots)
+                _buildFieldLabel('Time slot'),
                 const SizedBox(height: 10),
                 Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: _weekendSlots.map((slot) {
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: OutingConstants.outingTimeSlots.map((slot) {
                     final isSelected = _selectedWeekendSlot == slot;
-                    return InkWell(
+                    return _buildChoiceChip(
+                      label: slot,
+                      selected: isSelected,
                       onTap: () => setState(() => _selectedWeekendSlot = slot),
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isSelected ? _navy : _soft,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isSelected) ...[
-                              Icon(Icons.check_rounded, size: 16, color: Colors.white),
-                              const SizedBox(width: 6),
-                            ],
-                            Text(
-                              slot,
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 12.5,
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                color: isSelected ? Colors.white : _ink,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     );
                   }).toList(),
                 ),
 
                 const SizedBox(height: 20),
 
-                // Outing Date Field with Calendar
+                // 2. Outing Date Picker Card
+                _buildFieldLabel('Outing date'),
+                const SizedBox(height: 8),
                 _buildDatePickerCard(
-                  label: 'Outing date',
-                  value: DateFormat('dd/MM/yyyy').format(_outingDate),
+                  label: 'Select outing date',
+                  value:
+                      '${DateFormat('dd/MM/yyyy').format(_outingDate)} · ${DateFormat('EEEE').format(_outingDate)}',
                   onTap: () async {
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
                     final picked = await showDatePicker(
                       context: context,
-                      initialDate: _outingDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 60)),
+                      initialDate: _outingDate.isBefore(today) ? today : _outingDate,
+                      firstDate: today,
+                      lastDate: today.add(const Duration(days: 60)),
+                      helpText: 'Select outing date (Sundays & Mondays)',
                       builder: _pickerTheme,
                     );
                     if (picked != null) {
@@ -340,48 +750,78 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   },
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
 
-                // Purpose of visit
+                // 3. Place of Visit Choice Chips (OutingConstants.outingPlaces)
+                _buildFieldLabel('Place of visit'),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: OutingConstants.outingPlaces.map((place) {
+                    final isSelected = _selectedWeekendPlace == place;
+                    return _buildChoiceChip(
+                      label: place,
+                      selected: isSelected,
+                      onTap: () => setState(() => _selectedWeekendPlace = place),
+                    );
+                  }).toList(),
+                ),
+
+                if (_selectedWeekendPlace == 'Others') ...[
+                  const SizedBox(height: 12),
+                  _buildPillTextField(
+                    hint: 'Specify place of visit',
+                    controller: _customWeekendPlaceController,
+                  ),
+                ],
+
+                const SizedBox(height: 20),
+
+                // 4. Purpose of visit
+                _buildFieldLabel('Purpose of visit'),
+                const SizedBox(height: 8),
                 _buildPillTextField(
-                  hint: 'Purpose of visit',
+                  hint: 'Shopping, family visit, medical...',
                   controller: _purposeController,
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
 
-                // Contact number
+                // 5. Contact number
+                _buildFieldLabel('Contact number'),
+                const SizedBox(height: 8),
                 _buildPillTextField(
-                  hint: 'Contact number',
+                  hint: '10-digit mobile number',
                   controller: _contactController,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
                 ),
               ] else ...[
-                // General Outing: Place of Visit
+                // General Outing Form
+                _buildFieldLabel('Place of visit'),
+                const SizedBox(height: 8),
                 _buildPillTextField(
-                  hint: 'Place of visit',
-                  controller: _placeController,
+                  hint: 'Home town, hospital, event venue...',
+                  controller: _generalPlaceController,
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
 
-                // Purpose of visit
+                _buildFieldLabel('Purpose of visit'),
+                const SizedBox(height: 8),
                 _buildPillTextField(
-                  hint: 'Purpose of visit',
+                  hint: 'Family function, medical checkup...',
                   controller: _purposeController,
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
 
                 // Leaving Section
-                Text(
-                  'Leaving',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _inkSoft,
-                  ),
-                ),
+                _buildFieldLabel('Leaving'),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -391,17 +831,22 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                         value: DateFormat('dd/MM/yyyy').format(_leavingDate),
                         icon: Icons.calendar_today_outlined,
                         onTap: () async {
+                          final now = DateTime.now();
+                          final today = DateTime(now.year, now.month, now.day);
                           final picked = await showDatePicker(
                             context: context,
-                            initialDate: _leavingDate,
-                            firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 60)),
+                            initialDate: _leavingDate.isBefore(today) ? today : _leavingDate,
+                            firstDate: today,
+                            lastDate: today.add(const Duration(days: 60)),
+                            helpText: 'Select departure date',
                             builder: _pickerTheme,
                           );
                           if (picked != null) {
                             setState(() {
                               _leavingDate = picked;
-                              if (_returningDate.isBefore(picked)) _returningDate = picked;
+                              if (_returningDate.isBefore(picked)) {
+                                _returningDate = picked;
+                              }
                             });
                           }
                         },
@@ -411,12 +856,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                     Expanded(
                       child: _buildPillPicker(
                         hint: 'Time',
-                        value: _leavingTime.format(context),
+                        value:
+                            '${_leavingTime.hour.toString().padLeft(2, '0')}:${_leavingTime.minute.toString().padLeft(2, '0')}',
                         icon: Icons.access_time_rounded,
                         onTap: () async {
                           final picked = await showTimePicker(
                             context: context,
                             initialTime: _leavingTime,
+                            helpText: 'Select departure time',
                             builder: _pickerTheme,
                           );
                           if (picked != null) {
@@ -431,14 +878,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 const SizedBox(height: 18),
 
                 // Returning Section
-                Text(
-                  'Returning',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _inkSoft,
-                  ),
-                ),
+                _buildFieldLabel('Returning'),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -450,9 +890,12 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                         onTap: () async {
                           final picked = await showDatePicker(
                             context: context,
-                            initialDate: _returningDate,
+                            initialDate: _returningDate.isBefore(_leavingDate)
+                                ? _leavingDate
+                                : _returningDate,
                             firstDate: _leavingDate,
                             lastDate: DateTime.now().add(const Duration(days: 60)),
+                            helpText: 'Select return date',
                             builder: _pickerTheme,
                           );
                           if (picked != null) {
@@ -465,12 +908,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                     Expanded(
                       child: _buildPillPicker(
                         hint: 'Time',
-                        value: _returningTime.format(context),
+                        value:
+                            '${_returningTime.hour.toString().padLeft(2, '0')}:${_returningTime.minute.toString().padLeft(2, '0')}',
                         icon: Icons.access_time_rounded,
                         onTap: () async {
                           final picked = await showTimePicker(
                             context: context,
                             initialTime: _returningTime,
+                            helpText: 'Select return time',
                             builder: _pickerTheme,
                           );
                           if (picked != null) {
@@ -483,28 +928,30 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 ),
               ],
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // Big Rounded Apply Button
+              // Primary Apply Button
               SizedBox(
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submitOuting,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC7DEC9), // Soft green accent pill from screenshot
-                    foregroundColor: const Color(0xFF132A15),
-                    elevation: 0,
+                height: 52,
+                child: FilledButton(
+                  onPressed: _isSubmitting ? null : _handleApplyPressed,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _navy,
+                    foregroundColor:
+                        _palette.isDark ? const Color(0xFF0F172A) : Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(27),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
                   child: _isSubmitting
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
-                            color: Color(0xFF132A15),
+                            color: _palette.isDark
+                                ? const Color(0xFF0F172A)
+                                : Colors.white,
                           ),
                         )
                       : Text(
@@ -517,21 +964,21 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
-              // Secondary Pill Button: View outing history
+              // Secondary Button: View outing history
               SizedBox(
-                height: 52,
+                height: 50,
                 child: OutlinedButton.icon(
                   onPressed: () => setState(() => _showHistory = true),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _ink,
-                    side: BorderSide(color: _line, width: 1.5),
+                    side: BorderSide(color: _line, width: 1.4),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
-                  icon: Icon(Icons.history_rounded, size: 18),
+                  icon: const Icon(Icons.history_rounded, size: 18),
                   label: Text(
                     'View outing history',
                     style: GoogleFonts.dmSans(
@@ -548,23 +995,83 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     );
   }
 
+  Widget _buildFieldLabel(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.dmSans(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: _inkSoft,
+      ),
+    );
+  }
+
+  Widget _buildChoiceChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final selectedFg = _palette.isDark ? const Color(0xFF0F172A) : Colors.white;
+    return Material(
+      color: selected ? _navy : _soft,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? _navy : _line,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected) ...[
+                Icon(Icons.check_rounded, size: 15, color: selectedFg),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  color: selected ? selectedFg : _ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildApplyHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
           ),
-          const SizedBox(width: 8),
-          Text(
-            'Outing',
-            style: GoogleFonts.dmSans(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: _ink,
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Outing',
+              style: GoogleFonts.dmSans(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: _ink,
+              ),
             ),
+          ),
+          IconButton(
+            tooltip: 'Outing History',
+            onPressed: () => setState(() => _showHistory = true),
+            icon: Icon(Icons.history_rounded, size: 22, color: _ink),
           ),
         ],
       ),
@@ -572,67 +1079,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }
 
   Widget _buildSegmentedToggle() {
-    return Container(
-      height: 54,
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: _soft,
-        borderRadius: BorderRadius.circular(27),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _togglePill(
-              title: 'Weekend',
-              selected: _outingType == 'weekend',
-              onTap: () => setState(() => _outingType = 'weekend'),
-            ),
-          ),
-          Expanded(
-            child: _togglePill(
-              title: 'General',
-              selected: _outingType == 'general',
-              onTap: () => setState(() => _outingType = 'general'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _togglePill({
-    required String title,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? _surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: selected
-              ? [
-                  const BoxShadow(
-                    color: Color(0x0C000000),
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          title,
-          style: GoogleFonts.dmSans(
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            color: selected ? _navy : _muted,
-          ),
-        ),
-      ),
+    return ShadcnTabs(
+      tabs: const [
+        ShadcnTab(label: 'Weekend', icon: Icons.weekend_rounded),
+        ShadcnTab(label: 'General', icon: Icons.directions_walk_rounded),
+      ],
+      selectedIndex: _outingType == 'weekend' ? 0 : 1,
+      onTabSelected: (i) =>
+          setState(() => _outingType = i == 0 ? 'weekend' : 'general'),
     );
   }
 
@@ -640,18 +1094,21 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     required String hint,
     required TextEditingController controller,
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Container(
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
         color: _soft,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _line),
       ),
       alignment: Alignment.centerLeft,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         style: GoogleFonts.dmSans(
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -678,13 +1135,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         height: 54,
         padding: const EdgeInsets.symmetric(horizontal: 18),
         decoration: BoxDecoration(
           color: _soft,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _line),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -712,13 +1170,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         height: 54,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: _soft,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _line),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -739,18 +1198,19 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }
 
   // ============================================================
-  // HISTORY VIEW (Screenshot 3)
+  // HISTORY VIEW (vitap_student_app_ref Weekend & General History)
   // ============================================================
   Widget _buildHistoryView() {
     final isWeekend = _outingType == 'weekend';
-    final historyTitle = isWeekend ? 'Weekend Outing History' : 'General Outing History';
+    final historyTitle =
+        isWeekend ? 'Weekend Outing History' : 'General Outing History';
     final future = isWeekend ? _weekendOutingsFuture : _generalOutingsFuture;
 
     return Column(
       children: [
         // Header with Back arrow
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
             children: [
               IconButton(
@@ -778,58 +1238,50 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
           ),
         ),
 
-        // Search Bar with Filter Icon
+        // Type Switcher in History View
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: _buildSegmentedToggle(),
+        ),
+
+        // Search Bar + Sort Toggle Button (matching vitap_student_app_ref)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
           child: Row(
             children: [
               Expanded(
-                child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: _surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _line),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search_rounded, size: 20, color: _muted),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: (val) => setState(() {}),
-                          style: GoogleFonts.dmSans(fontSize: 13.5, color: _ink),
-                          decoration: InputDecoration(
-                            hintText: 'Search outings...',
-                            hintStyle: GoogleFonts.dmSans(fontSize: 13, color: _muted),
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: NexusSearchBar(
+                  controller: _searchController,
+                  hintText: 'Search outings...',
+                  onChanged: (_) => setState(() {}),
+                  onClear: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
                 ),
               ),
               const SizedBox(width: 10),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _line),
-                ),
-                child: IconButton(
-                  onPressed: () {
-                    // Toggle between weekend and general history
-                    setState(() {
-                      _outingType = _outingType == 'weekend' ? 'general' : 'weekend';
-                    });
-                  },
-                  icon: Icon(Icons.tune_rounded, size: 20, color: _navy),
+              Tooltip(
+                message: _isRecentFirst ? 'Recent first' : 'Oldest first',
+                child: InkWell(
+                  onTap: () => setState(() => _isRecentFirst = !_isRecentFirst),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _line),
+                    ),
+                    child: Icon(
+                      _isRecentFirst
+                          ? Icons.vertical_align_top_rounded
+                          : Icons.vertical_align_bottom_rounded,
+                      size: 20,
+                      color: _navy,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -845,39 +1297,75 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
             child: FutureBuilder<dynamic>(
               future: future,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                final rawData =
+                    snapshot.data ?? (isWeekend ? _cachedWeekend : _cachedGeneral);
+                var requests = _extractRequests(rawData);
+
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    requests.isEmpty) {
                   return Center(
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: _navy),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: _navy,
+                    ),
                   );
                 }
-
-                var requests = _extractRequests(snapshot.data);
 
                 final query = _searchController.text.trim().toLowerCase();
                 if (query.isNotEmpty) {
                   requests = requests.where((req) {
-                    final place = (req['place_of_visit'] ?? req['out_place'] ?? '').toString().toLowerCase();
-                    final purpose = (req['purpose_of_visit'] ?? req['reason'] ?? '').toString().toLowerCase();
-                    return place.contains(query) || purpose.contains(query);
+                    final place =
+                        (req['place_of_visit'] ?? req['out_place'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                    final purpose =
+                        (req['purpose_of_visit'] ?? req['reason'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                    final status = (req['status'] ?? '').toString().toLowerCase();
+                    final date = (req['date'] ?? req['from_date'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    final id = (req['booking_id'] ?? req['leave_id'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    return place.contains(query) ||
+                        purpose.contains(query) ||
+                        status.contains(query) ||
+                        date.contains(query) ||
+                        id.contains(query);
                   }).toList();
                 }
+
+                // Sort by date according to _isRecentFirst
+                requests.sort((a, b) {
+                  final dateAStr = isWeekend
+                      ? (a['date'] ?? a['from_date'] ?? '').toString()
+                      : (a['from_date'] ?? a['date'] ?? '').toString();
+                  final dateBStr = isWeekend
+                      ? (b['date'] ?? b['from_date'] ?? '').toString()
+                      : (b['from_date'] ?? b['date'] ?? '').toString();
+                  final dtA = _parseOutingDate(dateAStr);
+                  final dtB = _parseOutingDate(dateBStr);
+                  if (dtA == null && dtB == null) return 0;
+                  if (dtA == null) return 1;
+                  if (dtB == null) return -1;
+                  return _isRecentFirst ? dtB.compareTo(dtA) : dtA.compareTo(dtB);
+                });
 
                 if (requests.isEmpty) {
                   return ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
-                      const SizedBox(height: 80),
-                      Center(
-                        child: Column(
-                          children: [
-                            Icon(Icons.event_busy_rounded, size: 40, color: _muted),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No outing records found.',
-                              style: GoogleFonts.dmSans(fontSize: 13, color: _muted),
-                            ),
-                          ],
-                        ),
+                      const SizedBox(height: 60),
+                      NexusEmptyState(
+                        title: query.isNotEmpty
+                            ? 'No matching outings'
+                            : 'No outing records found',
+                        description: query.isNotEmpty
+                            ? 'No outings matched "$query". Try a different search term.'
+                            : 'You have no ${isWeekend ? 'weekend' : 'general'} outing requests on record.',
+                        icon: Icons.event_busy_rounded,
                       ),
                     ],
                   );
@@ -889,7 +1377,10 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   itemCount: requests.length,
                   itemBuilder: (context, index) {
                     final req = requests[index];
-                    return _buildModernOutingCard(req, isWeekend);
+                    return AnimeStaggerItem(
+                      index: index,
+                      child: _buildOutingCard(req, isWeekend),
+                    );
                   },
                 );
               },
@@ -900,10 +1391,38 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     );
   }
 
+  DateTime? _parseOutingDate(String rawDate) {
+    if (rawDate.trim().isEmpty || rawDate == '-') return null;
+    const formats = [
+      'dd-MMM-yyyy',
+      'dd-MM-yyyy',
+      'yyyy-MM-dd',
+      'dd/MM/yyyy',
+      'd-MMM-yyyy',
+      'd-MM-yyyy',
+      'd/M/yyyy',
+    ];
+    for (final fmt in formats) {
+      try {
+        return DateFormat(fmt).parse(rawDate.trim());
+      } catch (_) {}
+    }
+    try {
+      return DateTime.parse(rawDate.trim());
+    } catch (_) {
+      return null;
+    }
+  }
+
   bool _isApprovedStatus(String status) {
     final s = status.trim().toLowerCase();
-    if (s.contains('applied') || s.contains('applicant')) return false;
-    return s.contains('approved') || s.contains('accepted') || s == 'acc' || s == 'appr';
+    if (s.contains('applied') && !s.contains('accepted') && !s.contains('approved')) {
+      return false;
+    }
+    return s.contains('approved') ||
+        s.contains('accepted') ||
+        s == 'acc' ||
+        s == 'appr';
   }
 
   bool _isRejectedStatus(String status) {
@@ -916,30 +1435,30 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     return s.contains('cancel') || s.contains('deleted') || s.contains('closed');
   }
 
-  bool _isPendingStatus(String status) {
-    final s = status.trim().toLowerCase();
-    if (_isApprovedStatus(s) || _isRejectedStatus(s) || _isCancelledStatus(s)) return false;
-    return s.contains('applied') || s.contains('pending') || s.contains('waiting') || s.contains('requested') || s.contains('submitted') || s.contains('under review');
+  String _getStatusShortText(String status) {
+    if (_isApprovedStatus(status)) return 'Approved';
+    if (_isRejectedStatus(status)) return 'Rejected';
+    if (_isCancelledStatus(status)) return 'Cancelled';
+    return 'Pending';
   }
 
-  // Card matching Screenshot 3
-  Widget _buildModernOutingCard(Map<String, dynamic> req, bool isWeekend) {
-    final status = req['status']?.toString() ??
-        req['leave_status']?.toString() ??
-        'Pending';
+  // Outing Card modeled after vitap_student_app_ref/weekend_outing_card.dart
+  Widget _buildOutingCard(Map<String, dynamic> req, bool isWeekend) {
+    final status =
+        req['status']?.toString() ?? req['leave_status']?.toString() ?? 'Pending';
 
     final isApproved = _isApprovedStatus(status);
-    final isPending = _isPendingStatus(status);
+    final isRejected = _isRejectedStatus(status);
     final isCancelled = _isCancelledStatus(status);
+    final isPending = !isApproved && !isRejected && !isCancelled;
 
     final place = req['place_of_visit']?.toString() ??
         req['out_place']?.toString() ??
         req['place']?.toString() ??
         '-';
 
-    final purpose = req['purpose_of_visit']?.toString() ??
-        req['reason']?.toString() ??
-        '-';
+    final purpose =
+        req['purpose_of_visit']?.toString() ?? req['reason']?.toString() ?? '-';
 
     final outDate = isWeekend
         ? (req['date']?.toString() ?? req['from_date']?.toString() ?? '')
@@ -949,70 +1468,123 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
         ? (req['time']?.toString() ?? req['from_time']?.toString() ?? '')
         : (req['from_time']?.toString() ?? req['time']?.toString() ?? '');
 
-    final formattedDate = _formatCardDate(outDate);
-    final canDownload = isApproved;
+    final toDate = !isWeekend ? (req['to_date']?.toString() ?? '') : '';
+    final toTime = !isWeekend ? (req['to_time']?.toString() ?? '') : '';
+
+    final leaveId = (req['booking_id'] ??
+            req['leave_id'] ??
+            req['appl_id'] ??
+            req['id'] ??
+            '')
+        .toString()
+        .trim();
+
+    final canDownload =
+        (req['can_download'] == true) || (isApproved && leaveId.isNotEmpty);
+
+    final parsedDate = _parseOutingDate(outDate);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isToday = parsedDate != null &&
+        parsedDate.year == today.year &&
+        parsedDate.month == today.month &&
+        parsedDate.day == today.day;
+    final isUpcoming = parsedDate != null && parsedDate.isAfter(today);
+
+    final formattedDate = parsedDate != null
+        ? DateFormat('EEE, MMM d, yyyy').format(parsedDate)
+        : (outDate.isNotEmpty ? outDate : 'Outing Date');
 
     final statusColor = isApproved
         ? _green
-        : (isPending
-            ? _orange
-            : (isCancelled ? _muted : _red));
+        : (isPending ? _orange : (isCancelled ? _muted : _red));
 
     final statusBg = isApproved
-        ? const Color(0xFFE5F5E9)
+        ? _green.withValues(alpha: 0.14)
         : (isPending
-            ? const Color(0xFFFEF4E8)
-            : (isCancelled ? const Color(0xFFF1F3F5) : const Color(0xFFFDECE8)));
+            ? _orange.withValues(alpha: 0.14)
+            : (isCancelled
+                ? _muted.withValues(alpha: 0.14)
+                : _red.withValues(alpha: 0.14)));
 
-    return InkWell(
-      onTap: () => _openOutingDetailsModal(req, isWeekend),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NexusCard(
+        variant: NexusCardVariant.standard,
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _line),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x06000000),
-              blurRadius: 10,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
+        borderColor: isToday ? _blue : _line,
+        onTap: () => _openOutingDetailsModal(req, isWeekend),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Date Pill on left, Status Pill on right
+            // Top Row: Date Chip (+ TODAY/UPCOMING badge) on left, Status Badge on right
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _soft,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                Flexible(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Icon(Icons.calendar_today_outlined, size: 12, color: _inkSoft),
-                      const SizedBox(width: 5),
-                      Text(
-                        formattedDate.isNotEmpty ? formattedDate : 'Outing Date',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: _ink,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _soft,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_today_outlined,
+                              size: 13,
+                              color: _inkSoft,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              formattedDate,
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _ink,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      if (isToday || isUpcoming)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isToday
+                                ? _blue
+                                : _blue.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isToday ? 'TODAY' : 'UPCOMING',
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: isToday ? Colors.white : _blue,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: statusBg,
                     borderRadius: BorderRadius.circular(10),
@@ -1030,9 +1602,9 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        status,
+                        _getStatusShortText(status),
                         style: GoogleFonts.spaceGrotesk(
-                          fontSize: 10,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
                           color: statusColor,
                         ),
@@ -1049,37 +1621,39 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
             Text(
               place,
               style: GoogleFonts.dmSans(
-                fontSize: 17,
+                fontSize: 17.5,
                 fontWeight: FontWeight.w800,
                 color: _ink,
               ),
             ),
 
-            const SizedBox(height: 2),
-
-            // Purpose (Subtitle)
-            Text(
-              purpose,
-              style: GoogleFonts.dmSans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                color: _inkSoft,
+            if (purpose.isNotEmpty && purpose != '-') ...[
+              const SizedBox(height: 3),
+              Text(
+                purpose,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSans(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                  color: _inkSoft,
+                ),
               ),
-            ),
+            ],
 
             const SizedBox(height: 12),
 
-            // Time Row
-            if (outTime.isNotEmpty) ...[
+            // Schedule Info Row
+            if (isWeekend && outTime.isNotEmpty) ...[
               Row(
                 children: [
-                  Icon(Icons.access_time_rounded, size: 14, color: _inkSoft),
+                  Icon(Icons.access_time_rounded, size: 15, color: _inkSoft),
                   const SizedBox(width: 6),
                   Text(
                     'Time  ',
                     style: GoogleFonts.dmSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                       color: _muted,
                     ),
                   ),
@@ -1087,7 +1661,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                     child: Text(
                       outTime,
                       style: GoogleFonts.spaceGrotesk(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: _ink,
                       ),
@@ -1095,123 +1669,90 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+            ] else if (!isWeekend) ...[
+              Row(
+                children: [
+                  Icon(Icons.schedule_rounded, size: 15, color: _inkSoft),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$outDate $outTime  →  $toDate $toTime',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: _ink,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
 
-            // Pass available Chip at bottom left (ONLY if approved)
-            if (canDownload)
+            // Pass available Chip (when real PDF download is available)
+            if (canDownload) ...[
+              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: _soft,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _line),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.description_outlined, size: 12, color: _inkSoft),
+                    Icon(Icons.description_outlined, size: 13, color: _navy),
                     const SizedBox(width: 5),
                     Text(
                       'Pass available',
                       style: GoogleFonts.spaceGrotesk(
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: _inkSoft,
+                        color: _navy,
                       ),
                     ),
                   ],
                 ),
               ),
+            ],
           ],
         ),
       ),
-    ).animate().fadeIn(duration: 250.ms);
-  }
-
-  // ============================================================
-  Future<List<int>> _obtainOutingPdfBytes({
-    required bool isWeekend,
-    required String leaveId,
-    required String studentName,
-    required String regNo,
-    required String place,
-    required String purpose,
-    required String dateTimeSlot,
-    required String contactNo,
-    required String parentContact,
-    required String hostelBlock,
-    required String roomNo,
-  }) async {
-    final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
-
-    if (username.isNotEmpty && password.isNotEmpty && leaveId.isNotEmpty) {
-      try {
-        final List<int> remoteBytes = isWeekend
-            ? await apiService.downloadWeekendOutingForm(
-                username: username,
-                password: password,
-                bookingId: leaveId,
-              )
-            : await apiService.downloadGeneralOutingPass(
-                username: username,
-                password: password,
-                leaveId: leaveId,
-              );
-        if (remoteBytes.isNotEmpty) {
-          return remoteBytes;
-        }
-      } catch (e) {
-        debugPrint('Remote outing PDF fetch failed, falling back to local: $e');
-      }
-    }
-
-    return await DownloadHelper.generateOfficialOutingPdfBytes(
-      studentName: studentName,
-      regNo: regNo,
-      outingType: isWeekend ? 'Weekend' : 'General',
-      placeOfVisit: place,
-      purpose: purpose,
-      dateTimeSlot: dateTimeSlot,
-      contactNumber: contactNo,
-      parentContactNumber: parentContact,
-      bookingId: leaveId.isNotEmpty ? leaveId : 'VITAP-${DateTime.now().millisecondsSinceEpoch}',
-      hostelBlock: hostelBlock,
-      roomNo: roomNo,
     );
   }
 
   // ============================================================
-  // OUTING DETAILS BOTTOM SHEET MODAL (Screenshot 4)
+  // OUTING DETAILS BOTTOM SHEET MODAL (Real VTOP PDF View & Download)
   // ============================================================
   void _openOutingDetailsModal(Map<String, dynamic> req, bool isWeekend) {
     final auth = ref.read(authProvider);
     final dash = ref.read(dashboardProvider);
     final profile = (dash.data?['profile'] as Map<String, dynamic>?) ?? {};
 
-    final studentName = profile['student_name']?.toString() ?? auth.username ?? 'Student';
     final regNo = req['registration_number']?.toString() ??
         profile['application_number']?.toString() ??
         auth.username ??
         '';
-    final hostelBlock = req['hostel_block']?.toString() ?? profile['hostel_block']?.toString() ?? '-';
-    final roomNo = req['room_number']?.toString() ?? profile['room_number']?.toString() ?? '-';
+    final hostelBlock =
+        req['hostel_block']?.toString() ?? profile['hostel_block']?.toString() ?? '';
+    final roomNo =
+        req['room_number']?.toString() ?? profile['room_number']?.toString() ?? '';
 
-    final leaveId = req['booking_id']?.toString() ??
-        req['leave_id']?.toString() ??
-        req['appl_id']?.toString() ??
-        req['id']?.toString() ??
-        '';
+    final leaveId = (req['booking_id'] ??
+            req['leave_id'] ??
+            req['appl_id'] ??
+            req['id'] ??
+            '')
+        .toString()
+        .trim();
 
     final place = req['place_of_visit']?.toString() ??
         req['out_place']?.toString() ??
         req['place']?.toString() ??
         '-';
 
-    final purpose = req['purpose_of_visit']?.toString() ??
-        req['reason']?.toString() ??
-        '-';
+    final purpose =
+        req['purpose_of_visit']?.toString() ?? req['reason']?.toString() ?? '-';
 
     final outDate = isWeekend
         ? (req['date']?.toString() ?? '-')
@@ -1224,326 +1765,437 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     final toDate = !isWeekend ? req['to_date']?.toString() : null;
     final toTime = !isWeekend ? req['to_time']?.toString() : null;
 
-    final contactNo = req['contact_number']?.toString() ??
-        profile['mobile_number']?.toString() ??
-        '-';
+    final contactNo = req['contact_number']?.toString() ?? '';
+    final parentContact = req['parent_contact_number']?.toString() ?? '';
 
-    final parentContact = req['parent_contact_number']?.toString() ??
-        req['parent_phone']?.toString() ??
-        profile['parent_mobile_number']?.toString() ??
-        '-';
-
-    final status = req['status']?.toString() ??
-        req['leave_status']?.toString() ??
-        'Pending';
+    final status =
+        req['status']?.toString() ?? req['leave_status']?.toString() ?? 'Pending';
     final isApproved = _isApprovedStatus(status);
-    final isPending = _isPendingStatus(status);
     final isRejected = _isRejectedStatus(status);
     final isCancelled = _isCancelledStatus(status);
+    final isPending = !isApproved && !isRejected && !isCancelled;
+
+    final canDownload =
+        (req['can_download'] == true) || (isApproved && leaveId.isNotEmpty);
+
+    final statusColor = isApproved
+        ? _green
+        : (isPending ? _orange : (isCancelled ? _muted : _red));
+    final statusIcon = isApproved
+        ? Icons.check_circle_rounded
+        : (isPending ? Icons.schedule_rounded : Icons.cancel_rounded);
+
+    String? activePdfAction; // 'view' or 'download'
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: _surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (modalCtx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Modal Drag Handle
-                  Center(
-                    child: Container(
-                      width: 38,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: _line,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final isBusy = activePdfAction != null;
+
+            Future<void> handlePdfAction({required bool openOnly}) async {
+              if (isBusy) return;
+              setModalState(() {
+                activePdfAction = openOnly ? 'view' : 'download';
+              });
+
+              try {
+                final pdfBytes = await _fetchRealOutingPdfBytes(
+                  id: leaveId,
+                  isWeekend: isWeekend,
+                );
+
+                final fileName = isWeekend
+                    ? 'weekend_outing_$leaveId.pdf'
+                    : 'general_outing_$leaveId.pdf';
+
+                if (openOnly) {
+                  final tempDir = await getTemporaryDirectory();
+                  final tempPath = '${tempDir.path}/$fileName';
+                  final file = File(tempPath);
+                  await file.writeAsBytes(pdfBytes, flush: true);
+                  if (ctx.mounted) {
+                    setModalState(() => activePdfAction = null);
+                  }
+                  await DownloadHelper.openFile(tempPath);
+                } else {
+                  if (ctx.mounted) {
+                    setModalState(() => activePdfAction = null);
+                    Navigator.of(modalCtx).pop();
+                  }
+                  if (!mounted) return;
+                  await DownloadHelper.saveFile(
+                    context: context,
+                    fileName: fileName,
+                    content: pdfBytes,
+                    mimeType: 'application/pdf',
+                    openImmediately: false,
+                  );
+                }
+              } catch (e) {
+                if (ctx.mounted) {
+                  setModalState(() => activePdfAction = null);
+                }
+                if (!mounted) return;
+                _showMessage(
+                  ErrorFormatter.format(
+                    e,
+                    fallback: 'Failed to download official outing pass from VTOP.',
                   ),
-                  const SizedBox(height: 18),
+                  color: _red,
+                );
+              }
+            }
 
-                  // Title
-                  Text(
-                    'Outing Details',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: _ink,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Section 1: Outing Details
-                  _buildModalSectionTitle('Outing Details'),
-                  _buildModalDetailRow(Icons.location_on_outlined, 'Place of Visit', place),
-                  _buildModalDetailRow(Icons.description_outlined, 'Purpose', purpose),
-                  if (regNo.isNotEmpty)
-                    _buildModalDetailRow(Icons.person_outline_rounded, 'Registration Number', regNo),
-                  if (leaveId.isNotEmpty)
-                    _buildModalDetailRow(Icons.receipt_long_outlined, isWeekend ? 'Booking ID' : 'Leave ID', leaveId),
-                  _buildModalDetailRow(Icons.info_outline_rounded, 'Status', status),
-
-                  const SizedBox(height: 12),
-
-                  // Section 2: Accommodation
-                  if (hostelBlock != '-' || roomNo != '-') ...[
-                    _buildModalSectionTitle('Accommodation'),
-                    if (hostelBlock != '-')
-                      _buildModalDetailRow(Icons.apartment_rounded, 'Hostel Block', hostelBlock),
-                    if (roomNo != '-')
-                      _buildModalDetailRow(Icons.meeting_room_outlined, 'Room Number', roomNo),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Section 3: Schedule
-                  _buildModalSectionTitle('Schedule'),
-                  _buildModalDetailRow(Icons.calendar_today_outlined, isWeekend ? 'Date' : 'Leaving Date', outDate),
-                  _buildModalDetailRow(Icons.access_time_rounded, isWeekend ? 'Time' : 'Leaving Time', outTime),
-                  if (toDate != null && toDate.isNotEmpty)
-                    _buildModalDetailRow(Icons.calendar_today_outlined, 'Returning Date', toDate),
-                  if (toTime != null && toTime.isNotEmpty)
-                    _buildModalDetailRow(Icons.access_time_rounded, 'Returning Time', toTime),
-
-                  const SizedBox(height: 24),
-
-                  // Approved State: Show PDF view and download buttons (NEVER cancel)
-                  if (isApproved) ...[
-                    // Action 1: View PDF (Green filled button)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          Navigator.of(modalCtx).pop();
-                          final dateTimeSlot = isWeekend
-                              ? '$outDate & $outTime'
-                              : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
-                          final pdfBytes = await _obtainOutingPdfBytes(
-                            isWeekend: isWeekend,
-                            leaveId: leaveId,
-                            studentName: studentName,
-                            regNo: regNo,
-                            place: place,
-                            purpose: purpose,
-                            dateTimeSlot: dateTimeSlot,
-                            contactNo: contactNo,
-                            parentContact: parentContact,
-                            hostelBlock: hostelBlock,
-                            roomNo: roomNo,
-                          );
-
-                          if (!mounted) return;
-                          final fileName = 'VITAP_Outing_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
-                          await DownloadHelper.saveFile(
-                            context: context,
-                            fileName: fileName,
-                            content: pdfBytes,
-                            mimeType: 'application/pdf',
-                            openImmediately: true,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFC7DEC9),
-                          foregroundColor: const Color(0xFF132A15),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        icon: const Icon(Icons.description_outlined, size: 18),
-                        label: Text(
-                          'View PDF',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Drag Handle
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: _line,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 18),
 
-                    const SizedBox(height: 10),
-
-                    // Action 2: Download PDF (Green outline button)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          Navigator.of(modalCtx).pop();
-                          final dateTimeSlot = isWeekend
-                              ? '$outDate & $outTime'
-                              : '$outDate $outTime ${toDate != null ? "to $toDate $toTime" : ""}';
-                          final pdfBytes = await _obtainOutingPdfBytes(
-                            isWeekend: isWeekend,
-                            leaveId: leaveId,
-                            studentName: studentName,
-                            regNo: regNo,
-                            place: place,
-                            purpose: purpose,
-                            dateTimeSlot: dateTimeSlot,
-                            contactNo: contactNo,
-                            parentContact: parentContact,
-                            hostelBlock: hostelBlock,
-                            roomNo: roomNo,
-                          );
-
-                          if (!mounted) return;
-                          final fileName = 'VITAP_Outing_Pass_${leaveId.isNotEmpty ? leaveId : "Pass"}.pdf';
-                          await DownloadHelper.saveFile(
-                            context: context,
-                            fileName: fileName,
-                            content: pdfBytes,
-                            mimeType: 'application/pdf',
-                            openImmediately: false,
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _green,
-                          side: BorderSide(color: _green, width: 1.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                      // Header Banner (modeled after vitap_student_app_ref detail bottom sheet)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _soft,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _line),
                         ),
-                        icon: const Icon(Icons.download_rounded, size: 18),
-                        label: Text(
-                          'Download',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                statusIcon,
+                                color: statusColor,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isWeekend ? 'Weekend Outing' : 'General Outing',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: _ink,
+                                    ),
+                                  ),
+                                  if (purpose.isNotEmpty && purpose != '-') ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      purpose,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 13,
+                                        color: _inkSoft,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                _getStatusShortText(status),
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ] else if (isPending) ...[
-                    // Pending Notice Banner (No PDF download before approval)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF4E8),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFFCD7A1)),
+
+                      const SizedBox(height: 20),
+
+                      // Outing Details Section
+                      _buildModalSectionTitle('Outing Details'),
+                      if (place.isNotEmpty && place != '-')
+                        _buildModalDetailRow(
+                          Icons.location_on_outlined,
+                          'Place of Visit',
+                          place,
+                        ),
+                      if (purpose.isNotEmpty && purpose != '-')
+                        _buildModalDetailRow(
+                          Icons.description_outlined,
+                          'Purpose',
+                          purpose,
+                        ),
+                      if (regNo.isNotEmpty)
+                        _buildModalDetailRow(
+                          Icons.badge_outlined,
+                          'Registration Number',
+                          regNo,
+                        ),
+                      if (leaveId.isNotEmpty)
+                        _buildModalDetailRow(
+                          Icons.confirmation_number_outlined,
+                          isWeekend ? 'Booking ID' : 'Leave ID',
+                          leaveId,
+                        ),
+                      if (contactNo.isNotEmpty)
+                        _buildModalDetailRow(
+                          Icons.phone_outlined,
+                          'Contact Number',
+                          contactNo,
+                        ),
+                      if (parentContact.isNotEmpty)
+                        _buildModalDetailRow(
+                          Icons.contact_phone_outlined,
+                          'Parent Contact',
+                          parentContact,
+                        ),
+                      _buildModalDetailRow(
+                        Icons.info_outline_rounded,
+                        'Status',
+                        status,
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.hourglass_top_rounded, size: 18, color: _orange),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'This request is waiting for hostel authority approval. The outing pass will be available for download once approved.',
+
+                      // Accommodation Section
+                      if (hostelBlock.isNotEmpty || roomNo.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildModalSectionTitle('Accommodation'),
+                        if (hostelBlock.isNotEmpty)
+                          _buildModalDetailRow(
+                            Icons.apartment_outlined,
+                            'Hostel Block',
+                            hostelBlock,
+                          ),
+                        if (roomNo.isNotEmpty)
+                          _buildModalDetailRow(
+                            Icons.door_front_door_outlined,
+                            'Room Number',
+                            roomNo,
+                          ),
+                      ],
+
+                      // Schedule Section
+                      const SizedBox(height: 16),
+                      _buildModalSectionTitle('Schedule'),
+                      _buildModalDetailRow(
+                        Icons.calendar_today_outlined,
+                        isWeekend ? 'Date' : 'From Date',
+                        outDate,
+                      ),
+                      _buildModalDetailRow(
+                        Icons.access_time_outlined,
+                        isWeekend ? 'Time Slot' : 'From Time',
+                        outTime,
+                      ),
+                      if (toDate != null && toDate.isNotEmpty)
+                        _buildModalDetailRow(
+                          Icons.calendar_today_outlined,
+                          'To Date',
+                          toDate,
+                        ),
+                      if (toTime != null && toTime.isNotEmpty)
+                        _buildModalDetailRow(
+                          Icons.access_time_outlined,
+                          'To Time',
+                          toTime,
+                        ),
+
+                      const SizedBox(height: 20),
+
+                      // Real VTOP PDF View & Download Buttons
+                      if (canDownload) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: FilledButton.icon(
+                            onPressed: isBusy
+                                ? null
+                                : () => handlePdfAction(openOnly: true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _green,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            icon: activePdfAction == 'view'
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.visibility_outlined, size: 19),
+                            label: Text(
+                              activePdfAction == 'view'
+                                  ? 'Opening VTOP Pass...'
+                                  : 'View PDF',
                               style: GoogleFonts.dmSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF8C530A),
-                                height: 1.35,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-
-                    // Cancel button only for pending outings
-                    if (leaveId.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 46,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            Navigator.of(modalCtx).pop();
-                            _deleteOuting(leaveId, isWeekend);
-                          },
-                          style: TextButton.styleFrom(
-                            backgroundColor: const Color(0xFFFCEDEA),
-                            foregroundColor: _red,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: isBusy
+                                ? null
+                                : () => handlePdfAction(openOnly: false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _green,
+                              side: BorderSide(color: _green, width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
-                          ),
-                          icon: Icon(Icons.delete_outline_rounded, size: 16),
-                          label: Text(
-                            'Cancel Outing Request',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                            icon: activePdfAction == 'download'
+                                ? SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _green,
+                                    ),
+                                  )
+                                : const Icon(Icons.download_rounded, size: 19),
+                            label: Text(
+                              activePdfAction == 'download'
+                                  ? 'Downloading from VTOP...'
+                                  : 'Download',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
+
+                      // Cancel Outing Request (when not approved and leaveId exists)
+                      if (!isApproved && !isCancelled && leaveId.isNotEmpty) ...[
+                        if (canDownload) const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: isBusy
+                                ? null
+                                : () async {
+                                    final confirmed = await showDialog<bool>(
+                                      context: modalCtx,
+                                      builder: (dCtx) => AlertDialog(
+                                        backgroundColor: _surface,
+                                        title: Text(
+                                          'Delete Outing',
+                                          style: GoogleFonts.dmSans(
+                                            fontWeight: FontWeight.w800,
+                                            color: _ink,
+                                          ),
+                                        ),
+                                        content: Text(
+                                          'Are you sure you want to cancel this ${isWeekend ? "weekend" : "general"} outing request ($leaveId)?',
+                                          style: GoogleFonts.dmSans(
+                                            color: _inkSoft,
+                                          ),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(dCtx).pop(false),
+                                            child: Text(
+                                              'Cancel',
+                                              style: GoogleFonts.dmSans(
+                                                color: _inkSoft,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(dCtx).pop(true),
+                                            child: Text(
+                                              'Delete',
+                                              style: GoogleFonts.dmSans(
+                                                color: _red,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirmed == true && modalCtx.mounted) {
+                                      Navigator.of(modalCtx).pop();
+                                      await _deleteOuting(leaveId, isWeekend);
+                                    }
+                                  },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _red,
+                              side: BorderSide(color: _red, width: 1.4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                            label: Text(
+                              'Delete Outing',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ] else if (isRejected) ...[
-                    // Rejected Notice Banner
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFDECE8),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFF9C2B8)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.cancel_outlined, size: 18, color: _red),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'This outing request was rejected by the hostel warden/authority. No pass is available.',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF901B12),
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else if (isCancelled) ...[
-                    // Cancelled Notice Banner
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F3F5),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _line),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.info_outline_rounded, size: 18, color: _muted),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'This outing request was cancelled.',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: _inkSoft,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -1551,12 +2203,12 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
   Widget _buildModalSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         title,
         style: GoogleFonts.dmSans(
-          fontSize: 12.5,
-          fontWeight: FontWeight.w700,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w800,
           color: _inkSoft,
         ),
       ),
@@ -1565,19 +2217,19 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
   Widget _buildModalDetailRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 32,
-            height: 32,
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: _soft,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 16, color: _navy),
+            child: Icon(icon, size: 17, color: _navy),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1585,15 +2237,16 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 Text(
                   label,
                   style: GoogleFonts.dmSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
                     color: _muted,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   value,
                   style: GoogleFonts.dmSans(
-                    fontSize: 12.5,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: _ink,
                   ),
@@ -1606,35 +2259,23 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     );
   }
 
-  String _formatCardDate(String rawDate) {
-    if (rawDate.isEmpty || rawDate == '-') return '-';
-    final formats = [
-      'dd-MMM-yyyy',
-      'dd-MM-yyyy',
-      'yyyy-MM-dd',
-      'dd/MM/yyyy',
-      'd-MMM-yyyy',
-      'd-MM-yyyy',
-      'd/M/yyyy',
-    ];
-    for (final fmt in formats) {
-      try {
-        final parsed = DateFormat(fmt).parse(rawDate.trim());
-        return DateFormat('EEE, MMM d').format(parsed);
-      } catch (_) {}
-    }
-    return rawDate;
-  }
-
   Widget _pickerTheme(BuildContext context, Widget? child) {
+    final isDark = _palette.isDark;
     return Theme(
       data: Theme.of(context).copyWith(
-        colorScheme: ColorScheme.light(
-          primary: _navy,
-          onPrimary: Colors.white,
-          surface: _surface,
-          onSurface: _ink,
-        ),
+        colorScheme: isDark
+            ? ColorScheme.dark(
+                primary: _blue,
+                onPrimary: Colors.white,
+                surface: _surface,
+                onSurface: _ink,
+              )
+            : ColorScheme.light(
+                primary: _navy,
+                onPrimary: Colors.white,
+                surface: _surface,
+                onSurface: _ink,
+              ),
       ),
       child: child!,
     );

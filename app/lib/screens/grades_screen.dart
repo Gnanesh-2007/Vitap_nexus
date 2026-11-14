@@ -7,6 +7,8 @@ import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
+import '../widgets/motion/nexus_motion.dart';
 import 'cgpa_calculator_screen.dart';
 
 class GradesScreen extends ConsumerStatefulWidget {
@@ -20,7 +22,9 @@ class GradesScreen extends ConsumerStatefulWidget {
 
 class _GradesScreenState extends ConsumerState<GradesScreen> {
   late Future<Map<String, dynamic>> _gradesFuture;
+  Map<String, dynamic>? _cachedData;
   String _selectedSemester = 'All';
+  String? _selectedGrade;
   final TextEditingController _searchController = TextEditingController();
 
   AppPalette get _palette => AppPalette.of(context);
@@ -46,6 +50,10 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
   @override
   void initState() {
     super.initState();
+    final mem = widget.initialData ?? StorageService.getMemoryCache('grades');
+    if (mem is Map && mem.isNotEmpty) {
+      _cachedData = Map<String, dynamic>.from(mem);
+    }
     _fetchGrades();
   }
 
@@ -56,7 +64,12 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
   }
 
   void _fetchGrades({bool forceRefresh = false}) {
-    _gradesFuture = _getGradesData(forceRefresh: forceRefresh);
+    _gradesFuture = _getGradesData(forceRefresh: forceRefresh).then((data) {
+      if (mounted && data.isNotEmpty) {
+        setState(() => _cachedData = data);
+      }
+      return data;
+    });
   }
 
   Future<Map<String, dynamic>> _getGradesData({
@@ -217,6 +230,30 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     };
   }
 
+  Future<void> _onRefresh() async {
+    try {
+      final fresh = await _getGradesData(forceRefresh: true);
+      if (mounted && fresh.isNotEmpty) {
+        setState(() => _cachedData = fresh);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No internet connection. Showing saved data.',
+            style: GoogleFonts.dmSans(
+              color: _palette.onNavy,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _navy,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -225,13 +262,15 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
         child: RefreshIndicator(
           color: _blue,
           backgroundColor: _surface,
-          onRefresh: () async {
-            setState(() => _fetchGrades(forceRefresh: true));
-            await _gradesFuture;
-          },
+          onRefresh: _onRefresh,
           child: FutureBuilder<Map<String, dynamic>>(
             future: _gradesFuture,
             builder: (context, snapshot) {
+              final data = _cachedData ?? snapshot.data;
+              if (data != null && data.isNotEmpty) {
+                return _buildGradesContent(data);
+              }
+
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return _buildLoading();
               }
@@ -240,147 +279,177 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 return _buildError(snapshot.error!);
               }
 
-              final data = snapshot.data ?? {};
-              final allCourses = (data['courses'] as List<dynamic>?) ?? [];
-              final semesters = _extractSemesters(allCourses);
-
-              // Overall totals from VTOP or fallback
-              final overallCgpa = data['cgpa']?.toString() ?? 'N/A';
-              final overallEarned = data['credits_earned']?.toString() ?? 'N/A';
-              final overallRegistered =
-                  data['credits_registered']?.toString() ?? 'N/A';
-
-              // Filter courses based on selected semester
-              List<dynamic> filteredCourses = allCourses;
-              if (_selectedSemester != 'All') {
-                filteredCourses = allCourses
-                    .where((c) =>
-                        (c['exam_month']?.toString() ?? '').trim() ==
-                        _selectedSemester)
-                    .toList();
-              }
-
-              // Filter by search query if present
-              final searchQuery = _searchController.text.trim().toLowerCase();
-              if (searchQuery.isNotEmpty) {
-                filteredCourses = filteredCourses.where((c) {
-                  final code =
-                      (c['course_code'] ?? '').toString().toLowerCase();
-                  final title =
-                      (c['course_title'] ?? '').toString().toLowerCase();
-                  final grade = (c['grade'] ?? '').toString().toLowerCase();
-                  return code.contains(searchQuery) ||
-                      title.contains(searchQuery) ||
-                      grade.contains(searchQuery);
-                }).toList();
-              }
-
-              // Compute metrics for display
-              String heroGpaLabel = 'CURRENT CGPA';
-              String heroGpaValue = overallCgpa;
-              String heroEarned = overallEarned;
-              String heroRegistered = overallRegistered;
-
-              if (_selectedSemester != 'All') {
-                final semStats = _calculateStats(filteredCourses);
-                heroGpaLabel = 'SEMESTER SGPA';
-                heroGpaValue = semStats['gpa'];
-                heroEarned = semStats['earned'];
-                heroRegistered = semStats['registered'];
-              }
-
-              return CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                slivers: [
-                  SliverToBoxAdapter(child: _buildHeader()),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                      child: _buildHero(
-                        heroGpaLabel,
-                        heroGpaValue,
-                        heroEarned,
-                        heroRegistered,
-                        _selectedSemester,
-                      ),
-                    ),
-                  ),
-
-                  // Semester Filter Segmented Tabs
-                  if (semesters.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: _buildSemesterFilterBar(
-                          semesters: semesters,
-                          allCourses: allCourses,
-                        ),
-                      ),
-                    ),
-
-                  // Search Bar
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                      child: _buildSearchBar(),
-                    ),
-                  ),
-
-                  // Courses Header
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      child: _buildCoursesHeader(
-                        filteredCourses.length,
-                        _selectedSemester,
-                      ),
-                    ),
-                  ),
-
-                  // Course Cards
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                    sliver: filteredCourses.isEmpty
-                        ? SliverToBoxAdapter(child: _buildEmpty())
-                        : (_selectedSemester == 'All' && searchQuery.isEmpty
-                            ? SliverList(
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) {
-                                    final sem = semesters[index];
-                                    final semCourses = allCourses
-                                        .where((c) =>
-                                            (c['exam_month']?.toString() ??
-                                                '').trim() ==
-                                            sem)
-                                        .toList();
-                                    return _buildSemesterGroup(
-                                        sem, semCourses);
-                                  },
-                                  childCount: semesters.length,
-                                ),
-                              )
-                            : SliverList(
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) {
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 10),
-                                      child: _buildCourse(
-                                          filteredCourses[index]),
-                                    );
-                                  },
-                                  childCount: filteredCourses.length,
-                                ),
-                              )),
-                  ),
-                ],
-              );
+              return _buildGradesContent(data ?? {});
             },
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildGradesContent(Map<String, dynamic> data) {
+    final allCourses = (data['courses'] as List<dynamic>?) ?? [];
+    final semesters = _extractSemesters(allCourses);
+
+    // Overall totals from VTOP or fallback
+    final overallCgpa = data['cgpa']?.toString() ?? 'N/A';
+    final overallEarned = data['credits_earned']?.toString() ?? 'N/A';
+    final overallRegistered = data['credits_registered']?.toString() ?? 'N/A';
+
+    // Filter courses based on selected semester
+    List<dynamic> semFilteredCourses = allCourses;
+    if (_selectedSemester != 'All') {
+      semFilteredCourses = allCourses
+          .where(
+            (c) =>
+                (c['exam_month']?.toString() ?? '').trim() == _selectedSemester,
+          )
+          .toList();
+    }
+
+    // Compute metrics for display (before grade/search sub-filters)
+    String heroGpaLabel = 'CUMULATIVE CGPA';
+    String heroGpaValue = overallCgpa;
+    String heroEarned = overallEarned;
+    String heroRegistered = overallRegistered;
+
+    if (_selectedSemester != 'All') {
+      final semStats = _calculateStats(semFilteredCourses);
+      heroGpaLabel = 'SEMESTER SGPA';
+      heroGpaValue = semStats['gpa'];
+      heroEarned = semStats['earned'];
+      heroRegistered = semStats['registered'];
+    } else if (heroGpaValue == 'N/A' && allCourses.isNotEmpty) {
+      final allStats = _calculateStats(allCourses);
+      heroGpaValue = allStats['gpa'];
+      heroEarned = allStats['earned'];
+      heroRegistered = allStats['registered'];
+    }
+
+    // Apply Grade Filter & Search Query
+    List<dynamic> filteredCourses = semFilteredCourses;
+    if (_selectedGrade != null) {
+      filteredCourses = filteredCourses
+          .where(
+            (c) =>
+                (c['grade']?.toString() ?? '').trim().toUpperCase() ==
+                _selectedGrade,
+          )
+          .toList();
+    }
+
+    final searchQuery = _searchController.text.trim().toLowerCase();
+    if (searchQuery.isNotEmpty) {
+      filteredCourses = filteredCourses.where((c) {
+        final code = (c['course_code'] ?? '').toString().toLowerCase();
+        final title = (c['course_title'] ?? '').toString().toLowerCase();
+        final grade = (c['grade'] ?? '').toString().toLowerCase();
+        return code.contains(searchQuery) ||
+            title.contains(searchQuery) ||
+            grade.contains(searchQuery);
+      }).toList();
+    }
+
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      slivers: [
+        SliverToBoxAdapter(child: _buildHeader()),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            child: _buildHero(
+              heroGpaLabel,
+              heroGpaValue,
+              heroEarned,
+              heroRegistered,
+              _selectedSemester,
+            ),
+          ),
+        ),
+
+        // Interactive Grade Distribution Strip
+        if (semFilteredCourses.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: _buildGradeDistributionCard(semFilteredCourses),
+            ),
+          ),
+
+        // Semester Filter Segmented Tabs
+        if (semesters.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _buildSemesterFilterBar(
+                semesters: semesters,
+                allCourses: allCourses,
+              ),
+            ),
+          ),
+
+        // Search Bar
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: _buildSearchBar(),
+          ),
+        ),
+
+        // Courses Header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: _buildCoursesHeader(
+              filteredCourses.length,
+              _selectedSemester,
+            ),
+          ),
+        ),
+
+        // Course Cards
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+          sliver: filteredCourses.isEmpty
+              ? SliverToBoxAdapter(child: _buildEmpty())
+              : (_selectedSemester == 'All' &&
+                      searchQuery.isEmpty &&
+                      _selectedGrade == null
+                  ? SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final sem = semesters[index];
+                          final semCourses = allCourses
+                              .where(
+                                (c) =>
+                                    (c['exam_month']?.toString() ?? '')
+                                        .trim() ==
+                                    sem,
+                              )
+                              .toList();
+                          return _buildSemesterGroup(sem, semCourses);
+                        },
+                        childCount: semesters.length,
+                      ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: AnimeStaggerItem(
+                              index: index,
+                              child: _buildCourse(filteredCourses[index]),
+                            ),
+                          );
+                        },
+                        childCount: filteredCourses.length,
+                      ),
+                    )),
+        ),
+      ],
     );
   }
 
@@ -413,7 +482,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ACADEMICS',
+                  'ACADEMIC TRANSCRIPT',
                   style: _micro.copyWith(color: _orange),
                 ),
                 const SizedBox(height: 3),
@@ -429,34 +498,44 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
               ],
             ),
           ),
-          InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CgpaCalculatorScreen()),
-              );
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: _blue.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _blue.withValues(alpha: .28)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.calculate_rounded, size: 16, color: _blue),
-                  const SizedBox(width: 5),
-                  Text(
-                    'PLANNER',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                      color: _blue,
-                    ),
+          Tooltip(
+            message: 'CGPA & GPA Calculator',
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const CgpaCalculatorScreen(),
                   ),
-                ],
+                );
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 11),
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _line),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.calculate_outlined,
+                      color: _blue,
+                      size: 17,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Calc',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: _ink,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -491,11 +570,37 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     String registered,
     String semester,
   ) {
+    final numericGpa = double.tryParse(gpa) ?? 0.0;
+    final numericEarned = double.tryParse(earned) ?? 0.0;
+    final numericReg = double.tryParse(registered) ?? 0.0;
+    final creditProgress = numericReg > 0
+        ? (numericEarned / numericReg).clamp(0.0, 1.0)
+        : 1.0;
+
+    String standingLabel = 'ACADEMIC RECORD';
+    Color standingColor = const Color(0xFF79B7FF);
+    if (numericGpa >= 9.0) {
+      standingLabel = 'CHANCELLOR DISTINCTION • 9.0+';
+      standingColor = const Color(0xFF4ADE80);
+    } else if (numericGpa >= 8.0) {
+      standingLabel = 'FIRST CLASS WITH DISTINCTION';
+      standingColor = const Color(0xFFF2B35B);
+    } else if (numericGpa >= 6.5) {
+      standingLabel = 'FIRST CLASS STANDING';
+      standingColor = const Color(0xFF79B7FF);
+    } else if (numericGpa > 0) {
+      standingLabel = 'ACTIVE STANDING';
+      standingColor = const Color(0xFFFBBF24);
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _navy,
-        borderRadius: BorderRadius.circular(21),
+        color: _palette.heroBg,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: _palette.isDark ? _line : const Color(0xFF172B4D),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x17172B4D),
@@ -505,7 +610,89 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: standingColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: standingColor.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.workspace_premium_rounded,
+                      size: 13,
+                      color: standingColor,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      standingLabel,
+                      style: GoogleFonts.spaceGrotesk(
+                        color: standingColor,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const CgpaCalculatorScreen(),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.14),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.tune_rounded,
+                        size: 12,
+                        color: Colors.white70,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'GPA Simulator',
+                        style: GoogleFonts.dmSans(
+                          color: Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -531,82 +718,195 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(
-              horizontal: 11,
-              vertical: 9,
+              horizontal: 12,
+              vertical: 10,
             ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: .06),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: Colors.white.withValues(alpha: .10),
               ),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Icon(
-                  Icons.fact_check_outlined,
-                  color: Colors.white54,
-                  size: 15,
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.fact_check_outlined,
+                      color: Colors.white60,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      semester == 'All'
+                          ? 'Total Credits Earned vs Registered'
+                          : 'Semester Credits Earned vs Registered',
+                      style: GoogleFonts.dmSans(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '$earned / $registered',
+                      style: GoogleFonts.spaceGrotesk(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 7),
-                Text(
-                  semester == 'All'
-                      ? 'Total credits registered'
-                      : 'Semester credits registered',
-                  style: GoogleFonts.dmSans(
-                    color: Colors.white60,
-                    fontSize: 10.5,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  registered,
-                  style: GoogleFonts.spaceGrotesk(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: creditProgress,
+                    minHeight: 5,
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF79B7FF),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          // CGPA Simulator banner
-          InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CgpaCalculatorScreen()),
-              );
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGradeDistributionCard(List<dynamic> courses) {
+    final counts = <String, int>{
+      'S': 0,
+      'A': 0,
+      'B': 0,
+      'C': 0,
+      'D': 0,
+      'E': 0,
+      'P': 0,
+    };
+    for (final c in courses) {
+      final g = (c['grade']?.toString() ?? '').trim().toUpperCase();
+      if (counts.containsKey(g)) {
+        counts[g] = (counts[g] ?? 0) + 1;
+      } else if (g.isNotEmpty && g != '-') {
+        counts[g] = (counts[g] ?? 0) + 1;
+      }
+    }
+
+    final activeEntries =
+        counts.entries.where((e) => e.value > 0).toList();
+    if (activeEntries.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'GRADE DISTRIBUTION (TAP TO FILTER)',
+                style: _micro.copyWith(color: _muted, fontSize: 8.5),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.auto_awesome_rounded, size: 14, color: const Color(0xFFF2B35B)),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Simulate Future Semesters & Target CGPA',
-                        style: GoogleFonts.dmSans(
-                          color: Colors.white,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
+              if (_selectedGrade != null)
+                GestureDetector(
+                  onTap: () => setState(() => _selectedGrade = null),
+                  child: Text(
+                    'Clear Filter ($_selectedGrade)',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _blue,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: activeEntries.map((entry) {
+                final g = entry.key;
+                final count = entry.value;
+                final color = _getGradeColor(g);
+                final isSelected = _selectedGrade == g;
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedGrade = isSelected ? null : g;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? color.withValues(alpha: 0.18)
+                            : _soft,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? color
+                              : color.withValues(alpha: 0.28),
+                          width: isSelected ? 1.5 : 1.0,
                         ),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            g,
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: color,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _surface,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: _ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.white70),
-                ],
-              ),
+                );
+              }).toList(),
             ),
           ),
         ],
@@ -669,7 +969,9 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     style: GoogleFonts.dmSans(
                       fontSize: 12.5,
                       fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                      color: isSelected ? Colors.white : _ink,
+                      color: isSelected
+                          ? (_palette.isDark ? const Color(0xFF0F172A) : Colors.white)
+                          : _ink,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -678,7 +980,9 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? Colors.white.withValues(alpha: .2)
+                          ? (_palette.isDark
+                              ? const Color(0x330F172A)
+                              : Colors.white.withValues(alpha: .2))
                           : _soft,
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -687,7 +991,9 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                       style: GoogleFonts.spaceGrotesk(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w800,
-                        color: isSelected ? Colors.white : _inkSoft,
+                        color: isSelected
+                            ? (_palette.isDark ? const Color(0xFF0F172A) : Colors.white)
+                            : _inkSoft,
                       ),
                     ),
                   ),
@@ -701,49 +1007,14 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _line),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded, size: 18, color: _muted),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              style: GoogleFonts.dmSans(
-                fontSize: 13,
-                color: _ink,
-                fontWeight: FontWeight.w600,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search course by name, code or grade...',
-                hintStyle: GoogleFonts.dmSans(
-                  fontSize: 12.5,
-                  color: _muted,
-                  fontWeight: FontWeight.w500,
-                ),
-                border: InputBorder.none,
-                isDense: true,
-              ),
-            ),
-          ),
-          if (_searchController.text.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                _searchController.clear();
-                setState(() {});
-              },
-              child: Icon(Icons.close_rounded, size: 16, color: _muted),
-            ),
-        ],
-      ),
+    return NexusSearchBar(
+      controller: _searchController,
+      hintText: 'Search course by name, code or grade...',
+      onChanged: (_) => setState(() {}),
+      onClear: () {
+        _searchController.clear();
+        setState(() {});
+      },
     );
   }
 
@@ -818,17 +1089,21 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.calendar_month_outlined, size: 16, color: _navy),
-                const SizedBox(width: 8),
-                Text(
-                  semester,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: _ink,
+                Icon(Icons.calendar_month_outlined, size: 15, color: _navy),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    semester,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: _ink,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text(
                   'SGPA: ',
                   style: GoogleFonts.dmSans(
@@ -840,16 +1115,16 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 Text(
                   stats['gpa'],
                   style: GoogleFonts.spaceGrotesk(
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: _navy,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
-                  '• ${semCourses.length} courses',
+                  '• ${semCourses.length}',
                   style: GoogleFonts.dmSans(
-                    fontSize: 11,
+                    fontSize: 10.5,
                     color: _inkSoft,
                   ),
                 ),
@@ -869,52 +1144,105 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     );
   }
 
-  Widget _buildCourse(dynamic course) {
-    final grade = course['grade']?.toString() ?? '-';
-    final color = _getGradeColor(grade);
-    final code = course['course_code']?.toString() ?? '';
-    final title = course['course_title']?.toString() ?? 'Course';
-    final credits = course['credits']?.toString() ?? '0';
-    final type = course['course_type']?.toString() ?? '';
-    final month = course['exam_month']?.toString() ?? '';
-    final distribution = course['course_distribution']?.toString() ?? '';
+  int? _getGradePoint(String grade) {
+    switch (grade.toUpperCase().trim()) {
+      case 'S':
+        return 10;
+      case 'A':
+        return 9;
+      case 'B':
+        return 8;
+      case 'C':
+        return 7;
+      case 'D':
+        return 6;
+      case 'E':
+        return 5;
+      case 'F':
+      case 'N':
+        return 0;
+      default:
+        return null;
+    }
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _line),
-      ),
+  Widget _buildCourse(dynamic course) {
+    final grade = (course['grade']?.toString() ?? '-').trim();
+    final color = _getGradeColor(grade);
+    final gp = _getGradePoint(grade);
+    final code = (course['course_code']?.toString() ?? '').trim();
+    final title = (course['course_title']?.toString() ?? 'Course').trim();
+    final credits = (course['credits']?.toString() ?? '0').trim();
+    final type = (course['course_type']?.toString() ?? '').trim();
+    final month = (course['exam_month']?.toString() ?? '').trim();
+    final distribution = (course['course_distribution']?.toString() ?? '').trim();
+    final totalMarks = (course['total_marks']?.toString() ?? '').trim();
+
+    return NexusCard(
+      variant: NexusCardVariant.standard,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      onTap: () => _showCourseGradeDetailSheet(course),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Left: Grade & Grade Point Badge
           Container(
-            width: 50,
-            height: 50,
+            width: 52,
+            height: 56,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: .09),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: .11),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: color.withValues(alpha: .35),
+                width: 1.2,
               ),
             ),
-            child: Center(
-              child: Text(
-                grade,
-                style: GoogleFonts.dmSans(
-                  color: color,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  grade,
+                  style: GoogleFonts.spaceGrotesk(
+                    color: color,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    height: 1.0,
+                  ),
                 ),
-              ),
+                if (gp != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    '$gp GP',
+                    style: GoogleFonts.spaceGrotesk(
+                      color: color.withValues(alpha: 0.85),
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 13),
+
+          // Center: Course Title & Clean Metadata Row
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    color: _ink,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.22,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
                   runSpacing: 5,
@@ -924,55 +1252,217 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                       _Pill(
                         code,
                         _blue,
-                        const Color(0xFFEAF0FD),
+                        _blue.withValues(alpha: 0.12),
                       ),
                     _Pill(
-                      '$credits CREDITS',
-                      _muted,
+                      '$credits CR',
+                      _inkSoft,
                       _soft,
                     ),
                     if (distribution.isNotEmpty)
                       _Pill(
                         distribution,
-                        _inkSoft,
+                        _muted,
+                        _soft,
+                      ),
+                    if (totalMarks.isNotEmpty &&
+                        totalMarks != '-' &&
+                        totalMarks != '0')
+                      _Pill(
+                        'SCORE: $totalMarks',
+                        _green,
+                        _green.withValues(alpha: 0.12),
+                      ),
+                    if (month.isNotEmpty && _selectedSemester != 'All')
+                      _Pill(
+                        month,
+                        _orange,
+                        _orange.withValues(alpha: 0.12),
+                      ),
+                    if (type.isNotEmpty && distribution.isEmpty)
+                      _Pill(
+                        type,
+                        _muted,
                         _soft,
                       ),
                   ],
                 ),
-                const SizedBox(height: 7),
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dmSans(
-                    color: _ink,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    height: 1.18,
-                  ),
-                ),
-                if (type.isNotEmpty || month.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 5,
-                    children: [
-                      if (type.isNotEmpty)
-                        _Pill(type, _muted, _soft),
-                      if (month.isNotEmpty)
-                        _Pill(
-                          month,
-                          _orange,
-                          const Color(0xFFF9ECE7),
-                        ),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: _muted,
+          ),
         ],
       ),
+    );
+  }
+
+  void _showCourseGradeDetailSheet(dynamic course) {
+    final grade = (course['grade']?.toString() ?? '-').trim();
+    final color = _getGradeColor(grade);
+    final gp = _getGradePoint(grade);
+    final code = (course['course_code']?.toString() ?? '-').trim();
+    final title = (course['course_title']?.toString() ?? 'Course').trim();
+    final credits = (course['credits']?.toString() ?? '0').trim();
+    final type = (course['course_type']?.toString() ?? '-').trim();
+    final month = (course['exam_month']?.toString() ?? '-').trim();
+    final distribution = (course['course_distribution']?.toString() ?? '-').trim();
+    final totalMarks = (course['total_marks']?.toString() ?? '').trim();
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(top: BorderSide(color: _line, width: 1.2)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _line,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: color.withValues(alpha: 0.4)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        grade,
+                        style: GoogleFonts.spaceGrotesk(
+                          color: color,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          code,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: _blue,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          title,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: _ink,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _soft,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _line),
+                ),
+                child: Column(
+                  children: [
+                    _buildDetailLine('Letter Grade', grade, valueColor: color),
+                    if (gp != null) ...[
+                      Divider(height: 18, color: _line),
+                      _buildDetailLine('Grade Points', '$gp / 10 GP'),
+                    ],
+                    Divider(height: 18, color: _line),
+                    _buildDetailLine('Course Credits', '$credits Credits'),
+                    if (totalMarks.isNotEmpty && totalMarks != '-') ...[
+                      Divider(height: 18, color: _line),
+                      _buildDetailLine('Total Marks', totalMarks),
+                    ],
+                    if (distribution.isNotEmpty && distribution != '-') ...[
+                      Divider(height: 18, color: _line),
+                      _buildDetailLine('Curriculum Category', distribution),
+                    ],
+                    if (type.isNotEmpty && type != '-') ...[
+                      Divider(height: 18, color: _line),
+                      _buildDetailLine('Course Type', type),
+                    ],
+                    if (month.isNotEmpty && month != '-') ...[
+                      Divider(height: 18, color: _line),
+                      _buildDetailLine('Exam Month', month),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailLine(
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: _inkSoft,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: valueColor ?? _ink,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1088,7 +1578,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     onPressed: () {
                       setState(() => _fetchGrades(forceRefresh: true));
                     },
-                    icon: Icon(Icons.refresh_rounded, size: 18),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
                     label: Text(
                       'Try Again',
                       style: GoogleFonts.dmSans(
@@ -1097,7 +1587,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: _navy,
-                      foregroundColor: Colors.white,
+                      foregroundColor: _palette.isDark ? const Color(0xFF0F172A) : Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),

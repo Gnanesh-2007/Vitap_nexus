@@ -7,6 +7,8 @@ import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
+import '../widgets/motion/nexus_motion.dart';
 
 class PaymentsScreen extends ConsumerStatefulWidget {
   const PaymentsScreen({super.key});
@@ -22,16 +24,15 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
   late Future<List<dynamic>> _receiptsFuture;
 
   AppPalette get _palette => AppPalette.of(context);
-  Color get _paper => _palette.paper;
+  Color get _background => _palette.paper;
   Color get _surface => _palette.surface;
   Color get _ink => _palette.ink;
+  Color get _muted => _palette.inkMuted;
+  Color get _line => _palette.line;
   Color get _navy => _palette.navy;
-  Color get _blue => _palette.blue;
   Color get _orange => _palette.orange;
   Color get _green => _palette.green;
   Color get _red => _palette.red;
-  Color get _muted => _palette.inkMuted;
-  Color get _line => _palette.line;
   Color get _soft => _palette.soft;
 
   @override
@@ -42,20 +43,16 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
   }
 
   void _loadPayments({bool forceRefresh = false}) {
-    _pendingPaymentsFuture =
-        _getPendingPayments(forceRefresh: forceRefresh);
+    _pendingPaymentsFuture = _getPendingPayments(forceRefresh: forceRefresh);
     _receiptsFuture = _getReceipts(forceRefresh: forceRefresh);
   }
 
-  Future<List<dynamic>> _getPendingPayments({
-    bool forceRefresh = false,
-  }) async {
+  Future<List<dynamic>> _getPendingPayments({bool forceRefresh = false}) async {
     if (!forceRefresh) {
       final mem = StorageService.getMemoryCache('payments');
       if (mem is List && mem.isNotEmpty) {
         return List<dynamic>.from(mem);
       }
-
       final disk = await StorageService.getCache('payments');
       if (disk is List && disk.isNotEmpty) {
         return List<dynamic>.from(disk);
@@ -63,52 +60,39 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     }
 
     final auth = ref.read(authProvider);
-
     try {
       final fresh = await apiService.fetchPendingPayments(
         username: auth.username ?? '',
         password: auth.password ?? '',
       );
-
       if (fresh.isNotEmpty) {
         await StorageService.setCache('payments', fresh);
         return fresh;
       }
     } catch (e) {
-      debugPrint(
-        'PaymentsScreen: Pending payments fetch failed ($e). '
-        'Checking cache...',
-      );
-
+      debugPrint('PaymentsScreen: Pending payments fetch failed ($e). Checking cache...');
       final fallback = StorageService.getMemoryCache('payments') ??
           await StorageService.getCache('payments');
-
       if (fallback is List && fallback.isNotEmpty) {
         return List<dynamic>.from(fallback);
       }
-
       rethrow;
     }
 
     final fallback = StorageService.getMemoryCache('payments') ??
         await StorageService.getCache('payments');
-
     if (fallback is List && fallback.isNotEmpty) {
       return List<dynamic>.from(fallback);
     }
-
     return [];
   }
 
-  Future<List<dynamic>> _getReceipts({
-    bool forceRefresh = false,
-  }) async {
+  Future<List<dynamic>> _getReceipts({bool forceRefresh = false}) async {
     if (!forceRefresh) {
       final mem = StorageService.getMemoryCache('receipts');
       if (mem is List && mem.isNotEmpty) {
         return List<dynamic>.from(mem);
       }
-
       final disk = await StorageService.getCache('receipts');
       if (disk is List && disk.isNotEmpty) {
         return List<dynamic>.from(disk);
@@ -116,40 +100,30 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     }
 
     final auth = ref.read(authProvider);
-
     try {
       final fresh = await apiService.fetchPaymentReceipts(
         username: auth.username ?? '',
         password: auth.password ?? '',
       );
-
       if (fresh.isNotEmpty) {
         await StorageService.setCache('receipts', fresh);
         return fresh;
       }
     } catch (e) {
-      debugPrint(
-        'PaymentsScreen: Receipts fetch failed ($e). '
-        'Checking cache...',
-      );
-
+      debugPrint('PaymentsScreen: Receipts fetch failed ($e). Checking cache...');
       final fallback = StorageService.getMemoryCache('receipts') ??
           await StorageService.getCache('receipts');
-
       if (fallback is List && fallback.isNotEmpty) {
         return List<dynamic>.from(fallback);
       }
-
       rethrow;
     }
 
     final fallback = StorageService.getMemoryCache('receipts') ??
         await StorageService.getCache('receipts');
-
     if (fallback is List && fallback.isNotEmpty) {
       return List<dynamic>.from(fallback);
     }
-
     return [];
   }
 
@@ -159,164 +133,146 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     super.dispose();
   }
 
-  Future<void> _refreshPending() async {
-    setState(() {
-      _pendingPaymentsFuture =
-          _getPendingPayments(forceRefresh: true);
-    });
-    await _pendingPaymentsFuture;
-  }
-
-  Future<void> _refreshReceipts() async {
-    setState(() {
-      _receiptsFuture = _getReceipts(forceRefresh: true);
-    });
-    await _receiptsFuture;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _paper,
-      body: SafeArea(
-        child: Column(
+      backgroundColor: _background,
+      appBar: AppBar(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: _background,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 72,
+        titleSpacing: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: _ink, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(),
-            _buildTabs(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildPendingTab(),
-                  _buildReceiptsTab(),
-                ],
+            Text(
+              'FINANCIALS',
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: _orange,
+                letterSpacing: 1.7,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Payments & Dues',
+              style: GoogleFonts.dmSans(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: _ink,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 13),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: () => Navigator.of(context).pop(),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _line),
+            ),
+            child: IconButton(
+              tooltip: 'Refresh Payments',
+              icon: Icon(Icons.refresh_rounded, color: _navy, size: 20),
+              onPressed: () {
+                setState(() => _loadPayments(forceRefresh: true));
+              },
+            ),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            decoration: BoxDecoration(
+              color: _soft,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _line),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
                 color: _surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _line),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: _palette.isDark ? 0.3 : 0.06),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                color: _navy,
-                size: 19,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: _navy,
+              unselectedLabelColor: _muted,
+              labelStyle: GoogleFonts.spaceGrotesk(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
               ),
-            ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'FINANCE',
-                  style: GoogleFonts.spaceGrotesk(
-                    color: _orange,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
+              unselectedLabelStyle: GoogleFonts.spaceGrotesk(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+              tabs: const [
+                Tab(
+                  iconMargin: EdgeInsets.zero,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.pending_actions_rounded, size: 16),
+                      SizedBox(width: 8),
+                      Text('Pending Dues'),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'Payments & Dues',
-                  style: GoogleFonts.dmSans(
-                    color: _ink,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05,
+                Tab(
+                  iconMargin: EdgeInsets.zero,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.receipt_long_rounded, size: 16),
+                      SizedBox(width: 8),
+                      Text('Receipts'),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          InkWell(
-            onTap: () {
-              if (_tabController.index == 0) {
-                _refreshPending();
-              } else {
-                _refreshReceipts();
-              }
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _line),
-              ),
-              child: Icon(
-                Icons.refresh_rounded,
-                color: _navy,
-                size: 18,
-              ),
-            ),
-          ),
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildPendingTab(),
+          _buildReceiptsTab(),
         ],
       ),
     );
   }
 
-  Widget _buildTabs() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.all(4),
+  Widget _buildSkeletonPayments() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+      itemCount: 4,
+      itemBuilder: (context, index) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 90,
         decoration: BoxDecoration(
-          color: _soft,
-          borderRadius: BorderRadius.circular(13),
+          color: _surface,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _line),
-        ),
-        child: TabBar(
-          controller: _tabController,
-          dividerColor: Colors.transparent,
-          indicator: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _line),
-          ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          labelColor: _navy,
-          unselectedLabelColor: _muted,
-          labelStyle: GoogleFonts.dmSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-          ),
-          unselectedLabelStyle: GoogleFonts.dmSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-          tabs: const [
-            Tab(
-              icon: Icon(Icons.pending_actions_rounded, size: 16),
-              text: 'Pending Dues',
-            ),
-            Tab(
-              icon: Icon(Icons.receipt_long_rounded, size: 16),
-              text: 'Receipts',
-            ),
-          ],
         ),
       ),
     );
@@ -324,667 +280,371 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
 
   Widget _buildPendingTab() {
     return RefreshIndicator(
-      color: _blue,
+      onRefresh: () async {
+        setState(() => _loadPayments(forceRefresh: true));
+        await _pendingPaymentsFuture;
+      },
+      color: _navy,
       backgroundColor: _surface,
-      onRefresh: _refreshPending,
       child: FutureBuilder<List<dynamic>>(
         future: _pendingPaymentsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoading('Loading payment dues...');
+            return _buildSkeletonPayments();
           }
 
           if (snapshot.hasError) {
-            return _buildError(
-              'Could not load pending dues',
-              snapshot.error!,
-              _refreshPending,
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline_rounded, size: 44, color: _red),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to load pending dues',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _ink,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      ErrorFormatter.format(snapshot.error),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.dmSans(color: _muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
             );
           }
 
           final payments = snapshot.data ?? [];
-
           if (payments.isEmpty) {
-            return _buildNoDues();
-          }
-
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
-            children: [
-              _buildOverview(
-                eyebrow: 'CURRENT BALANCE',
-                title: '${payments.length} pending '
-                    '${payments.length == 1 ? 'payment' : 'payments'}',
-                subtitle: 'University dues requiring attention',
-                icon: Icons.account_balance_wallet_rounded,
-                color: _red,
-                background: const Color(0xFFFCEDEA),
-              ),
-              const SizedBox(height: 18),
-              _buildSectionLabel(
-                'PENDING PAYMENTS',
-                '${payments.length} DUE',
-              ),
-              const SizedBox(height: 10),
-              ...payments.asMap().entries.map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _buildPaymentCard(entry.value, entry.key),
-                    ),
-                  ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildPaymentCard(dynamic payment, int index) {
-    final description =
-        payment['fee_description']?.toString() ?? 'Fee Description';
-    final dueDate = payment['due_date']?.toString() ?? 'Immediate';
-    final amount = payment['amount']?.toString() ?? '0';
-
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: _line),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0617202A),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFCEDEA),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(
-              Icons.receipt_long_rounded,
-              color: _red,
-              size: 21,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Text(
-                  description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dmSans(
-                    color: _ink,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.event_outlined,
-                      color: _muted,
-                      size: 13,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'Due: $dueDate',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.spaceGrotesk(
-                          color: _muted,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                        ),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.55,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              color: _green.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.check_circle_rounded,
+                              size: 38,
+                              color: _green,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No Pending Dues! 🎉',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'All university tuition, hostel, and academic fees are completely cleared.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              color: _muted,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'AMOUNT',
-                style: GoogleFonts.spaceGrotesk(
-                  color: _muted,
-                  fontSize: 7,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: .65,
+            );
+          }
+
+          return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+            itemCount: payments.length,
+            itemBuilder: (context, index) {
+              final p = payments[index];
+              final feeDesc = (p['fee_description'] ?? p['fee_desc'] ?? 'Fee Description').toString();
+              final dueDate = (p['due_date'] ?? 'Immediate').toString();
+              final amount = (p['amount'] ?? '0').toString();
+              return AnimeStaggerItem(
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: NexusCard(
+                    variant: NexusCardVariant.standard,
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                        decoration: BoxDecoration(
+                          color: _red.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.pending_actions_rounded, color: _red, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              feeDesc,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: _ink,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _soft,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: _line),
+                              ),
+                              child: Text(
+                                'Due: $dueDate',
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _red,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '₹$amount',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: _red,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                '₹$amount',
-                style: GoogleFonts.dmSans(
-                  color: _red,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ],
+            );
+          },
+          );
+        },
       ),
     );
   }
 
   Widget _buildReceiptsTab() {
     return RefreshIndicator(
-      color: _blue,
+      onRefresh: () async {
+        setState(() => _loadPayments(forceRefresh: true));
+        await _receiptsFuture;
+      },
+      color: _navy,
       backgroundColor: _surface,
-      onRefresh: _refreshReceipts,
       child: FutureBuilder<List<dynamic>>(
         future: _receiptsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoading('Loading payment receipts...');
+            return _buildSkeletonPayments();
           }
 
           if (snapshot.hasError) {
-            return _buildError(
-              'Could not load payment receipts',
-              snapshot.error!,
-              _refreshReceipts,
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline_rounded, size: 44, color: _red),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to load payment receipts',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _ink,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      ErrorFormatter.format(snapshot.error),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.dmSans(color: _muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
             );
           }
 
           final receipts = snapshot.data ?? [];
-
           if (receipts.isEmpty) {
-            return _buildNoReceipts();
-          }
-
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
-            children: [
-              _buildOverview(
-                eyebrow: 'PAYMENT HISTORY',
-                title: '${receipts.length} recorded '
-                    '${receipts.length == 1 ? 'receipt' : 'receipts'}',
-                subtitle: 'Completed university payment records',
-                icon: Icons.verified_rounded,
-                color: _green,
-                background: const Color(0xFFE8F4EF),
-              ),
-              const SizedBox(height: 18),
-              _buildSectionLabel(
-                'RECEIPT HISTORY',
-                '${receipts.length} RECORDS',
-              ),
-              const SizedBox(height: 10),
-              ...receipts.asMap().entries.map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _buildReceiptCard(entry.value, entry.key),
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.55,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              color: _soft,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.receipt_long_rounded,
+                              size: 34,
+                              color: _muted,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No Payment Receipts',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Your completed payment receipts will show up here.',
+                            style: GoogleFonts.dmSans(fontSize: 12.5, color: _muted),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-            ],
+                ),
+              ],
+            );
+          }
+
+          return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+            itemCount: receipts.length,
+            itemBuilder: (context, index) {
+              final r = receipts[index];
+              final receiptNo = (r['receipt_number'] ?? r['receipt_no'] ?? 'Receipt').toString();
+              final date = (r['transaction_date'] ?? r['receipt_date'] ?? '').toString();
+              final amount = (r['amount'] ?? '0').toString();
+
+              return AnimeStaggerItem(
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: NexusCard(
+                    variant: NexusCardVariant.standard,
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: _green.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(Icons.receipt_rounded, color: _green, size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                receiptNo,
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: _ink,
+                                ),
+                              ),
+                              if (date.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  date,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 12,
+                                    color: _muted,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '₹$amount',
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _green,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _green.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'PAID',
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: _green,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
-    );
-  }
-
-  Widget _buildReceiptCard(dynamic receipt, int index) {
-    final receiptNo = receipt['receipt_number']?.toString() ??
-        receipt['receipt_no']?.toString() ??
-        'Receipt';
-    final date = receipt['transaction_date']?.toString() ??
-        receipt['receipt_date']?.toString() ??
-        '';
-    final amount = receipt['amount']?.toString() ?? '0';
-
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: _line),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0617202A),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F4EF),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(
-              Icons.receipt_rounded,
-              color: _green,
-              size: 21,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  receiptNo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dmSans(
-                    color: _ink,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                if (date.isNotEmpty)
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.event_outlined,
-                        color: _muted,
-                        size: 13,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          date,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.spaceGrotesk(
-                            color: _muted,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: 6),
-                Text(
-                  '₹$amount',
-                  style: GoogleFonts.dmSans(
-                    color: _green,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 6,
-            ),
-            decoration: BoxDecoration(
-              color: _green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              'PAID',
-              style: GoogleFonts.spaceGrotesk(
-                color: _green,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.6,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverview({
-    required String eyebrow,
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required Color background,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: _navy,
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  eyebrow,
-                  style: GoogleFonts.spaceGrotesk(
-                    color: const Color(0xFFAEBBD0),
-                    fontSize: 7.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  title,
-                  style: GoogleFonts.dmSans(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.dmSans(
-                    color: const Color(0xFFC1CAD7),
-                    fontSize: 10.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String title, String count) {
-    return Row(
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.spaceGrotesk(
-            color: _ink,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-          ),
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 5,
-          ),
-          decoration: BoxDecoration(
-            color: _soft,
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Text(
-            count,
-            style: GoogleFonts.spaceGrotesk(
-              color: _navy,
-              fontSize: 7,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .45,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoading(String message) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      children: [
-        SizedBox(
-          height: MediaQuery.of(context).size.height * .65,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: _blue,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  message,
-                  style: GoogleFonts.dmSans(
-                    color: _muted,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildError(
-    String title,
-    Object error,
-    Future<void> Function() retry,
-  ) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      children: [
-        SizedBox(
-          height: MediaQuery.of(context).size.height * .65,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFCEDEA),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.error_outline_rounded,
-                      color: _red,
-                      size: 31,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      color: _ink,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    ErrorFormatter.format(
-                      error,
-                      fallback: 'Unable to load payment records. Please check your connection and try again.',
-                    ),
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      color: _muted,
-                      fontSize: 11.5,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 17),
-                  FilledButton.icon(
-                    onPressed: retry,
-                    icon: Icon(
-                      Icons.refresh_rounded,
-                      size: 17,
-                    ),
-                    label: Text(
-                      'Try Again',
-                      style: GoogleFonts.dmSans(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _navy,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNoDues() {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      children: [
-        SizedBox(
-          height: MediaQuery.of(context).size.height * .65,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 70,
-                    height: 70,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE8F4EF),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.check_rounded,
-                      color: _green,
-                      size: 35,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Pending Dues!',
-                    style: GoogleFonts.dmSans(
-                      color: _ink,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'All university tuition and hostel fees are cleared.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      color: _muted,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNoReceipts() {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      children: [
-        SizedBox(
-          height: MediaQuery.of(context).size.height * .65,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 70,
-                    height: 70,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEAF0FD),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.receipt_long_rounded,
-                      color: _blue,
-                      size: 31,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Payment Receipts',
-                    style: GoogleFonts.dmSans(
-                      color: _ink,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Your completed payment records will appear here.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      color: _muted,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

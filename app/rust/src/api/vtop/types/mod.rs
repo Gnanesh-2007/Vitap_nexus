@@ -1,0 +1,48 @@
+pub mod academic_calendar;
+pub mod attendance;
+pub mod biometric;
+pub mod capstone_attendance;
+pub mod comprehensive_data;
+pub mod course_page;
+pub mod digital_assignment;
+pub mod exam_schedule;
+pub mod faculty;
+pub mod general_outing;
+pub mod grade_course_history;
+pub mod grade_history;
+pub mod grade_view;
+pub mod marks;
+pub mod mentor_details;
+pub mod outing_info;
+pub mod paid_payment_receipt;
+pub mod pending_payment_receipt;
+pub mod semester;
+pub mod student_profile;
+pub mod timetable;
+pub mod weekend_outing;
+
+// Re-export all types for easy access
+pub use academic_calendar::*;
+pub use attendance::*;
+pub use biometric::*;
+pub use capstone_attendance::*;
+pub use comprehensive_data::*;
+#[allow(unused_imports)]
+pub use course_page::*;
+pub use digital_assignment::*;
+pub use exam_schedule::*;
+pub use faculty::*;
+pub use general_outing::*;
+pub use grade_course_history::*;
+pub use grade_history::*;
+pub use grade_view::*;
+pub use marks::*;
+pub use mentor_details::*;
+#[allow(unused_imports)]
+pub use outing_info::*;
+pub use paid_payment_receipt::*;
+pub use pending_payment_receipt::*;
+pub use semester::*;
+pub use student_profile::*;
+pub use timetable::*;
+pub use weekend_outing::*;

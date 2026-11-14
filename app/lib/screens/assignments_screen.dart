@@ -1,12 +1,25 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
-import '../utils/download_helper.dart';
 import '../utils/error_formatter.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
+import '../widgets/motion/nexus_motion.dart';
+
+// ============================================================================
+// DIGITAL ASSIGNMENTS SCREEN (REDESIGNED FOR NEXUS)
+// ============================================================================
 
 class AssignmentsScreen extends ConsumerStatefulWidget {
   const AssignmentsScreen({super.key});
@@ -17,23 +30,48 @@ class AssignmentsScreen extends ConsumerStatefulWidget {
 
 class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
   late Future<List<dynamic>> _assignmentsFuture;
+  List<dynamic>? _cachedAssignments;
   String _selectedFilter = 'All'; // 'All', 'Pending', 'Submitted'
   String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
   final Set<String> _expandedCourses = {};
   final Map<String, List<dynamic>> _courseAssignmentsCache = {};
-  bool _expansionInitialized = false;
   final Set<String> _loadingCourses = {};
-  bool _isDownloading = false;
+  final Set<String> _uploadingKeys = {};
+  final Set<String> _downloadingKeys = {};
+
+  static const int _maxUploadSizeBytes = 4 * 1024 * 1024;
+  static const List<String> _allowedExtensions = [
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    final mem = StorageService.getMemoryCache('assignments');
+    if (mem is List && mem.isNotEmpty) {
+      _cachedAssignments = List<dynamic>.from(mem);
+      _prefillCourseCaches(_cachedAssignments!);
+    }
     _loadAssignments();
   }
 
   void _loadAssignments({bool forceRefresh = false}) {
-    setState(() {
-      _assignmentsFuture = _getAssignmentsData(forceRefresh: forceRefresh);
+    _assignmentsFuture = _getAssignmentsData(forceRefresh: forceRefresh).then((data) {
+      if (mounted && data.isNotEmpty) {
+        setState(() => _cachedAssignments = data);
+      }
+      return data;
     });
   }
 
@@ -41,10 +79,12 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     if (!forceRefresh) {
       final mem = StorageService.getMemoryCache('assignments');
       if (mem is List && mem.isNotEmpty) {
+        _prefillCourseCaches(mem);
         return List<dynamic>.from(mem);
       }
       final disk = await StorageService.getCache('assignments');
       if (disk is List && disk.isNotEmpty) {
+        _prefillCourseCaches(disk);
         return List<dynamic>.from(disk);
       }
     }
@@ -63,6 +103,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       );
       if (fresh.isNotEmpty) {
         await StorageService.setCache('assignments', fresh);
+        _prefillCourseCaches(fresh);
         return fresh;
       }
     } catch (e) {
@@ -70,6 +111,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       final fallback = StorageService.getMemoryCache('assignments') ??
           await StorageService.getCache('assignments');
       if (fallback is List && fallback.isNotEmpty) {
+        _prefillCourseCaches(fallback);
         return List<dynamic>.from(fallback);
       }
       rethrow;
@@ -78,9 +120,22 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     final fallback = StorageService.getMemoryCache('assignments') ??
         await StorageService.getCache('assignments');
     if (fallback is List && fallback.isNotEmpty) {
+      _prefillCourseCaches(fallback);
       return List<dynamic>.from(fallback);
     }
     return [];
+  }
+
+  void _prefillCourseCaches(List<dynamic> courses) {
+    for (final c in courses) {
+      if (c is Map) {
+        final classId = c['class_id']?.toString() ?? '';
+        final details = c['details'];
+        if (classId.isNotEmpty && details is List && details.isNotEmpty) {
+          _courseAssignmentsCache[classId] = details;
+        }
+      }
+    }
   }
 
   Future<void> _fetchDetailsForCourse(String classId) async {
@@ -89,8 +144,9 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     }
 
     final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
+    final creds = await StorageService.getCredentials();
+    final username = auth.username ?? creds['username'] ?? '';
+    final password = auth.password ?? creds['password'] ?? '';
 
     setState(() => _loadingCourses.add(classId));
 
@@ -112,327 +168,366 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     }
   }
 
-  Future<void> _downloadFile(String downloadUrl, String title, String type) async {
-    if (downloadUrl.isEmpty) return;
-    final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
+  bool _isSubmitted(String status) {
+    final s = status.toLowerCase();
+    return s.contains('submitted') || s.contains('uploaded') || s.contains('completed') || s.contains('yes');
+  }
 
-    setState(() => _isDownloading = true);
-
+  DateTime? _parseDueDate(String dueDateStr) {
+    if (dueDateStr.trim().isEmpty || dueDateStr == '-') return null;
     try {
-      final bytes = await apiService.downloadAssignmentFile(
-        username: username,
-        password: password,
-        downloadUrl: downloadUrl,
-      );
+      // VTOP format: "15-Oct-2026 23:59:00" or "15-10-2026" or "15-Oct-2026"
+      final clean = dueDateStr.trim();
+      final formats = [
+        'dd-MMM-yyyy HH:mm:ss',
+        'dd-MMM-yyyy',
+        'dd-MM-yyyy HH:mm:ss',
+        'dd-MM-yyyy',
+        'yyyy-MM-dd HH:mm:ss',
+        'yyyy-MM-dd',
+      ];
+      for (final fmt in formats) {
+        try {
+          return DateFormat(fmt).parse(clean);
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return null;
+  }
 
-      if (!mounted) return;
-      setState(() => _isDownloading = false);
+  String _formatDueDateDisplay(String rawDate) {
+    final dt = _parseDueDate(rawDate);
+    if (dt == null) return rawDate.isNotEmpty ? rawDate : 'No due date set';
+    return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+  }
 
-      final cleanTitle = title.replaceAll(RegExp(r'[^\w\s\.-]'), '_');
-      await DownloadHelper.saveFile(
-        context: context,
-        fileName: 'Assignment_${cleanTitle}_$type.pdf',
-        content: bytes,
-        mimeType: 'application/pdf',
-      );
+  Map<String, dynamic> _getDueDateStatus(String rawDate, bool isSubmitted, AppPalette palette) {
+    if (isSubmitted) {
+      return {
+        'label': 'SUBMITTED',
+        'color': palette.green,
+        'icon': Icons.check_circle_rounded,
+      };
+    }
+
+    final dt = _parseDueDate(rawDate);
+    if (dt == null) {
+      return {
+        'label': 'PENDING',
+        'color': palette.orange,
+        'icon': Icons.hourglass_empty_rounded,
+      };
+    }
+
+    final now = DateTime.now();
+    final diff = dt.difference(now);
+
+    if (diff.isNegative) {
+      return {
+        'label': 'OVERDUE',
+        'color': palette.red,
+        'icon': Icons.error_outline_rounded,
+      };
+    } else if (diff.inDays == 0) {
+      return {
+        'label': 'DUE TODAY',
+        'color': palette.red,
+        'icon': Icons.timer_rounded,
+      };
+    } else if (diff.inDays == 1) {
+      return {
+        'label': 'DUE TOMORROW',
+        'color': palette.orange,
+        'icon': Icons.alarm_rounded,
+      };
+    } else {
+      return {
+        'label': 'DUE IN ${diff.inDays} DAYS',
+        'color': palette.blue,
+        'icon': Icons.calendar_today_rounded,
+      };
+    }
+  }
+
+  Future<void> _onRefresh(Color snackbarBg) async {
+    try {
+      final fresh = await _getAssignmentsData(forceRefresh: true);
+      if (mounted && fresh.isNotEmpty) {
+        setState(() => _cachedAssignments = fresh);
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isDownloading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: AppTheme.error,
+          content: const Text('No internet connection. Showing saved data.'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          content: Text(
-            ErrorFormatter.format(e, fallback: 'Failed to download assignment file. Please try again.'),
-            style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white),
-          ),
+          backgroundColor: snackbarBg,
         ),
       );
     }
   }
 
-  bool _isSubmitted(String status) {
-    final s = status.toLowerCase();
-    return s.contains('submitted') || s.contains('uploaded') || s.contains('completed');
-  }
-
-  AppPalette get _palette => AppPalette.of(context);
-  Color get _paper => _palette.paper;
-  Color get _surface => _palette.surface;
-  Color get _ink => _palette.ink;
-  Color get _navy => _palette.navy;
-  Color get _blue => _palette.blue;
-  Color get _orange => _palette.orange;
-  Color get _green => _palette.green;
-  Color get _red => _palette.red;
-  Color get _muted => _palette.inkMuted;
-  Color get _line => _palette.line;
-  Color get _soft => _palette.soft;
+  // ==========================================================================
+  // BUILD METHOD
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+
     return Scaffold(
-      backgroundColor: _paper,
+      backgroundColor: palette.paper,
       appBar: AppBar(
         title: Text(
-          'Digital Assignments',
-          style: GoogleFonts.dmSans(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: -0.4, color: _ink),
+          'ASSIGNMENTS',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+            color: palette.ink,
+          ),
         ),
-        backgroundColor: _paper,
-        iconTheme: IconThemeData(color: _ink),
+        backgroundColor: palette.paper,
+        centerTitle: true,
         elevation: 0,
-        scrolledUnderElevation: 3.0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: _ink),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: palette.ink),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: const [],
-        bottom: _isDownloading
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(3),
-                child: LinearProgressIndicator(
-                  backgroundColor: _line,
-                  color: _blue,
-                  minHeight: 3,
-                ),
-              )
-            : null,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh_rounded, size: 20, color: palette.inkSoft),
+            tooltip: 'Refresh Assignments',
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              _onRefresh(palette.navy);
+            },
+          ),
+        ],
       ),
-      body: FutureBuilder<List<dynamic>>(
+      body: RefreshIndicator(
+        onRefresh: () => _onRefresh(palette.navy),
+        color: palette.blue,
+        backgroundColor: palette.surface,
+        child: FutureBuilder<List<dynamic>>(
           future: _assignmentsFuture,
           builder: (context, snapshot) {
+            final courses = _cachedAssignments ?? snapshot.data;
+            if (courses != null && courses.isNotEmpty) {
+              return _buildAssignmentsContent(courses, palette);
+            }
+
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildSkeletonLoading();
+              return _buildSkeletonLoading(palette);
             }
 
             if (snapshot.hasError) {
-              return RefreshIndicator(
-                onRefresh: () async => _loadAssignments(forceRefresh: true),
-                color: _blue,
-                backgroundColor: _surface,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.7,
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: _red.withValues(alpha: 0.12),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(Icons.error_outline_rounded, size: 48, color: _red),
-                              ),
-                              const SizedBox(height: 18),
-                              Text(
-                                'Failed to Load Assignments',
-                                style: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: _ink),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                ErrorFormatter.format(
-                                  snapshot.error,
-                                  fallback: 'Unable to load assignments. Please check your connection and try again.',
-                                ),
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.dmSans(fontSize: 12, color: _muted, height: 1.4),
-                              ),
-                              const SizedBox(height: 24),
-                              ElevatedButton.icon(
-                                onPressed: () => _loadAssignments(forceRefresh: true),
-                                icon: Icon(Icons.refresh_rounded, size: 18),
-                                label: const Text('Retry'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _blue,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
+              return _buildErrorState(palette, snapshot.error);
             }
 
-            final courses = snapshot.data ?? [];
-
-            // Initialize the accordion once with every course collapsed.
-            // Each course is opened independently when the user taps it.
-            if (!_expansionInitialized) {
-              _expandedCourses.clear();
-              _expansionInitialized = true;
-            }
-
-            if (courses.isEmpty) {
-              return RefreshIndicator(
-                onRefresh: () async => _loadAssignments(forceRefresh: true),
-                color: _blue,
-                backgroundColor: _surface,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.6,
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  color: _surface,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: _blue.withValues(alpha: 0.3)),
-                                ),
-                                child: Icon(Icons.assignment_turned_in_rounded, size: 48, color: _blue),
-                              ),
-                              const SizedBox(height: 20),
-                              Text(
-                                'No Assignments Found',
-                                style: GoogleFonts.dmSans(fontSize: 20, fontWeight: FontWeight.bold, color: _ink),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No digital assignments have been posted for the active semester yet.',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.dmSans(fontSize: 13, color: _muted, height: 1.4),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            // Compute stats
-            int totalAssignments = 0;
-            int submittedCount = 0;
-            int pendingCount = 0;
-
-            for (final c in courses) {
-              final classId = c['class_id']?.toString() ?? '';
-              final list = _courseAssignmentsCache[classId] ?? (c['details'] as List<dynamic>? ?? []);
-              for (final a in list) {
-                totalAssignments++;
-                if (_isSubmitted(a['submission_status']?.toString() ?? '')) {
-                  submittedCount++;
-                } else {
-                  pendingCount++;
-                }
-              }
-            }
-
-            // Filter courses
-            final filteredCourses = courses.where((c) {
-              final code = (c['course_code'] ?? '').toString().toLowerCase();
-              final title = (c['course_title'] ?? '').toString().toLowerCase();
-              final faculty = (c['faculty'] ?? '').toString().toLowerCase();
-              final q = _searchQuery.toLowerCase();
-              if (q.isNotEmpty && !code.contains(q) && !title.contains(q) && !faculty.contains(q)) {
-                return false;
-              }
-              return true;
-            }).toList();
-
-            return RefreshIndicator(
-              onRefresh: () async => _loadAssignments(),
-              color: _blue,
-              backgroundColor: _surface,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                children: [
-                  // 1. STATS METRICS GRID
-                  _buildStatsGrid(totalAssignments, submittedCount, pendingCount),
-                  const SizedBox(height: 18),
-
-                  // 2. SEARCH & FILTER SECTION
-                  _buildSearchAndFilters(),
-                  const SizedBox(height: 18),
-
-                  // 3. COURSE LIST ACCORDIONS
-                  ...filteredCourses.map((course) => _buildCourseCard(course)),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            );
+            return _buildAssignmentsContent(courses ?? [], palette);
           },
         ),
+      ),
     );
   }
 
-  // --- 1. STATS METRICS GRID ---
-  Widget _buildStatsGrid(int total, int submitted, int pending) {
-    return Row(
+  Widget _buildErrorState(AppPalette palette, Object? error) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        Expanded(
-          child: _buildMetricTile(
-            title: 'Total DA',
-            value: total.toString(),
-            icon: Icons.assignment_outlined,
-            color: _blue,
-            bgGradient: [_surface, _surface],
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildMetricTile(
-            title: 'Submitted',
-            value: submitted.toString(),
-            icon: Icons.check_circle_outline_rounded,
-            color: _green,
-            bgGradient: [_surface, _surface],
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildMetricTile(
-            title: 'Pending',
-            value: pending.toString(),
-            icon: Icons.hourglass_top_rounded,
-            color: _orange,
-            bgGradient: [_surface, _surface],
+        SizedBox(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: palette.red.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.error_outline_rounded, size: 44, color: palette.red),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Failed to Load Assignments',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: palette.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    ErrorFormatter.format(
+                      error,
+                      fallback: 'Unable to load digital assignments. Please check your connection and try again.',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 12, color: palette.inkMuted, height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () => _loadAssignments(forceRefresh: true),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('RETRY'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMetricTile({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required List<Color> bgGradient,
-  }) {
+  Widget _buildAssignmentsContent(List<dynamic> courses, AppPalette palette) {
+    if (courses.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: palette.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: palette.line),
+                      ),
+                      child: Icon(Icons.assignment_turned_in_rounded, size: 44, color: palette.blue),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'No Assignments Found',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: palette.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'No digital assignments are registered for the active semester.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(fontSize: 13, color: palette.inkMuted, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+          // Compute comprehensive stats
+          int totalAssignments = 0;
+          int submittedCount = 0;
+          int pendingCount = 0;
+
+          for (final c in courses) {
+            final classId = c['class_id']?.toString() ?? '';
+            final list = _courseAssignmentsCache[classId] ?? (c['details'] as List<dynamic>? ?? []);
+            for (final a in list) {
+              totalAssignments++;
+              if (_isSubmitted(a['submission_status']?.toString() ?? '')) {
+                submittedCount++;
+              } else {
+                pendingCount++;
+              }
+            }
+          }
+
+          // Filter courses based on search and selected filter
+          final filteredCourses = courses.where((c) {
+            final code = (c['course_code'] ?? '').toString().toLowerCase();
+            final title = (c['course_title'] ?? '').toString().toLowerCase();
+            final faculty = (c['faculty'] ?? '').toString().toLowerCase();
+            final q = _searchQuery.toLowerCase();
+
+            if (q.isNotEmpty && !code.contains(q) && !title.contains(q) && !faculty.contains(q)) {
+              return false;
+            }
+
+            if (_selectedFilter != 'All') {
+              final classId = c['class_id']?.toString() ?? '';
+              final list = _courseAssignmentsCache[classId] ?? (c['details'] as List<dynamic>? ?? []);
+              if (list.isNotEmpty) {
+                if (_selectedFilter == 'Pending') {
+                  final hasPending = list.any((a) => !_isSubmitted(a['submission_status']?.toString() ?? ''));
+                  if (!hasPending) return false;
+                } else if (_selectedFilter == 'Submitted') {
+                  final hasSubmitted = list.any((a) => _isSubmitted(a['submission_status']?.toString() ?? ''));
+                  if (!hasSubmitted) return false;
+                }
+              }
+            }
+
+            return true;
+          }).toList();
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      children: [
+        // 1. STATS HERO BANNER
+        _buildStatsHeroBanner(totalAssignments, submittedCount, pendingCount, palette),
+        const SizedBox(height: 12),
+
+        // 1B. UPLOAD GUIDELINES BANNER
+        _buildUploadGuidelinesBanner(palette),
+        const SizedBox(height: 14),
+
+        // 2. SEARCH & FILTER CHIPS
+        _buildSearchAndFilters(palette),
+        const SizedBox(height: 16),
+
+        // 3. COURSE ASSIGNMENTS ACCORDION LIST
+        ...filteredCourses.asMap().entries.map((entry) => AnimeStaggerItem(
+              index: entry.key,
+              child: _buildCourseCard(entry.value, palette),
+            )),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  // ==========================================================================
+  // 1. STATS HERO BANNER
+  // ==========================================================================
+
+  Widget _buildStatsHeroBanner(int total, int submitted, int pending, AppPalette palette) {
+    final double progress = total > 0 ? (submitted / total).clamp(0.0, 1.0) : 0.0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.line),
         boxShadow: [
           BoxShadow(
-            color: _ink.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: palette.isDark ? 0.2 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -444,87 +539,146 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 20),
+              Text(
+                'ASSIGNMENTS OVERVIEW',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: palette.blue,
+                ),
+              ),
               Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: palette.blue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  '${(progress * 100).toInt()}% COMPLETED',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: palette.blue,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            value,
-            style: GoogleFonts.dmSans(fontSize: 24, fontWeight: FontWeight.bold, color: _ink, height: 1.0),
+
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: palette.soft,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                progress == 1.0 ? palette.green : palette.blue,
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w500, color: _muted),
+          const SizedBox(height: 14),
+
+          // Metric Stats Row
+          Row(
+            children: [
+              _buildStatBox('Total DAs', total.toString(), Icons.assignment_outlined, palette.blue, palette),
+              const SizedBox(width: 8),
+              _buildStatBox('Submitted', submitted.toString(), Icons.check_circle_rounded, palette.green, palette),
+              const SizedBox(width: 8),
+              _buildStatBox('Pending', pending.toString(), Icons.hourglass_top_rounded, palette.orange, palette),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // --- 2. SEARCH & FILTER CONTROLS ---
-  Widget _buildSearchAndFilters() {
+  Widget _buildStatBox(String label, String value, IconData icon, Color color, AppPalette palette) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: palette.soft,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: palette.line),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 14),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: palette.inkMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    value,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: palette.ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // 2. SEARCH & FILTER CHIPS
+  // ==========================================================================
+
+  Widget _buildSearchAndFilters(AppPalette palette) {
     return Column(
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _line),
-          ),
-          child: TextField(
-            style: GoogleFonts.dmSans(color: _ink, fontSize: 13),
-            onChanged: (val) => setState(() => _searchQuery = val),
-            decoration: InputDecoration(
-              hintText: 'Search course code, name, or faculty...',
-              hintStyle: GoogleFonts.dmSans(color: _muted, fontSize: 13),
-              prefixIcon: Icon(Icons.search_rounded, color: _muted, size: 20),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.clear_rounded, size: 18, color: _muted),
-                      onPressed: () => setState(() => _searchQuery = ''),
-                    )
-                  : null,
-            ),
-          ),
+        // Nexus Search Bar
+        NexusSearchBar(
+          controller: _searchController,
+          hintText: 'Search by course code, title, faculty...',
+          onChanged: (val) => setState(() => _searchQuery = val),
+          onClear: () {
+            _searchController.clear();
+            setState(() => _searchQuery = '');
+          },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+
+        // Filter Pills
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
           child: Row(
             children: ['All', 'Pending', 'Submitted'].map((filter) {
               final isSelected = _selectedFilter == filter;
               return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: InkWell(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: NexusFilterChip(
+                  label: filter == 'All' ? 'ALL COURSES' : filter.toUpperCase(),
+                  isSelected: isSelected,
                   onTap: () => setState(() => _selectedFilter = filter),
-                  borderRadius: BorderRadius.circular(12),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: isSelected ? (_palette.isDark ? _palette.soft : _navy) : _surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? (_palette.isDark ? _palette.line : _navy) : _line,
-                      ),
-                    ),
-                    child: Text(
-                      filter,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                        color: isSelected ? (_palette.isDark ? _ink : Colors.white) : _muted,
-                      ),
-                    ),
-                  ),
                 ),
               );
             }).toList(),
@@ -534,171 +688,218 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     );
   }
 
-  // --- 3. COURSE ACCORDION CARD ---
-  Widget _buildCourseCard(dynamic course) {
+  // ==========================================================================
+  // 3. COURSE CARD WITH ASSIGNMENT ACCORDION
+  // ==========================================================================
+
+  Widget _buildCourseCard(Map<String, dynamic> course, AppPalette palette) {
     final classId = course['class_id']?.toString() ?? '';
-    final code = course['course_code']?.toString() ?? '';
-    final title = course['course_title']?.toString() ?? '';
-    final type = course['course_type']?.toString() ?? '';
+    final courseCode = course['course_code']?.toString() ?? '';
+    final courseTitle = course['course_title']?.toString() ?? 'Course';
+    final courseType = course['course_type']?.toString() ?? '';
     final faculty = course['faculty']?.toString() ?? '';
 
     final isExpanded = _expandedCourses.contains(classId);
-    final isLoading = _loadingCourses.contains(classId);
+    final isLoadingDetails = _loadingCourses.contains(classId);
+    final assignments = _courseAssignmentsCache[classId] ?? (course['details'] as List<dynamic>? ?? []);
 
-    var assignments = _courseAssignmentsCache[classId] ?? (course['details'] as List<dynamic>? ?? []);
-
-    if (_selectedFilter == 'Pending') {
-      assignments = assignments.where((a) => !_isSubmitted(a['submission_status']?.toString() ?? '')).toList();
-    } else if (_selectedFilter == 'Submitted') {
-      assignments = assignments.where((a) => _isSubmitted(a['submission_status']?.toString() ?? '')).toList();
+    // Count pending vs submitted
+    int pendingInCourse = 0;
+    for (final a in assignments) {
+      if (!_isSubmitted(a['submission_status']?.toString() ?? '')) {
+        pendingInCourse++;
+      }
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(20),
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isExpanded ? _blue.withValues(alpha: 0.4) : _line,
+          color: isExpanded ? palette.blue.withValues(alpha: 0.3) : palette.line,
+          width: isExpanded ? 1.2 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: _ink.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: palette.isDark ? 0.2 : 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  if (_expandedCourses.contains(classId)) {
-                    _expandedCourses.remove(classId);
-                  } else {
-                    _expandedCourses.add(classId);
-                    _fetchDetailsForCourse(classId);
-                  }
-                });
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 15, 12, 15),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _blue.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: _blue.withValues(alpha: 0.3)),
-                          ),
-                          child: Text(
-                            code,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: _blue,
-                            ),
+          // Course Header (Tappable Accordion Header)
+          InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                if (isExpanded) {
+                  _expandedCourses.remove(classId);
+                } else {
+                  _expandedCourses.add(classId);
+                  _fetchDetailsForCourse(classId);
+                }
+              });
+            },
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // Course Code Tag
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: palette.blue.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: palette.blue.withValues(alpha: 0.25)),
+                        ),
+                        child: Text(
+                          courseType.isNotEmpty ? '$courseCode • $courseType' : courseCode,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: palette.blue,
                           ),
                         ),
-                        if (type.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _paper,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              type,
-                              style: GoogleFonts.dmSans(fontSize: 10.5, color: _muted),
-                            ),
-                          ),
-                        ],
-                        const Spacer(),
+                      ),
+                      const Spacer(),
+
+                      // Status Badge
+                      if (assignments.isNotEmpty)
                         Container(
-                          constraints: const BoxConstraints(minWidth: 44),
-                          alignment: Alignment.center,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: _soft,
-                            borderRadius: BorderRadius.circular(12),
+                            color: (pendingInCourse > 0 ? palette.orange : palette.green).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(100),
                           ),
-                          child: Text(
-                            '${assignments.length} DA',
-                            style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.bold, color: _muted),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: pendingInCourse > 0 ? palette.orange : palette.green,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                pendingInCourse > 0 ? '$pendingInCourse DUE' : 'ALL DONE',
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: pendingInCourse > 0 ? palette.orange : palette.green,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        AnimatedRotation(
-                          turns: isExpanded ? 0.5 : 0.0,
-                          duration: const Duration(milliseconds: 250),
-                          child: Icon(Icons.keyboard_arrow_down_rounded, color: _muted, size: 22),
+                      const SizedBox(width: 8),
+
+                      // Chevron
+                      Icon(
+                        isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                        color: palette.inkSoft,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Course Title
+                  Text(
+                    courseTitle,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: palette.ink,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Faculty & Class ID
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline_rounded, size: 14, color: palette.inkMuted),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          faculty.isNotEmpty ? faculty : 'Faculty not specified',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: palette.inkSoft,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (classId.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          'ID: $classId',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 10,
+                            color: palette.inkMuted,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      title,
-                      style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: _ink),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.person_outline_rounded, size: 14, color: _muted),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            faculty,
-                            style: GoogleFonts.dmSans(fontSize: 11.5, color: _muted),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
 
-          // Assignments List Content
+          // Expanded Assignments Details
           if (isExpanded) ...[
-            Divider(height: 1, color: _line),
-            if (isLoading)
+            Divider(height: 1, color: palette.line),
+            if (isLoadingDetails)
               Padding(
                 padding: const EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator(color: _blue, strokeWidth: 2)),
+                child: Center(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: palette.blue),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Fetching assignment details...',
+                        style: GoogleFonts.inter(fontSize: 12, color: palette.inkMuted),
+                      ),
+                    ],
+                  ),
+                ),
               )
             else if (assignments.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.info_outline_rounded, size: 16, color: _muted),
-                    const SizedBox(width: 8),
-                    Text(
-                      'No ${_selectedFilter == 'All' ? '' : _selectedFilter.toLowerCase()} assignments available',
-                      style: GoogleFonts.dmSans(fontSize: 12, color: _muted),
-                    ),
-                  ],
+                child: Center(
+                  child: Text(
+                    'No individual digital assignments posted for this course.',
+                    style: GoogleFonts.inter(fontSize: 12, color: palette.inkMuted),
+                  ),
                 ),
               )
             else
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 child: Column(
-                  children: assignments.map<Widget>((a) => _buildAssignmentCard(a)).toList(),
+                  children: assignments.map<Widget>((a) {
+                    return _buildAssignmentItemCard(course, a, palette);
+                  }).toList(),
                 ),
               ),
           ],
@@ -707,134 +908,256 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     );
   }
 
-  // --- 4. INDIVIDUAL ASSIGNMENT ITEM CARD ---
-  Widget _buildAssignmentCard(dynamic a) {
-    final title = a['assignment_title']?.toString() ?? 'Assignment';
-    final maxMarks = a['max_assignment_mark']?.toString() ?? '-';
-    final weightage = a['assignment_weightage_mark']?.toString() ?? '-';
-    final dueDate = a['due_date']?.toString() ?? 'N/A';
-    final status = a['submission_status']?.toString() ?? 'Not Uploaded';
+  // ==========================================================================
+  // 4. INDIVIDUAL ASSIGNMENT ITEM CARD + UPLOAD / OTP / DOWNLOAD
+  // ==========================================================================
 
-    final isDone = _isSubmitted(status);
-    final canQpDownload = a['can_qp_download'] == true;
-    final qpUrl = a['qp_download_url']?.toString() ?? '';
-    final canDaDownload = a['can_da_download'] == true;
-    final daUrl = a['da_download_url']?.toString() ?? '';
+  Widget _buildUploadGuidelinesBanner(AppPalette palette) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: palette.blue.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              Icons.cloud_upload_outlined,
+              size: 16,
+              color: palette.blue,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              'VTOP Upload Limit: Max 4 MB • Allowed formats: PDF, DOC, DOCX, XLS, XLSX',
+              style: GoogleFonts.dmSans(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: palette.inkSoft,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAssignmentItemCard(
+    Map<String, dynamic> course,
+    dynamic assignment,
+    AppPalette palette,
+  ) {
+    final classId = course['class_id']?.toString() ?? '';
+    final courseCode = course['course_code']?.toString() ?? 'DA';
+    final serialNo = assignment['serial_number']?.toString() ?? '1';
+    final title =
+        assignment['assignment_title']?.toString() ?? 'Digital Assignment';
+    final maxMarks = assignment['max_assignment_mark']?.toString() ?? '-';
+    final weightage =
+        assignment['assignment_weightage_mark']?.toString() ?? '-';
+    final rawDueDate = assignment['due_date']?.toString() ?? '';
+    final status =
+        assignment['submission_status']?.toString() ?? 'Not Uploaded';
+    final mcode = assignment['mcode']?.toString() ?? '';
+    final isSub = _isSubmitted(status);
+    final canUpdate = assignment['can_update'] == true;
+    final canQpDownload = assignment['can_qp_download'] == true;
+    final qpUrl = assignment['qp_download_url']?.toString() ?? '';
+    final canDaDownload = assignment['can_da_download'] == true;
+    final daUrl = assignment['da_download_url']?.toString() ?? '';
+
+    final dueStatus = _getDueDateStatus(rawDueDate, isSub, palette);
+    final isOverdue = dueStatus['label'] == 'OVERDUE';
+    final canUploadWork =
+        mcode.isNotEmpty && (canUpdate || (!isSub && !isOverdue));
+
+    final itemKey = '${classId}_${serialNo}_$mcode';
+    final isUploading = _uploadingKeys.contains(itemKey);
+    final isDownloadingQp = _downloadingKeys.contains('${itemKey}_qp');
+    final isDownloadingDa = _downloadingKeys.contains('${itemKey}_da');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _soft,
+        color: palette.soft,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDone ? _green.withValues(alpha: 0.3) : _line,
-        ),
+        border: Border.all(color: palette.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Title & Due Status Chip
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.dmSans(fontSize: 13.5, fontWeight: FontWeight.w600, color: _ink, height: 1.3),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isDone ? _green.withValues(alpha: 0.10) : _orange.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isDone ? _green : _orange,
-                    width: 0.8,
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: palette.ink,
                   ),
                 ),
+              ),
+              const SizedBox(width: 8),
+
+              // Due status badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (dueStatus['color'] as Color).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: (dueStatus['color'] as Color).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      dueStatus['icon'] as IconData,
+                      size: 12,
+                      color: dueStatus['color'] as Color,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      dueStatus['label'] as String,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: dueStatus['color'] as Color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Marks & Weightage Chips
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (maxMarks != '-')
+                _buildInfoPill(
+                  'Max Marks: $maxMarks',
+                  Icons.grade_rounded,
+                  palette,
+                ),
+              if (weightage != '-')
+                _buildInfoPill(
+                  'Weight: $weightage%',
+                  Icons.pie_chart_outline_rounded,
+                  palette,
+                ),
+              if (status.isNotEmpty && status != '-')
+                _buildInfoPill(
+                  status,
+                  isSub
+                      ? Icons.task_alt_rounded
+                      : Icons.pending_actions_rounded,
+                  palette,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Due Date String
+          Row(
+            children: [
+              Icon(Icons.event_rounded, size: 14, color: palette.inkMuted),
+              const SizedBox(width: 6),
+              Expanded(
                 child: Text(
-                  isDone ? 'Submitted' : 'Pending',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.bold,
-                    color: isDone ? _green : _orange,
+                  'Due: ${_formatDueDateDisplay(rawDueDate)}',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: palette.inkSoft,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _paper,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildInfoColumn(
-                    'Due Date',
-                    dueDate,
-                    Icons.calendar_today_rounded,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildInfoColumn(
-                    'Max Marks',
-                    maxMarks,
-                    Icons.score_rounded,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildInfoColumn(
-                    'Weightage',
-                    '$weightage%',
-                    Icons.pie_chart_outline_rounded,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (canQpDownload || canDaDownload) ...[
+
+          // Action Buttons Row (Question Paper, My Submission, Submit / Update Work)
+          if ((canQpDownload && qpUrl.isNotEmpty) ||
+              (canDaDownload && daUrl.isNotEmpty) ||
+              canUploadWork) ...[
             const SizedBox(height: 12),
-            Row(
+            Divider(height: 1, color: palette.line),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                if (canQpDownload && qpUrl.isNotEmpty) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _downloadFile(qpUrl, title, 'Question Paper'),
-                      icon: Icon(Icons.download_rounded, size: 14),
-                      label: const Text('QP File'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _blue,
-                        side: BorderSide(color: _blue),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
+                if (canQpDownload && qpUrl.isNotEmpty)
+                  _buildActionButton(
+                    palette: palette,
+                    label: isDownloadingQp ? 'Downloading...' : 'Question Paper',
+                    icon: Icons.description_outlined,
+                    color: palette.blue,
+                    isLoading: isDownloadingQp,
+                    onTap: isDownloadingQp
+                        ? null
+                        : () => _handleDownloadFile(
+                              key: '${itemKey}_qp',
+                              url: qpUrl,
+                              baseName: '${courseCode}_QP_$serialNo',
+                              palette: palette,
+                            ),
                   ),
-                ],
-                if (canQpDownload && canDaDownload) const SizedBox(width: 10),
-                if (canDaDownload && daUrl.isNotEmpty) ...[
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _downloadFile(daUrl, title, 'Submitted File'),
-                      icon: Icon(Icons.remove_red_eye_rounded, size: 14),
-                      label: const Text('My Work'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
+                if (canDaDownload && daUrl.isNotEmpty)
+                  _buildActionButton(
+                    palette: palette,
+                    label: isDownloadingDa ? 'Downloading...' : 'My Submission',
+                    icon: Icons.download_done_rounded,
+                    color: palette.green,
+                    isLoading: isDownloadingDa,
+                    onTap: isDownloadingDa
+                        ? null
+                        : () => _handleDownloadFile(
+                              key: '${itemKey}_da',
+                              url: daUrl,
+                              baseName: '${courseCode}_DA_$serialNo',
+                              palette: palette,
+                            ),
                   ),
-                ],
+                if (canUploadWork)
+                  _buildActionButton(
+                    palette: palette,
+                    label: isUploading
+                        ? 'Uploading...'
+                        : (isSub ? 'Update Work' : 'Submit Work'),
+                    icon: isSub
+                        ? Icons.edit_document
+                        : Icons.upload_file_rounded,
+                    color: palette.navy,
+                    filled: true,
+                    isLoading: isUploading,
+                    onTap: isUploading
+                        ? null
+                        : () => _handleUploadAssignment(
+                              itemKey: itemKey,
+                              classId: classId,
+                              mcode: mcode,
+                              assignmentTitle: title,
+                              palette: palette,
+                            ),
+                  ),
               ],
             ),
           ],
@@ -843,66 +1166,513 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     );
   }
 
-  Widget _buildInfoColumn(String label, String value, IconData icon) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 12, color: _muted),
-            const SizedBox(width: 4),
-            Text(label, style: GoogleFonts.dmSans(fontSize: 10, color: _muted)),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.dmSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: _ink,
+  Widget _buildActionButton({
+    required AppPalette palette,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onTap,
+    bool filled = false,
+    bool isLoading = false,
+  }) {
+    return Material(
+      color: filled ? color : palette.surface,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: filled ? color : color.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLoading)
+                SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: filled ? palette.onNavy : color,
+                  ),
+                )
+              else
+                Icon(
+                  icon,
+                  size: 14,
+                  color: filled ? palette.onNavy : color,
+                ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.dmSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: filled ? palette.onNavy : color,
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
-  // --- LOADING ---
-  Widget _buildSkeletonLoading() {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 28),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _line),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: _blue,
-              ),
+  Future<void> _handleDownloadFile({
+    required String key,
+    required String url,
+    required String baseName,
+    required AppPalette palette,
+  }) async {
+    setState(() => _downloadingKeys.add(key));
+    try {
+      final auth = ref.read(authProvider);
+      final creds = await StorageService.getCredentials();
+      final username = auth.username ?? creds['username'] ?? '';
+      final password = auth.password ?? creds['password'] ?? '';
+
+      final bytes = await apiService.downloadAssignmentFile(
+        username: username,
+        password: password,
+        downloadUrl: url,
+      );
+
+      if (bytes.isEmpty) {
+        throw Exception('Empty file returned by VTOP.');
+      }
+
+      String ext = 'pdf';
+      if (bytes.length >= 4) {
+        if (bytes[0] == 0x25 &&
+            bytes[1] == 0x50 &&
+            bytes[2] == 0x44 &&
+            bytes[3] == 0x46) {
+          ext = 'pdf';
+        } else if (bytes[0] == 0x50 && bytes[1] == 0x4B) {
+          ext = 'docx';
+        } else if (bytes[0] == 0xD0 && bytes[1] == 0xCF) {
+          ext = 'doc';
+        }
+      }
+
+      final dir = await getTemporaryDirectory();
+      final sanitized = baseName.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+      final file = File('${dir.path}/$sanitized.$ext');
+      await file.writeAsBytes(bytes, flush: true);
+
+      if (!mounted) return;
+      await OpenFilex.open(file.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ErrorFormatter.format(
+              e,
+              fallback: 'Could not download file from VTOP.',
             ),
-            const SizedBox(width: 14),
-            Text(
-              'Loading assignments...',
-              style: GoogleFonts.dmSans(
-                color: _muted,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
+          backgroundColor: palette.red,
+          behavior: SnackBarBehavior.floating,
         ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _downloadingKeys.remove(key));
+      }
+    }
+  }
+
+  Future<void> _handleUploadAssignment({
+    required String itemKey,
+    required String classId,
+    required String mcode,
+    required String assignmentTitle,
+    required AppPalette palette,
+  }) async {
+    try {
+      final pickedFile = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: _allowedExtensions,
+      );
+      if (pickedFile == null) return;
+
+      final fileName = pickedFile.name;
+      final ext = fileName.contains('.')
+          ? fileName.split('.').last.toLowerCase()
+          : '';
+      if (!_allowedExtensions.contains(ext)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Unsupported file format (.$ext). Allowed: PDF, DOC, DOCX, XLS, XLSX.',
+            ),
+            backgroundColor: palette.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final fileBytes = await pickedFile.readAsBytes();
+      if (fileBytes.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Selected file is empty.'),
+            backgroundColor: palette.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      if (fileBytes.length > _maxUploadSizeBytes) {
+        final mb = (fileBytes.length / (1024 * 1024)).toStringAsFixed(2);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'File is too large ($mb MB). VTOP maximum allowed size is 4.00 MB.',
+            ),
+            backgroundColor: palette.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      setState(() => _uploadingKeys.add(itemKey));
+
+      final auth = ref.read(authProvider);
+      final creds = await StorageService.getCredentials();
+      final username = auth.username ?? creds['username'] ?? '';
+      final password = auth.password ?? creds['password'] ?? '';
+
+      try {
+        await apiService.uploadDigitalAssignment(
+          username: username,
+          password: password,
+          classId: classId,
+          mode: mcode,
+          fileName: fileName,
+          fileBytes: fileBytes,
+        );
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Uploaded "$fileName" for $assignmentTitle!'),
+            backgroundColor: palette.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _courseAssignmentsCache.remove(classId);
+        await _fetchDetailsForCourse(classId);
+        await _onRefresh(palette.navy);
+      } catch (e) {
+        final msg = e.toString();
+        if (msg.contains('DA_OTP_REQUIRED')) {
+          if (!mounted) return;
+          final verified = await _showDaOtpBottomSheet(
+            palette: palette,
+            assignmentTitle: assignmentTitle,
+            fileName: fileName,
+            username: username,
+            password: password,
+          );
+          if (verified && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'OTP verified & "$fileName" updated for $assignmentTitle!',
+                ),
+                backgroundColor: palette.green,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            _courseAssignmentsCache.remove(classId);
+            await _fetchDetailsForCourse(classId);
+            await _onRefresh(palette.navy);
+          }
+        } else {
+          rethrow;
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ErrorFormatter.format(
+              e,
+              fallback: 'Failed to upload assignment to VTOP.',
+            ),
+          ),
+          backgroundColor: palette.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _uploadingKeys.remove(itemKey));
+      }
+    }
+  }
+
+  Future<bool> _showDaOtpBottomSheet({
+    required AppPalette palette,
+    required String assignmentTitle,
+    required String fileName,
+    required String username,
+    required String password,
+  }) async {
+    final otpCtrl = TextEditingController();
+    bool isSubmitting = false;
+    String? errorText;
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+            return Container(
+              padding: EdgeInsets.fromLTRB(22, 22, 22, 24 + bottomInset),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+                border: Border(
+                  top: BorderSide(color: palette.line, width: 1.2),
+                ),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Confirm Assignment Re-Upload',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: palette.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'VTOP sent a 6-digit OTP to your university email to confirm overwriting "$assignmentTitle" with "$fileName".',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13.5,
+                        color: palette.inkSoft,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: otpCtrl,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 6,
+                        color: palette.ink,
+                      ),
+                      decoration: InputDecoration(
+                        counterText: '',
+                        hintText: '6-DIGIT OTP',
+                        hintStyle: GoogleFonts.spaceGrotesk(
+                          fontSize: 13,
+                          letterSpacing: 2,
+                          color: palette.inkMuted,
+                        ),
+                        filled: true,
+                        fillColor: palette.soft,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: palette.line),
+                        ),
+                      ),
+                    ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        errorText!,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: palette.red,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () => Navigator.of(sheetCtx).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: FilledButton(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () async {
+                                      final code = otpCtrl.text.trim();
+                                      if (code.length < 6) {
+                                        setSheetState(
+                                          () => errorText =
+                                              'Please enter all 6 digits.',
+                                        );
+                                        return;
+                                      }
+                                      setSheetState(() {
+                                        isSubmitting = true;
+                                        errorText = null;
+                                      });
+                                      try {
+                                        await apiService
+                                            .uploadDigitalAssignmentWithOtp(
+                                              username: username,
+                                              password: password,
+                                              otpEmail: code,
+                                            );
+                                        if (sheetCtx.mounted) {
+                                          Navigator.of(sheetCtx).pop(true);
+                                        }
+                                      } catch (err) {
+                                        setSheetState(() {
+                                          isSubmitting = false;
+                                          errorText = ErrorFormatter.format(
+                                            err,
+                                            fallback:
+                                                'Incorrect OTP. Please try again.',
+                                          );
+                                        });
+                                      }
+                                    },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: palette.blue,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: isSubmitting
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text('Verify & Upload'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    return result == true;
+  }
+
+  Widget _buildInfoPill(String text, IconData icon, AppPalette palette) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: palette.line),
       ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: palette.inkMuted),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: palette.inkSoft,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // SKELETON LOADING
+  // ==========================================================================
+
+  Widget _buildSkeletonLoading(AppPalette palette) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: palette.line),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 46,
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: palette.line),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...List.generate(3, (i) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            height: 90,
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: palette.line),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

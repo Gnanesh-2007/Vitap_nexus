@@ -1,12 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/vtop_providers.dart';
+import '../services/storage_service.dart';
+import '../utils/attendance_calculator.dart';
+import '../utils/error_formatter.dart';
 import '../theme/app_theme.dart';
 import '../utils/vtop_helpers.dart';
+import '../widgets/motion/nexus_motion.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
 
 class TimetableScreen extends ConsumerStatefulWidget {
   const TimetableScreen({super.key});
@@ -15,853 +22,855 @@ class TimetableScreen extends ConsumerStatefulWidget {
   ConsumerState<TimetableScreen> createState() => _TimetableScreenState();
 }
 
-class _TimetableScreenState extends ConsumerState<TimetableScreen>
-    with SingleTickerProviderStateMixin {
-  final List<String> _days = [
+class _TimetableScreenState extends ConsumerState<TimetableScreen> {
+  late final PageController _pager;
+  late int _selected;
+  Timer? _ticker;
+
+  static const List<String> _days = [
+    'Sunday',
     'Monday',
     'Tuesday',
     'Wednesday',
     'Thursday',
     'Friday',
     'Saturday',
-    'Sunday',
   ];
-
-  final List<String> _dayShortcuts = [
-    'M',
-    'T',
-    'W',
-    'T',
-    'F',
-    'S',
-    'S',
-  ];
-
-  late TabController _tabController;
-
-  AppPalette get _palette => AppPalette.of(context);
-  Color get _background => _palette.paper;
-  Color get _surface => _palette.surface;
-  Color get _ink => _palette.ink;
-  Color get _inkSoft => _palette.inkSoft;
-  Color get _muted => _palette.inkMuted;
-  Color get _line => _palette.line;
-
-  Color get _navy => _palette.navy;
-  Color get _blue => _palette.blue;
-  Color get _orange => _palette.orange;
-  Color get _green => _palette.green;
-  Color get _cream => _palette.soft;
 
   @override
   void initState() {
     super.initState();
-
-    final today = DateFormat('EEEE').format(DateTime.now());
-    var initialIndex = _days.indexOf(today);
-
-    if (initialIndex == -1) {
-      initialIndex = 0;
-    }
-
-    _tabController = TabController(
-      length: _days.length,
-      vsync: this,
-      initialIndex: initialIndex,
-    );
+    final todayName = DateFormat('EEEE').format(DateTime.now());
+    int initialIdx = _days.indexOf(todayName);
+    if (initialIdx == -1) initialIdx = 1;
+    _selected = initialIdx;
+    _pager = PageController(initialPage: initialIdx);
+    // Keeps the live class + progress fresh.
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _ticker?.cancel();
+    _pager.dispose();
     super.dispose();
   }
 
-  DateTime? _parseTime(String timeStr, DateTime referenceDate) {
-    final cleanStr = timeStr.trim().toUpperCase();
-    final formats = [
-      'HH:mm',
-      'H:mm',
-      'hh:mm a',
-      'h:mm a',
-      'hh:mm',
-      'h:mm',
-    ];
-
-    for (final format in formats) {
-      try {
-        final parsed = DateFormat(format).parse(cleanStr);
-
-        return DateTime(
-          referenceDate.year,
-          referenceDate.month,
-          referenceDate.day,
-          parsed.hour,
-          parsed.minute,
-        );
-      } catch (_) {
-        continue;
-      }
-    }
-
-    return null;
+  DateTime _dateForIndex(int i) {
+    final now = DateTime.now();
+    final sunday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday % 7));
+    return sunday.add(Duration(days: i));
   }
 
-  Map<String, dynamic> _getClassTimingStatus(
-    String timeSlot,
-    String selectedDay,
-  ) {
-    final now = DateTime.now();
-    final today = DateFormat('EEEE').format(now);
-
-    if (selectedDay != today) {
-      return {
-        'status': 'UPCOMING',
-        'color': _blue,
-      };
-    }
-
+  Future<void> _refreshTimetable() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final cs = Theme.of(context).colorScheme;
     try {
-      final parts = timeSlot
-          .split('-')
-          .map((e) => e.trim())
-          .toList();
-
-      if (parts.length != 2) {
-        return {
-          'status': 'SCHEDULED',
-          'color': _blue,
-        };
+      await refreshTimetable(ref);
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            backgroundColor: cs.primaryContainer,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            content: Text(
+              'Timetable synced with VTOP',
+              style: TextStyle(
+                color: cs.onPrimaryContainer,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
       }
-
-      final startTime = _parseTime(parts[0], now);
-      final endTime = _parseTime(parts[1], now);
-
-      if (startTime == null || endTime == null) {
-        return {
-          'status': 'SCHEDULED',
-          'color': _blue,
-        };
-      }
-
-      if (now.isAfter(startTime) && now.isBefore(endTime)) {
-        return {
-          'status': 'LIVE NOW',
-          'color': _green,
-        };
-      }
-
-      if (now.isAfter(endTime)) {
-        return {
-          'status': 'COMPLETED',
-          'color': _muted,
-        };
-      }
-
-      return {
-        'status': 'UPCOMING',
-        'color': _orange,
-      };
     } catch (_) {
-      return {
-        'status': 'SCHEDULED',
-        'color': _blue,
-      };
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            backgroundColor: cs.errorContainer,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'Offline mode: showing saved timetable.',
+              style: TextStyle(color: cs.onErrorContainer, fontSize: 13),
+            ),
+          ),
+        );
+      }
     }
+  }
+
+  int _getTodayClassCount(Map<String, dynamic> timetableData) {
+    final todayName = DateFormat('EEEE').format(DateTime.now());
+    final raw = VtopHelpers.getClassesForDay(timetableData, todayName);
+    return raw.length;
+  }
+
+  Map<String, dynamic> _resolveTimetableData(
+    AsyncValue<Map<String, dynamic>> timetableAsync,
+  ) {
+    if (timetableAsync.hasValue && timetableAsync.value!.isNotEmpty) {
+      return timetableAsync.value!;
+    }
+    final mem = StorageService.getMemoryCache('timetable');
+    if (mem is Map && mem.isNotEmpty) {
+      return Map<String, dynamic>.from(mem);
+    }
+    return timetableAsync.valueOrNull ?? <String, dynamic>{};
   }
 
   @override
   Widget build(BuildContext context) {
+    final p = AppPalette.of(context);
     final timetableAsync = ref.watch(timetableProvider);
-    final todayName = DateFormat('EEEE').format(DateTime.now());
+    final timetableData = _resolveTimetableData(timetableAsync);
+    final todayCount = _getTodayClassCount(timetableData);
+
+    final counts = [
+      for (final d in _days)
+        VtopHelpers.getClassesForDay(timetableData, d).length,
+    ];
 
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: p.paper,
       appBar: AppBar(
-        backgroundColor: _background,
-        surfaceTintColor: Colors.transparent,
+        automaticallyImplyLeading: false,
         elevation: 0,
         scrolledUnderElevation: 0,
-        toolbarHeight: 70,
+        backgroundColor: p.paper,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 72,
         titleSpacing: 20,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'ACADEMICS',
+              'SCHEDULE',
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 9,
                 fontWeight: FontWeight.w800,
-                color: _orange,
+                color: p.orange,
                 letterSpacing: 1.7,
               ),
             ),
             const SizedBox(height: 2),
             Text(
-              'Schedule',
+              'Timetable',
               style: GoogleFonts.dmSans(
                 fontSize: 25,
-                fontWeight: FontWeight.w900,
-                color: _ink,
-                letterSpacing: -.8,
+                fontWeight: FontWeight.w800,
+                color: p.ink,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              todayCount == 0
+                  ? 'No classes today'
+                  : '$todayCount ${todayCount == 1 ? 'class' : 'classes'} today',
+              style: GoogleFonts.dmSans(
+                fontSize: 11.5,
+                color: p.inkMuted,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: p.line),
+            ),
+            child: IconButton(
+              tooltip: 'Refresh Timetable',
+              icon: Icon(Icons.refresh_rounded, color: p.navy, size: 20),
+              onPressed: timetableAsync.isLoading ? null : _refreshTimetable,
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          const SizedBox(height: 4),
-          _buildDaySelector(todayName),
-          Expanded(
-            child: timetableAsync.when(
-              data: (timetableData) {
-                return TabBarView(
-                  controller: _tabController,
-                  children: _days.map((selectedDay) {
-                    final rawSchedule =
-                        (timetableData[selectedDay] as List<dynamic>?) ?? [];
-
-                    final daySchedule =
-                        VtopHelpers.sortTimetableList(rawSchedule);
-
-                    return _buildDay(
-                      selectedDay,
-                      daySchedule,
-                    );
-                  }).toList(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: AnimatedBuilder(
+              animation: _pager,
+              builder: (context, _) {
+                final page = (_pager.hasClients && _pager.page != null)
+                    ? _pager.page!
+                    : _selected.toDouble();
+                return _WeekStrip(
+                  progress: page,
+                  counts: counts,
+                  dateFor: _dateForIndex,
+                  todayIndex: _days.indexOf(DateFormat('EEEE').format(DateTime.now())),
+                  onSelect: (i) {
+                    if (_pager.hasClients) {
+                      _pager.animateToPage(
+                        i,
+                        duration: const Duration(milliseconds: 320),
+                        curve: Curves.easeOutCubic,
+                      );
+                    }
+                  },
                 );
               },
-              loading: _buildLoading,
-              error: (err, stack) => _buildError(err.toString()),
             ),
+          ),
+          Expanded(
+            child: timetableData.isNotEmpty
+                ? _buildPages(timetableData)
+                : timetableAsync.when(
+                    data: _buildPages,
+                    loading: () =>
+                        const NexusLoadingState(title: 'Loading timetable...'),
+                    error: (err, _) => _buildErrorView(err.toString()),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDaySelector(String todayName) {
-    return Container(
-      height: 70,
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _line),
+  Widget _buildPages(Map<String, dynamic> timetableData) {
+    return RefreshIndicator(
+      onRefresh: _refreshTimetable,
+      notificationPredicate: (n) => n.depth == 1,
+      child: PageView.builder(
+        controller: _pager,
+        itemCount: _days.length,
+        onPageChanged: (i) {
+          HapticFeedback.selectionClick();
+          setState(() => _selected = i);
+        },
+        itemBuilder: (context, i) {
+          final day = _days[i];
+          final sorted = VtopHelpers.sortTimetableList(
+            VtopHelpers.getClassesForDay(timetableData, day),
+          );
+          return _buildDay(day, sorted);
+        },
       ),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: false,
-        dividerColor: Colors.transparent,
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicator: BoxDecoration(
-          color: _navy,
-          borderRadius: BorderRadius.circular(13),
-        ),
-        labelColor: Colors.white,
-        unselectedLabelColor: _muted,
-        labelStyle: GoogleFonts.spaceGrotesk(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
-        unselectedLabelStyle: GoogleFonts.spaceGrotesk(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-        ),
-        padding: EdgeInsets.zero,
-        labelPadding: EdgeInsets.zero,
-        tabs: List.generate(_days.length, (index) {
-          final isToday = _days[index] == todayName;
+    );
+  }
 
-          return Tab(
-            height: 60,
+  Widget _buildDay(String day, List<dynamic> classes) {
+    if (classes.isEmpty) {
+      return LayoutBuilder(
+        builder: (context, c) => SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: c.maxHeight),
+            child: const NexusEmptyState(
+              title: 'No classes found',
+              description: 'Enjoy your free day! 🎉',
+            ),
+          ),
+        ),
+      );
+    }
+
+    final todayName = DateFormat('EEEE').format(DateTime.now());
+    final isToday = day == todayName;
+    final now = DateTime.now();
+    final nowMin = now.hour * 60 + now.minute;
+
+    final children = <Widget>[];
+    int? prevEnd;
+    var i = 0;
+    for (final raw in classes) {
+      final item = Map<String, dynamic>.from(raw as Map);
+      final r = VtopHelpers.parseItemTimeRange(item);
+      final start = r['start']!;
+      final end = r['end']!;
+      final timed = start < (1 << 29);
+      if (timed && prevEnd != null && start - prevEnd > 15) {
+        children.add(_GapLine(minutes: start - prevEnd));
+      }
+      if (timed) prevEnd = prevEnd == null ? end : (end > prevEnd ? end : prevEnd);
+      final isLive = isToday && timed && nowMin >= start && nowMin <= end;
+      final isPast = isToday && timed && nowMin > end;
+      children.add(
+        AnimeStaggerItem(
+          index: i++,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _ClassCard(
+              item: item,
+              startMin: start,
+              endMin: end,
+              nowMin: nowMin,
+              isLive: isLive,
+              isPast: isPast,
+              onTap: () => _showClassDetailsSheet(item),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 90),
+      children: children,
+    );
+  }
+
+  void _showClassDetailsSheet(Map<String, dynamic> item) {
+    final cs = Theme.of(context).colorScheme;
+    final courseName =
+        (item['course_name'] ?? item['course_title'] ?? 'Course').toString();
+    final courseCode = (item['course_code'] ?? '').toString();
+    final courseType = (item['course_type'] ?? '').toString();
+    final faculty = (item['faculty'] ?? '').toString();
+    final venue = (item['venue'] ?? item['room_no'] ?? 'TBA').toString();
+    final slot = VtopHelpers.cleanSlot(item['slot']?.toString());
+    final timeRange = VtopHelpers.formatItemTimeRange(item);
+
+    final memAtt = StorageService.getMemoryCache('attendance');
+    final List<dynamic> attendanceList = memAtt is List ? memAtt : const [];
+    final attMatch = _matchCourseAttendance(item, attendanceList);
+
+    double? attPct;
+    String? attDetail;
+    bool canBunk = true;
+    if (attMatch != null) {
+      final a =
+          int.tryParse((attMatch['attended_classes'] ?? '0').toString()) ?? 0;
+      final t =
+          int.tryParse((attMatch['total_classes'] ?? '0').toString()) ?? 0;
+      if (t > 0) {
+        attPct = double.tryParse(
+              (attMatch['attendance_percentage'] ?? '')
+                  .toString()
+                  .replaceAll('%', '')
+                  .trim(),
+            ) ??
+            ((a / t) * 100);
+        final bunk =
+            AttendanceCalculator.calculateBunkStats(a, t, target: 75.0);
+        canBunk = bunk['canBunk'] == true;
+        final c = (bunk['count'] as int?) ?? 0;
+        attDetail = canBunk
+            ? '$a/$t classes ($c safe to skip)'
+            : '$a/$t classes (Attend next $c)';
+      }
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: cs.surfaceContainerLow,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _dayShortcuts[index],
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                  courseName,
+                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  [courseCode, courseType]
+                      .where((s) => s.isNotEmpty)
+                      .join(' · '),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: cs.primary,
                   ),
                 ),
-                const SizedBox(height: 3),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: isToday ? 5 : 3,
-                  height: isToday ? 5 : 3,
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isToday ? _orange : Colors.transparent,
-                    shape: BoxShape.circle,
+                    color: cs.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildSheetDetailRow(
+                        ctx,
+                        icon: Icons.schedule_rounded,
+                        label: 'Timing',
+                        value: timeRange.isEmpty ? 'Scheduled' : timeRange,
+                      ),
+                      const Divider(height: 20),
+                      _buildSheetDetailRow(
+                        ctx,
+                        icon: Icons.location_on_outlined,
+                        label: 'Venue',
+                        value: venue,
+                      ),
+                      const Divider(height: 20),
+                      _buildSheetDetailRow(
+                        ctx,
+                        icon: Icons.grid_view_rounded,
+                        label: 'Slot',
+                        value: slot.isEmpty ? 'N/A' : slot,
+                      ),
+                      if (faculty.isNotEmpty) ...[
+                        const Divider(height: 20),
+                        _buildSheetDetailRow(
+                          ctx,
+                          icon: Icons.person_outline_rounded,
+                          label: 'Faculty',
+                          value: faculty,
+                        ),
+                      ],
+                      if (attPct != null && attDetail != null) ...[
+                        const Divider(height: 20),
+                        _buildSheetDetailRow(
+                          ctx,
+                          icon: Icons.pie_chart_outline_rounded,
+                          label: 'Attendance (${attPct.toStringAsFixed(0)}%)',
+                          value: attDetail,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
             ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildDay(
-    String selectedDay,
-    List<dynamic> daySchedule,
-  ) {
-    if (daySchedule.isEmpty) {
-      return ListView(
-        physics: const BouncingScrollPhysics(),
-        children: [
-          SizedBox(
-            height: MediaQuery.of(context).size.height * .48,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(30),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        color: _cream,
-                        borderRadius: BorderRadius.circular(21),
-                      ),
-                      child: Icon(
-                        Icons.free_breakfast_outlined,
-                        size: 29,
-                        color: _inkSoft,
-                      ),
-                    ),
-                    const SizedBox(height: 17),
-                    Text(
-                      'No classes scheduled',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
-                        color: _ink,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Enjoy your free day on $selectedDay.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11.5,
-                        color: _muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 300.ms),
-            ),
           ),
-        ],
-      );
-    }
-
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-      itemCount: daySchedule.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return _buildAgendaHeader(
-            selectedDay,
-            daySchedule.length,
-          );
-        }
-
-        final item = daySchedule[index - 1];
-        return _buildClassCard(
-          item,
-          selectedDay,
-          index - 1,
         );
       },
     );
   }
 
-  Widget _buildAgendaHeader(
-    String selectedDay,
-    int classCount,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(1, 5, 1, 14),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  selectedDay.toUpperCase(),
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: _orange,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Today’s agenda',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: _ink,
-                    letterSpacing: -.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 11,
-              vertical: 7,
-            ),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _line),
-            ),
-            child: Text(
-              '$classCount ${classCount == 1 ? 'CLASS' : 'CLASSES'}',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 8,
-                fontWeight: FontWeight.w800,
-                color: _navy,
-                letterSpacing: .8,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClassCard(
-    dynamic item,
-    String selectedDay,
-    int index,
-  ) {
-    final courseName = item['course_name'] ?? 'Class';
-    final courseCode = item['course_code'] ?? '';
-    final time = item['time'] ?? '';
-    final slot = item['slot'] ?? '';
-    final venue = item['venue'] ?? 'TBA';
-    final faculty = item['faculty'] ?? '';
-    final courseType = item['course_type'] ?? '';
-
-    final isLab = VtopHelpers.isLabCourse(
-      courseType: courseType,
-      courseSlot: slot,
-    );
-
-    final statusInfo = _getClassTimingStatus(
-      time,
-      selectedDay,
-    );
-
-    final status = statusInfo['status'] as String;
-    final statusColor = statusInfo['color'] as Color;
-
-    final isLive = status == 'LIVE NOW';
-    final isCompleted = status == 'COMPLETED';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 11),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isLive
-              ? statusColor.withValues(alpha: .45)
-              : _line,
-          width: isLive ? 1.3 : 1,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 5,
-                color: isCompleted
-                    ? _line
-                    : isLive
-                        ? _green
-                        : isLab
-                            ? _orange
-                            : _blue,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    15,
-                    15,
-                    15,
-                    14,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _timeBlock(
-                            time,
-                            statusColor,
-                            isCompleted,
-                          ),
-                          const Spacer(),
-                          if (isLive) _liveBadge(),
-                          const SizedBox(width: 7),
-                          _courseTypeBadge(
-                            isLab ? 'LAB' : 'THEORY',
-                            isLab,
-                            isCompleted,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        courseName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: isCompleted
-                              ? _inkSoft
-                              : _ink,
-                          height: 1.2,
-                        ),
-                      ),
-                      if (courseCode.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          courseCode,
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w700,
-                            color: _muted,
-                            letterSpacing: .7,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 13),
-                      Container(
-                        height: 1,
-                        color: _line,
-                      ),
-                      const SizedBox(height: 11),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _background,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _line),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.location_on_outlined,
-                                  size: 12,
-                                  color: isCompleted ? _muted : _navy,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  venue,
-                                  style: GoogleFonts.spaceGrotesk(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: isCompleted ? _muted : _ink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (faculty.isNotEmpty) ...[
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Icon(
-                                      Icons.person_outline_rounded,
-                                      size: 13,
-                                      color: _muted,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      faculty,
-                                      maxLines: 2,
-                                      softWrap: true,
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: isCompleted ? _muted : _inkSoft,
-                                        height: 1.25,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    )
-        .animate(delay: (35 * index).ms)
-        .fadeIn(duration: 280.ms)
-        .slideY(
-          begin: .035,
-          end: 0,
-          curve: Curves.easeOutCubic,
-        );
-  }
-
-  Widget _timeBlock(
-    String time,
-    Color statusColor,
-    bool completed,
-  ) {
+  Widget _buildSheetDetailRow(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(
-            color: statusColor,
-            shape: BoxShape.circle,
+        Icon(icon, size: 20, color: cs.primary),
+        const SizedBox(width: 12),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: cs.onSurfaceVariant,
           ),
         ),
-        const SizedBox(width: 7),
-        Text(
-          time,
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w800,
-            color: completed ? _muted : statusColor,
-            letterSpacing: .15,
+        const Spacer(),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _liveBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
-      decoration: BoxDecoration(
-        color: _green.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(
-          color: _green.withValues(alpha: .24),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(
-              color: _green,
-              shape: BoxShape.circle,
-            ),
-          )
-              .animate(
-                onPlay: (controller) =>
-                    controller.repeat(reverse: true),
-              )
-              .scale(
-                begin: const Offset(.8, .8),
-                end: const Offset(1.35, 1.35),
-                duration: 800.ms,
-              ),
-          const SizedBox(width: 5),
-          Text(
-            'LIVE',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 7.5,
-              fontWeight: FontWeight.w900,
-              color: _green,
-              letterSpacing: .7,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _courseTypeBadge(
-    String text,
-    bool isLab,
-    bool completed,
+  static Map<String, dynamic>? _matchCourseAttendance(
+    Map<String, dynamic> item,
+    List<dynamic> attendanceList,
   ) {
-    final color = completed
-        ? _muted
-        : isLab
-            ? _orange
-            : _blue;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .09),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        text,
-        style: GoogleFonts.spaceGrotesk(
-          fontSize: 7.5,
-          fontWeight: FontWeight.w800,
-          color: color,
-          letterSpacing: .7,
-        ),
-      ),
+    final code = (item['course_code'] ?? '').toString().trim().toUpperCase();
+    if (code.isEmpty || attendanceList.isEmpty) return null;
+    final slot = VtopHelpers.cleanSlot(item['slot']?.toString());
+    final courseType = (item['course_type'] ?? '').toString();
+    final itemIsLab = VtopHelpers.isLabCourse(
+      courseType: courseType,
+      courseSlot: slot,
     );
+
+    Map<String, dynamic>? fallback;
+    for (final raw in attendanceList) {
+      if (raw is! Map) continue;
+      final att = Map<String, dynamic>.from(raw);
+      final attCode =
+          (att['course_code'] ?? '').toString().trim().toUpperCase();
+      if (attCode != code) continue;
+      fallback ??= att;
+      final attIsLab = VtopHelpers.isLabCourse(
+        courseType: att['course_type']?.toString(),
+        courseSlot: att['course_slot']?.toString(),
+        courseTypeCode: att['course_type_code']?.toString(),
+      );
+      if (attIsLab == itemIsLab) return att;
+    }
+    return fallback;
   }
 
+  Widget _buildErrorView(String error) {
+    return NexusErrorState(
+      message: ErrorFormatter.format(error),
+      retryLabel: 'Retry',
+      onRetry: _refreshTimetable,
+    );
+  }
+}
 
+/// Day selector: sliding thumb that follows the page swipe.
+class _WeekStrip extends StatelessWidget {
+  final double progress;
+  final List<int> counts;
+  final DateTime Function(int) dateFor;
+  final int todayIndex;
+  final ValueChanged<int> onSelect;
 
-  Widget _buildLoading() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  const _WeekStrip({
+    required this.progress,
+    required this.counts,
+    required this.dateFor,
+    required this.todayIndex,
+    required this.onSelect,
+  });
+
+  static const _letters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppPalette.of(context);
+    const n = 7;
+    final pos = progress.clamp(0.0, (n - 1).toDouble());
+    final sel = pos.round();
+
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.line),
+      ),
+      child: Stack(
         children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: _navy,
-              borderRadius: BorderRadius.circular(17),
-            ),
-            padding: const EdgeInsets.all(13),
-            child: const CircularProgressIndicator(
-              strokeWidth: 2.2,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                Colors.white,
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment(-1 + 2 * pos / (n - 1), 0),
+              child: FractionallySizedBox(
+                widthFactor: 1 / n,
+                heightFactor: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: p.navy,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 17),
-          Text(
-            'LOADING SCHEDULE',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              color: _ink,
-              letterSpacing: 1.5,
-            ),
+          Row(
+            children: [
+              for (var i = 0; i < n; i++)
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onSelect(i),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _letters[i],
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: sel == i
+                                ? p.onNavy.withValues(alpha: 0.75)
+                                : p.inkMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${dateFor(i).day}',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: sel == i ? p.onNavy : p.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          height: 5,
+                          child: i == todayIndex && sel != i
+                              ? Container(
+                                  width: 14,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: p.orange,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (var d = 0; d < counts[i].clamp(0, 4); d++)
+                                      Container(
+                                        width: 4,
+                                        height: 4,
+                                        margin: const EdgeInsets.symmetric(horizontal: 1.2),
+                                        decoration: BoxDecoration(
+                                          color: sel == i
+                                              ? p.onNavy
+                                              : p.inkMuted.withValues(alpha: 0.5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildError(String error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: _orange.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                Icons.cloud_off_rounded,
-                size: 28,
-                color: _orange,
-              ),
-            ),
-            const SizedBox(height: 17),
-            Text(
-              'Couldn’t load timetable',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.dmSans(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: _ink,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              error,
-              textAlign: TextAlign.center,
+class _GapLine extends StatelessWidget {
+  final int minutes;
+  const _GapLine({required this.minutes});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppPalette.of(context);
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    final text = h == 0 ? '${m}m free' : (m == 0 ? '${h}h free' : '${h}h ${m}m free');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: p.line, thickness: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              text,
               style: GoogleFonts.dmSans(
                 fontSize: 11.5,
-                color: _muted,
-                height: 1.45,
+                fontWeight: FontWeight.w600,
+                color: p.inkMuted,
               ),
             ),
-            const SizedBox(height: 21),
-            ElevatedButton.icon(
-              onPressed: () async {
-                try {
-                  await refreshTimetable(ref);
-                } catch (_) {}
-              },
-              icon: Icon(
-                Icons.refresh_rounded,
-                size: 17,
-              ),
-              label: Text(
-                'TRY AGAIN',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
+          ),
+          Expanded(child: Divider(color: p.line, thickness: 1)),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single class: accent bar, time + duration, title, chips, live progress.
+class _ClassCard extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final int startMin;
+  final int endMin;
+  final int nowMin;
+  final bool isLive;
+  final bool isPast;
+  final VoidCallback onTap;
+
+  const _ClassCard({
+    required this.item,
+    required this.startMin,
+    required this.endMin,
+    required this.nowMin,
+    required this.isLive,
+    required this.isPast,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppPalette.of(context);
+    final name = (item['course_name'] ?? item['course_title'] ?? 'Course').toString();
+    final code = (item['course_code'] ?? '').toString();
+    final type = (item['course_type'] ?? '').toString();
+    final faculty = (item['faculty'] ?? '').toString();
+    final venue = (item['venue'] ?? item['room_no'] ?? 'TBA').toString();
+    final slot = VtopHelpers.cleanSlot(item['slot']?.toString());
+    final isLab = VtopHelpers.isLabCourse(courseType: type, courseSlot: slot);
+    final accent = isLab ? p.orange : p.blue;
+    final timed = startMin < (1 << 29);
+    final duration = timed ? endMin - startMin : 0;
+    final range = VtopHelpers.formatItemTimeRange(item);
+
+    Widget chip(IconData icon, String text) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: p.soft,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: p.inkMuted),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: p.inkSoft,
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _navy,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 19,
-                  vertical: 13,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+            ],
+          ),
+        );
+
+    return Opacity(
+      opacity: isPast ? 0.6 : 1,
+      child: NexusSpringPress(
+        scaleDown: 0.985,
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isLive ? accent : p.line,
+              width: isLive ? 1.5 : 1,
             ),
-          ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 5, color: accent),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.schedule_rounded, size: 14, color: accent),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                range.isEmpty ? 'Scheduled' : range,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: accent,
+                                ),
+                              ),
+                            ),
+                            if (duration > 0) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '${duration}m',
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: p.inkMuted,
+                                ),
+                              ),
+                            ],
+                            const Spacer(),
+                            if (isLive)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  AnimeRadarWave(color: p.red, size: 12),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'NOW',
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                      color: p.red,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else if (isPast)
+                              Icon(Icons.check_circle_rounded, size: 16, color: p.green),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                            color: p.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          [code, type].where((e) => e.isNotEmpty).join('  ·  '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: p.inkMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            chip(Icons.location_on_outlined, venue),
+                            if (slot.isNotEmpty) chip(Icons.grid_view_rounded, slot),
+                            if (faculty.isNotEmpty)
+                              chip(Icons.person_outline_rounded, faculty),
+                          ],
+                        ),
+                        if (isLive && duration > 0) ...[
+                          const SizedBox(height: 10),
+                          NexusAnimatedProgressBar(
+                            percentage:
+                                ((nowMin - startMin) / duration * 100).clamp(0.0, 100.0),
+                            height: 4,
+                            color: accent,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

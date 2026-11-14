@@ -7,66 +7,338 @@ import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/shadcn/shadcn_ui.dart';
+import '../widgets/motion/nexus_motion.dart';
 
 // ============================================================================
 // DATA MODELS
 // ============================================================================
 
-class SemesterEntry {
-  final String id;
-  String name;
-  double sgpa;
-  double credits;
-  bool isHistorical;
-  List<CourseGradeEntry> courses;
+class CourseInputRow {
+  final TextEditingController creditsController;
+  String? selectedGrade;
 
-  SemesterEntry({
-    required this.id,
-    required this.name,
-    required this.sgpa,
-    required this.credits,
-    this.isHistorical = false,
-    List<CourseGradeEntry>? courses,
-  }) : courses = courses ?? [];
+  CourseInputRow({String credits = '', this.selectedGrade})
+      : creditsController = TextEditingController(text: credits);
 
-  SemesterEntry copyWith({
-    String? id,
-    String? name,
-    double? sgpa,
-    double? credits,
-    bool? isHistorical,
-    List<CourseGradeEntry>? courses,
-  }) {
-    return SemesterEntry(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      sgpa: sgpa ?? this.sgpa,
-      credits: credits ?? this.credits,
-      isHistorical: isHistorical ?? this.isHistorical,
-      courses: courses ?? List.from(this.courses),
-    );
+  void dispose() {
+    creditsController.dispose();
   }
-
-  double get totalGradePoints => sgpa * credits;
 }
 
-class CourseGradeEntry {
-  final String id;
-  String code;
-  String title;
-  double credits;
-  String grade; // 'S', 'A', 'B', 'C', 'D', 'E', 'F'
+class SemesterGpaInputRow {
+  final TextEditingController gpaController;
 
-  CourseGradeEntry({
-    required this.id,
-    required this.code,
-    required this.title,
-    required this.credits,
-    this.grade = 'S',
-  });
+  SemesterGpaInputRow({String gpa = ''})
+      : gpaController = TextEditingController(text: gpa);
 
-  static int gradeToPoint(String g) {
-    switch (g.trim().toUpperCase()) {
+  void dispose() {
+    gpaController.dispose();
+  }
+}
+
+// ============================================================================
+// CGPA CALCULATOR SCREEN
+// ============================================================================
+
+class CgpaCalculatorScreen extends ConsumerStatefulWidget {
+  const CgpaCalculatorScreen({super.key});
+
+  @override
+  ConsumerState<CgpaCalculatorScreen> createState() =>
+      _CgpaCalculatorScreenState();
+}
+
+class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
+  // 1. Semester GPA
+  final List<CourseInputRow> _courseRows = [];
+  double? _calculatedSemesterGpa;
+  double? _calculatedSemesterCredits;
+
+  // 2. Target CGPA Planner
+  final TextEditingController _targetCurrentCgpaController =
+      TextEditingController();
+  final TextEditingController _targetCompletedSemsController =
+      TextEditingController();
+  final TextEditingController _targetGoalCgpaController =
+      TextEditingController();
+  double? _calculatedRequiredSgpa;
+  bool? _isTargetAchievable;
+  String? _targetFeedbackMessage;
+
+  // 3. Cumulative GPA
+  final List<SemesterGpaInputRow> _semesterGpaRows = [];
+  double? _calculatedCumulativeGpa;
+
+  // VTOP prefetch
+  bool _isLoadingVtop = false;
+  bool _hasPrefetchedVtop = false;
+
+  final List<Map<String, dynamic>> _gradeOptions = [
+    {'grade': 'S', 'points': 10, 'label': 'S (10 pts)', 'color': Color(0xFF10B981)},
+    {'grade': 'A', 'points': 9, 'label': 'A (9 pts)', 'color': Color(0xFF3B82F6)},
+    {'grade': 'B', 'points': 8, 'label': 'B (8 pts)', 'color': Color(0xFF6366F1)},
+    {'grade': 'C', 'points': 7, 'label': 'C (7 pts)', 'color': Color(0xFF8B5CF6)},
+    {'grade': 'D', 'points': 6, 'label': 'D (6 pts)', 'color': Color(0xFFF59E0B)},
+    {'grade': 'E', 'points': 5, 'label': 'E (5 pts)', 'color': Color(0xFFEC4899)},
+    {'grade': 'F', 'points': 0, 'label': 'F (0 pts)', 'color': Color(0xFFEF4444)},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDefaultRows();
+    _tryPrefetchVtopData();
+  }
+
+  void _initializeDefaultRows() {
+    // Start with 3 clean empty course rows
+    _courseRows.addAll([
+      CourseInputRow(credits: '', selectedGrade: null),
+      CourseInputRow(credits: '', selectedGrade: null),
+      CourseInputRow(credits: '', selectedGrade: null),
+    ]);
+
+    // Start with 2 clean empty semester GPA rows
+    _semesterGpaRows.addAll([
+      SemesterGpaInputRow(gpa: ''),
+      SemesterGpaInputRow(gpa: ''),
+    ]);
+  }
+
+  Future<void> _tryPrefetchVtopData() async {
+    final mem = StorageService.getMemoryCache('grades');
+    if (mem is Map && mem.isNotEmpty) {
+      _applyVtopGradeData(Map<String, dynamic>.from(mem));
+      return;
+    }
+
+    final disk = await StorageService.getCache('grades');
+    if (disk is Map && disk.isNotEmpty) {
+      _applyVtopGradeData(Map<String, dynamic>.from(disk));
+      return;
+    }
+
+    final auth = ref.read(authProvider);
+    if (!auth.isAuthenticated || auth.username == null) return;
+
+    setState(() => _isLoadingVtop = true);
+    try {
+      final fresh = await apiService.fetchGradeHistory(
+        username: auth.username ?? '',
+        password: auth.password ?? '',
+      );
+      if (mounted && fresh.isNotEmpty) {
+        _applyVtopGradeData(fresh);
+      }
+    } catch (_) {
+      // Keep blank defaults
+    } finally {
+      if (mounted) setState(() => _isLoadingVtop = false);
+    }
+  }
+
+  void _applyVtopGradeData(Map<String, dynamic> data) {
+    if (_hasPrefetchedVtop) return;
+    _hasPrefetchedVtop = true;
+
+    try {
+      final cgpaStr = data['cgpa']?.toString() ??
+          data['current_cgpa']?.toString() ??
+          data['cumulative_grade_point_average']?.toString();
+      final double? parsedCgpa = double.tryParse(cgpaStr ?? '');
+
+      final semesterHistory = data['semester_grades'] ??
+          data['semesters'] ??
+          data['grade_history'] ??
+          [];
+
+      if (semesterHistory is List && semesterHistory.isNotEmpty) {
+        final List<SemesterGpaInputRow> fetchedRows = [];
+        for (var sem in semesterHistory) {
+          if (sem is Map) {
+            final gpa = sem['gpa'] ?? sem['sgpa'] ?? sem['semester_gpa'];
+            if (gpa != null) {
+              fetchedRows.add(SemesterGpaInputRow(gpa: gpa.toString()));
+            }
+          }
+        }
+
+        if (fetchedRows.isNotEmpty) {
+          setState(() {
+            for (var row in _semesterGpaRows) {
+              row.dispose();
+            }
+            _semesterGpaRows.clear();
+            _semesterGpaRows.addAll(fetchedRows);
+          });
+        }
+
+        if (parsedCgpa != null && parsedCgpa > 0) {
+          _targetCurrentCgpaController.text = parsedCgpa.toStringAsFixed(2);
+          _targetCompletedSemsController.text =
+              semesterHistory.length.toString();
+        }
+      } else if (parsedCgpa != null && parsedCgpa > 0) {
+        _targetCurrentCgpaController.text = parsedCgpa.toStringAsFixed(2);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    for (var row in _courseRows) {
+      row.dispose();
+    }
+    for (var row in _semesterGpaRows) {
+      row.dispose();
+    }
+    _targetCurrentCgpaController.dispose();
+    _targetCompletedSemsController.dispose();
+    _targetGoalCgpaController.dispose();
+    super.dispose();
+  }
+
+  // ==========================================================================
+  // CALCULATIONS
+  // ==========================================================================
+
+  void _calculateSemesterGpa(AppPalette palette) {
+    double totalCredits = 0.0;
+    double totalGradePoints = 0.0;
+    int filledCourses = 0;
+
+    for (var row in _courseRows) {
+      final credits = double.tryParse(row.creditsController.text.trim()) ?? 0.0;
+      final grade = row.selectedGrade;
+
+      if (credits > 0 && grade != null) {
+        final point = _getGradePoint(grade);
+        totalCredits += credits;
+        totalGradePoints += (credits * point);
+        filledCourses++;
+      }
+    }
+
+    if (filledCourses == 0 || totalCredits == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Please enter credits and select a grade for at least one course.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: palette.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _calculatedSemesterCredits = totalCredits;
+      _calculatedSemesterGpa = totalGradePoints / totalCredits;
+    });
+
+    HapticFeedback.mediumImpact();
+  }
+
+  void _calculateTargetRequiredSgpa(AppPalette palette) {
+    final currentCgpa =
+        double.tryParse(_targetCurrentCgpaController.text.trim());
+    final completedSems =
+        int.tryParse(_targetCompletedSemsController.text.trim());
+    final targetCgpa = double.tryParse(_targetGoalCgpaController.text.trim());
+
+    if (currentCgpa == null || completedSems == null || targetCgpa == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Please fill in all Target Planner fields with valid numbers.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: palette.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (currentCgpa < 0 ||
+        currentCgpa > 10 ||
+        targetCgpa < 0 ||
+        targetCgpa > 10 ||
+        completedSems <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'CGPA must be between 0.0 and 10.0, and completed semesters > 0.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: palette.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final totalRequiredPoints = targetCgpa * (completedSems + 1);
+    final currentTotalPoints = currentCgpa * completedSems;
+    final requiredSgpa = totalRequiredPoints - currentTotalPoints;
+
+    setState(() {
+      _calculatedRequiredSgpa = requiredSgpa;
+      _isTargetAchievable = requiredSgpa <= 10.0 && requiredSgpa >= 0.0;
+
+      if (requiredSgpa > 10.0) {
+        _targetFeedbackMessage =
+            'Target is mathematically impossible in 1 semester (Max SGPA is 10.0). Consider aiming for this target across multiple semesters.';
+      } else if (requiredSgpa < 5.0) {
+        _targetFeedbackMessage =
+            'Easily achievable! A passing SGPA of at least ${requiredSgpa < 0 ? '5.00' : requiredSgpa.toStringAsFixed(2)} will reach your goal.';
+      } else {
+        _targetFeedbackMessage =
+            'Target Achievable! Maintain an SGPA of ${requiredSgpa.toStringAsFixed(2)} in your upcoming semester.';
+      }
+    });
+
+    HapticFeedback.mediumImpact();
+  }
+
+  void _calculateCumulativeGpa(AppPalette palette) {
+    double totalGpa = 0.0;
+    int count = 0;
+
+    for (var row in _semesterGpaRows) {
+      final gpa = double.tryParse(row.gpaController.text.trim());
+      if (gpa != null && gpa >= 0 && gpa <= 10) {
+        totalGpa += gpa;
+        count++;
+      }
+    }
+
+    if (count == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Please enter valid GPA (0.0 - 10.0) for at least one semester.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: palette.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _calculatedCumulativeGpa = totalGpa / count;
+    });
+
+    HapticFeedback.mediumImpact();
+  }
+
+  int _getGradePoint(String grade) {
+    switch (grade.trim().toUpperCase()) {
       case 'S':
         return 10;
       case 'A':
@@ -81,538 +353,228 @@ class CourseGradeEntry {
         return 5;
       case 'F':
       case 'N':
-        return 0;
       default:
-        return 10;
+        return 0;
     }
   }
 
-  int get gradePoint => gradeToPoint(grade);
-  double get coursePoints => credits * gradePoint;
-}
-
-// ============================================================================
-// MAIN CGPA CALCULATOR & PLANNER SCREEN
-// ============================================================================
-
-class CgpaCalculatorScreen extends ConsumerStatefulWidget {
-  const CgpaCalculatorScreen({super.key});
-
-  @override
-  ConsumerState<CgpaCalculatorScreen> createState() => _CgpaCalculatorScreenState();
-}
-
-class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  List<SemesterEntry> _semesters = [];
-  List<CourseGradeEntry> _currentSemCourses = [];
-  bool _isLoading = true;
-  double? _baselineCgpa;
-
-  // Target Calculator State
-  double _targetCgpa = 9.0;
-  double _targetFutureCredits = 21.0;
-
-  AppPalette get _palette => AppPalette.of(context);
-  Color get _paper => _palette.paper;
-  Color get _surface => _palette.surface;
-  Color get _ink => _palette.ink;
-  Color get _inkSoft => _palette.inkSoft;
-  Color get _navy => _palette.navy;
-  Color get _blue => _palette.blue;
-  Color get _orange => _palette.orange;
-  Color get _green => _palette.green;
-  Color get _red => _palette.red;
-  Color get _muted => _palette.inkMuted;
-  Color get _line => _palette.line;
-
-  TextStyle get _micro => GoogleFonts.spaceGrotesk(
-        fontSize: 9,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.2,
-      );
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _loadAcademicData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadAcademicData() async {
-    setState(() => _isLoading = true);
-
-    try {
-      // 1. Load Grade History (for past completed semesters)
-      Map<String, dynamic>? gradesData;
-      final memGrades = StorageService.getMemoryCache('grades');
-      if (memGrades is Map && memGrades.isNotEmpty) {
-        gradesData = Map<String, dynamic>.from(memGrades);
-      } else {
-        final diskGrades = await StorageService.getCache('grades');
-        if (diskGrades is Map && diskGrades.isNotEmpty) {
-          gradesData = Map<String, dynamic>.from(diskGrades);
-        }
-      }
-
-      // If cache empty, try fetching live
-      if (gradesData == null || gradesData.isEmpty) {
-        final auth = ref.read(authProvider);
-        if (auth.username != null && auth.password != null) {
-          try {
-            final fresh = await apiService.fetchGradeHistory(
-              username: auth.username!,
-              password: auth.password!,
-            );
-            if (fresh.isNotEmpty) {
-              gradesData = fresh;
-              await StorageService.setCache('grades', fresh);
-            }
-          } catch (_) {}
-        }
-      }
-
-      // Extract Semesters from Grade History
-      final List<SemesterEntry> loadedSems = [];
-      if (gradesData != null && gradesData.containsKey('courses')) {
-        final courses = (gradesData['courses'] as List<dynamic>?) ?? [];
-        
-        // Group by exam_month / semester
-        final Map<String, List<dynamic>> semGroups = {};
-        for (var c in courses) {
-          final sem = (c['exam_month']?.toString() ?? 'Semester').trim();
-          semGroups.putIfAbsent(sem, () => []).add(c);
-        }
-
-        int semIdx = 1;
-        for (var entry in semGroups.entries) {
-          final semCourses = entry.value;
-          double semPoints = 0;
-          double semCredits = 0;
-
-          for (var sc in semCourses) {
-            final cred = double.tryParse(sc['credits']?.toString() ?? '0') ?? 0.0;
-            final gr = (sc['grade']?.toString() ?? '').trim().toUpperCase();
-            final pt = CourseGradeEntry.gradeToPoint(gr);
-            if (cred > 0 && gr != 'N' && gr != 'P') {
-              semPoints += (cred * pt);
-              semCredits += cred;
-            } else if (cred > 0 && gr == 'P') {
-              // Pass non-graded course contributes credits
-              semCredits += cred;
-            }
-          }
-
-          final semGpa = semCredits > 0 ? (semPoints / semCredits) : 0.0;
-          final semName = 'Semester $semIdx (${entry.key})';
-
-          loadedSems.add(
-            SemesterEntry(
-              id: 'sem_$semIdx',
-              name: semName,
-              sgpa: double.parse(semGpa.toStringAsFixed(2)),
-              credits: semCredits,
-              isHistorical: true,
-            ),
-          );
-          semIdx++;
-        }
-      }
-
-      // 2. Load current enrolled courses (from attendance or courses cache)
-      final List<CourseGradeEntry> currentCourses = [];
-      final memAtt = StorageService.getMemoryCache('attendance');
-      final diskAtt = memAtt ?? await StorageService.getCache('attendance');
-      
-      if (diskAtt is Map && diskAtt.containsKey('courses')) {
-        final list = (diskAtt['courses'] as List<dynamic>?) ?? [];
-        int cIdx = 1;
-        for (var c in list) {
-          final title = c['course_title']?.toString() ?? c['course_name']?.toString() ?? 'Course $cIdx';
-          final code = c['course_code']?.toString() ?? '';
-          final credStr = c['credits']?.toString() ?? '3.0';
-          final cred = double.tryParse(credStr) ?? 3.0;
-
-          currentCourses.add(
-            CourseGradeEntry(
-              id: 'curr_c_$cIdx',
-              code: code,
-              title: title,
-              credits: cred > 0 ? cred : 3.0,
-              grade: 'S',
-            ),
-          );
-          cIdx++;
-        }
-      }
-
-      // Fallback: If no courses found, create standard defaults
-      if (currentCourses.isEmpty) {
-        currentCourses.addAll([
-          CourseGradeEntry(id: 'c1', code: 'CSE3001', title: 'Software Engineering', credits: 4.0, grade: 'S'),
-          CourseGradeEntry(id: 'c2', code: 'CSE3002', title: 'Computer Networks', credits: 4.0, grade: 'A'),
-          CourseGradeEntry(id: 'c3', code: 'CSE3003', title: 'Database Systems', credits: 4.0, grade: 'S'),
-          CourseGradeEntry(id: 'c4', code: 'MAT2001', title: 'Applied Statistics', credits: 3.0, grade: 'A'),
-          CourseGradeEntry(id: 'c5', code: 'HUM1001', title: 'Ethics & Values', credits: 2.0, grade: 'S'),
-        ]);
-      }
-
-      // If no past semesters loaded from history, create default Sem 1 - 3
-      if (loadedSems.isEmpty) {
-        loadedSems.addAll([
-          SemesterEntry(id: 'sem_1', name: 'Semester 1', sgpa: 8.70, credits: 21.0, isHistorical: true),
-          SemesterEntry(id: 'sem_2', name: 'Semester 2', sgpa: 8.95, credits: 22.0, isHistorical: true),
-          SemesterEntry(id: 'sem_3', name: 'Semester 3', sgpa: 9.10, credits: 20.0, isHistorical: true),
-        ]);
-      }
-
-      // Compute present semester SGPA from currentCourses
-      double currSemCredits = 0;
-      double currSemPoints = 0;
-      for (var c in currentCourses) {
-        currSemCredits += c.credits;
-        currSemPoints += c.coursePoints;
-      }
-      final currSgpa = currSemCredits > 0 ? (currSemPoints / currSemCredits) : 9.5;
-
-      // Append present semester to the list
-      final nextSemNum = loadedSems.length + 1;
-      loadedSems.add(
-        SemesterEntry(
-          id: 'sem_present',
-          name: 'Semester $nextSemNum (Present)',
-          sgpa: double.parse(currSgpa.toStringAsFixed(2)),
-          credits: currSemCredits > 0 ? currSemCredits : 21.0,
-          isHistorical: false,
-          courses: currentCourses,
+  void _showInfoDialog(String title, String content, AppPalette palette) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: palette.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: palette.line),
         ),
-      );
-
-      // Save baseline stats (historical only)
-      double histPoints = 0;
-      double histCreds = 0;
-      for (var s in loadedSems.where((s) => s.isHistorical)) {
-        histPoints += s.totalGradePoints;
-        histCreds += s.credits;
-      }
-      _baselineCgpa = histCreds > 0 ? (histPoints / histCreds) : null;
-
-      _semesters = loadedSems;
-      _currentSemCourses = currentCourses;
-      _targetCgpa = (_baselineCgpa != null ? (_baselineCgpa! + 0.25).clamp(6.0, 9.8) : 9.0);
-      _targetCgpa = double.parse(_targetCgpa.toStringAsFixed(2));
-    } catch (e) {
-      debugPrint('CgpaCalculator: Error initializing data: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+        title: Row(
+          children: [
+            Icon(Icons.info_outline_rounded, color: palette.blue, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.spaceGrotesk(
+                  color: palette.ink,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          content,
+          style: GoogleFonts.inter(
+            color: palette.inkSoft,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'GOT IT',
+              style: GoogleFonts.spaceGrotesk(
+                color: palette.blue,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  // ============================================================================
-  // MATH & CALCULATIONS
-  // ============================================================================
-
-  double get _totalCumulativeCredits {
-    return _semesters.fold(0.0, (sum, s) => sum + s.credits);
-  }
-
-  double get _totalCumulativePoints {
-    return _semesters.fold(0.0, (sum, s) => sum + s.totalGradePoints);
-  }
-
-  double get _overallCgpa {
-    final totalCreds = _totalCumulativeCredits;
-    if (totalCreds <= 0) return 0.0;
-    return _totalCumulativePoints / totalCreds;
-  }
-
-  double get _presentSemSgpa {
-    double pts = 0;
-    double crs = 0;
-    for (var c in _currentSemCourses) {
-      pts += c.coursePoints;
-      crs += c.credits;
-    }
-    return crs > 0 ? (pts / crs) : 0.0;
-  }
-
-  double get _presentSemCredits {
-    return _currentSemCourses.fold(0.0, (sum, c) => sum + c.credits);
-  }
-
-  void _syncCourseSgpaToPresentSem() {
-    final sgpa = _presentSemSgpa;
-    final creds = _presentSemCredits;
-    final idx = _semesters.indexWhere((s) => s.id == 'sem_present' || !s.isHistorical);
-    if (idx != -1) {
-      setState(() {
-        _semesters[idx].sgpa = double.parse(sgpa.toStringAsFixed(2));
-        _semesters[idx].credits = creds;
-      });
-    }
-  }
-
-  // ============================================================================
-  // BUILD UI
-  // ============================================================================
+  // ==========================================================================
+  // BUILD METHOD
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: _paper,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(_blue),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loading Academic Records...',
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _inkSoft,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final overall = _overallCgpa;
-    final delta = _baselineCgpa != null ? (overall - _baselineCgpa!) : 0.0;
+    final palette = AppPalette.of(context);
 
     return Scaffold(
-      backgroundColor: _paper,
+      backgroundColor: palette.paper,
       appBar: AppBar(
+        backgroundColor: palette.paper,
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: _paper,
-        foregroundColor: _ink,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: _navy),
+          icon: Icon(Icons.arrow_back_ios_new_rounded,
+              color: palette.ink, size: 18),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ACADEMIC PLANNER',
-              style: _micro.copyWith(color: _orange),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'CGPA & SGPA Calculator',
-              style: GoogleFonts.dmSans(
-                fontSize: 19,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-              ),
-            ),
-          ],
+        title: Text(
+          'CGPA CALCULATOR',
+          style: GoogleFonts.spaceGrotesk(
+            color: palette.ink,
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            letterSpacing: 0.8,
+          ),
         ),
+        centerTitle: true,
         actions: [
-          IconButton(
-            tooltip: 'Reset to History',
-            icon: Icon(Icons.refresh_rounded, color: _navy),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              _loadAcademicData();
-            },
-          ),
-          const SizedBox(width: 8),
+          if (_isLoadingVtop)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14.0),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: palette.blue,
+                  ),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              icon: Icon(Icons.refresh_rounded, color: palette.inkSoft, size: 20),
+              tooltip: 'Reset Fields',
+              onPressed: () {
+                setState(() {
+                  _hasPrefetchedVtop = false;
+                  for (var r in _courseRows) {
+                    r.dispose();
+                  }
+                  for (var r in _semesterGpaRows) {
+                    r.dispose();
+                  }
+                  _courseRows.clear();
+                  _semesterGpaRows.clear();
+                  _calculatedSemesterGpa = null;
+                  _calculatedRequiredSgpa = null;
+                  _calculatedCumulativeGpa = null;
+                  _targetCurrentCgpaController.clear();
+                  _targetCompletedSemsController.clear();
+                  _targetGoalCgpaController.clear();
+                  _initializeDefaultRows();
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Reset all calculator fields'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+            ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _line),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicatorSize: TabBarIndicatorSize.tab,
-              indicator: BoxDecoration(
-                color: _navy,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor: _muted,
-              labelStyle: GoogleFonts.spaceGrotesk(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-              tabs: const [
-                Tab(text: 'Semesters'),
-                Tab(text: 'Course Sim'),
-                Tab(text: 'Target Goal'),
-              ],
-            ),
-          ),
-        ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Overall Cumulative Scoreboard Hero
-            _buildOverallCgpaHero(overall, delta),
-
-            // Tab Views
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildSemestersTab(),
-                  _buildCourseSimulatorTab(),
-                  _buildTargetGoalTab(),
-                ],
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. Header Overview Banner
+              AnimeStaggerItem(
+                index: 0,
+                child: _buildHeaderBanner(palette),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              // 2. Card 1: SEMESTER GPA
+              AnimeStaggerItem(
+                index: 1,
+                child: _buildSemesterGpaCard(palette),
+              ),
+              const SizedBox(height: 16),
+
+              // 3. Card 2: TARGET CGPA PLANNER
+              AnimeStaggerItem(
+                index: 2,
+                child: _buildTargetCgpaCard(palette),
+              ),
+              const SizedBox(height: 16),
+
+              // 4. Card 3: CUMULATIVE GPA
+              AnimeStaggerItem(
+                index: 3,
+                child: _buildCumulativeGpaCard(palette),
+              ),
+              const SizedBox(height: 16),
+
+              // 5. Card 4: VIT-AP RELATIVE GRADING SYSTEM
+              AnimeStaggerItem(
+                index: 4,
+                child: _buildGradingSystemCard(palette),
+              ),
+              const SizedBox(height: 36),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ============================================================================
-  // 1. OVERALL SCOREBOARD HERO
-  // ============================================================================
+  // ==========================================================================
+  // 1. HEADER OVERVIEW BANNER
+  // ==========================================================================
 
-  Widget _buildOverallCgpaHero(double overallCgpa, double delta) {
-    final isDeltaPositive = delta >= 0.0;
-    final deltaStr = isDeltaPositive
-        ? '+${delta.toStringAsFixed(2)}'
-        : delta.toStringAsFixed(2);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _line),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+  Widget _buildHeaderBanner(AppPalette palette) {
+    return NexusCard(
+      variant: NexusCardVariant.standard,
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          // Main Overall CGPA Circle / Badge
           Container(
-            width: 76,
-            height: 76,
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _navy,
-              boxShadow: [
-                BoxShadow(
-                  color: _navy.withValues(alpha: 0.25),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              color: palette.blue.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    overallCgpa.toStringAsFixed(2),
-                    style: GoogleFonts.dmSans(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      height: 1.05,
-                    ),
-                  ),
-                  Text(
-                    'OVERALL',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 7.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0,
-                      color: const Color(0xFFF2B35B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            child: Icon(Icons.calculate_rounded, color: palette.blue, size: 22),
           ),
-          const SizedBox(width: 16),
-          // Stats Breakdown
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'PROJECTED CGPA',
-                      style: _micro.copyWith(color: _muted),
-                    ),
-                    if (_baselineCgpa != null && delta.abs() >= 0.01)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (isDeltaPositive ? _green : _orange)
-                              .withValues(alpha: .12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '$deltaStr vs Past',
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            color: isDeltaPositive ? _green : _orange,
-                          ),
-                        ),
-                      ),
-                  ],
+                Text(
+                  'VIT-AP ACADEMIC CALCULATOR',
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: palette.blue,
+                    letterSpacing: 0.8,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _buildHeroStat(
-                      'TOTAL CREDITS',
-                      _totalCumulativeCredits.toStringAsFixed(1),
-                      _blue,
-                    ),
-                    const SizedBox(width: 16),
-                    _buildHeroStat(
-                      'SEMESTERS',
-                      '${_semesters.length} Terms',
-                      _orange,
-                    ),
-                    const SizedBox(width: 16),
-                    _buildHeroStat(
-                      'GRADE POINTS',
-                      _totalCumulativePoints.toStringAsFixed(0),
-                      _green,
-                    ),
-                  ],
+                const SizedBox(height: 2),
+                Text(
+                  'Calculate semester SGPA, forecast target goals, and compute overall cumulative CGPA.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: palette.inkSoft,
+                    height: 1.3,
+                  ),
                 ),
               ],
             ),
@@ -622,949 +584,1162 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen>
     );
   }
 
-  Widget _buildHeroStat(String label, String val, Color accent) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          val,
-          style: GoogleFonts.dmSans(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w800,
-            color: _ink,
-          ),
-        ),
-        Text(
-          label,
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 7.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-            color: _muted,
-          ),
-        ),
-      ],
-    );
-  }
+  // ==========================================================================
+  // 2. CARD 1: SEMESTER GPA
+  // ==========================================================================
 
-  // ============================================================================
-  // TAB 1: SEMESTER-BY-SEMESTER AGGREGATOR
-  // ============================================================================
-
-  Widget _buildSemestersTab() {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'SEMESTER BREAKDOWN',
-              style: _micro.copyWith(color: _muted),
-            ),
-            Text(
-              '${_semesters.length} Semesters Included',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _inkSoft,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        // List of Semesters
-        ..._semesters.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final sem = entry.value;
-          return _buildSemesterCard(sem, idx);
-        }),
-
-        const SizedBox(height: 16),
-
-        // Add Next Semester Button
-        ElevatedButton.icon(
-          onPressed: _addNewSemester,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _surface,
-            foregroundColor: _navy,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: _navy, width: 1.5),
-            ),
-          ),
-          icon: Icon(Icons.add_circle_outline_rounded, size: 20, color: _navy),
-          label: Text(
-            'ADD FUTURE SEMESTER (SEM ${_semesters.length + 1})',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
-              color: _navy,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSemesterCard(SemesterEntry sem, int index) {
-    final isPresent = sem.id == 'sem_present' || (!sem.isHistorical && index == _semesters.length - 1);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isPresent ? _blue : _line,
-          width: isPresent ? 1.5 : 1.0,
-        ),
-      ),
+  Widget _buildSemesterGpaCard(AppPalette palette) {
+    return NexusCard(
+      variant: NexusCardVariant.standard,
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Section Title
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: (isPresent ? _blue : _navy).withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          color: isPresent ? _blue : _navy,
-                        ),
-                      ),
-                    ),
+              Icon(Icons.calendar_month_rounded,
+                  color: palette.blue, size: 19),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'SEMESTER GPA',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: palette.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
                   ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        sem.name,
-                        style: GoogleFonts.dmSans(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: _ink,
-                        ),
-                      ),
-                      Text(
-                        sem.isHistorical ? 'Historical Records' : 'Simulated / Projected',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          color: sem.isHistorical ? _green : _orange,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              // Delete Button (only for custom/future added semesters)
-              if (!sem.isHistorical && _semesters.length > 1)
-                IconButton(
-                  icon: Icon(Icons.delete_outline_rounded, size: 20, color: _red),
-                  onPressed: () {
-                    HapticFeedback.selectionClick();
-                    setState(() {
-                      _semesters.removeAt(index);
-                    });
-                  },
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
+              ),
+              GestureDetector(
+                onTap: () => _showInfoDialog(
+                  'Semester GPA (SGPA)',
+                  'SGPA is calculated as:\n\n'
+                      'SGPA = Σ (Course Credits × Grade Points) / Σ (Course Credits)\n\n'
+                      'Grade Points:\n'
+                      '• S = 10\n• A = 9\n• B = 8\n• C = 7\n• D = 6\n• E = 5\n• F/N = 0',
+                  palette,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: palette.inkMuted,
+                    size: 17,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
 
-          // SGPA & Credits Controls Row
+          // Column Headers
           Row(
             children: [
-              // SGPA Control
-              Expanded(
-                flex: 5,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _paper,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _line),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'SEMESTER GPA',
-                        style: _micro.copyWith(color: _muted),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildMiniStepper(
-                            icon: Icons.remove_rounded,
-                            onTap: () {
-                              if (sem.sgpa > 1.0) {
-                                setState(() {
-                                  sem.sgpa = double.parse((sem.sgpa - 0.1).toStringAsFixed(2));
-                                });
-                              }
-                            },
-                          ),
-                          GestureDetector(
-                            onTap: () => _showEditSgpaDialog(sem),
-                            child: Text(
-                              sem.sgpa.toStringAsFixed(2),
-                              style: GoogleFonts.dmSans(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: _blue,
-                              ),
-                            ),
-                          ),
-                          _buildMiniStepper(
-                            icon: Icons.add_rounded,
-                            onTap: () {
-                              if (sem.sgpa < 10.0) {
-                                setState(() {
-                                  sem.sgpa = double.parse((sem.sgpa + 0.1).toStringAsFixed(2));
-                                });
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // Credits Control
               Expanded(
                 flex: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _paper,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _line),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'CREDITS',
-                        style: _micro.copyWith(color: _muted),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildMiniStepper(
-                            icon: Icons.remove_rounded,
-                            onTap: () {
-                              if (sem.credits > 1.0) {
-                                setState(() {
-                                  sem.credits = sem.credits - 1.0;
-                                });
-                              }
-                            },
-                          ),
-                          GestureDetector(
-                            onTap: () => _showEditCreditsDialog(sem),
-                            child: Text(
-                              sem.credits.toStringAsFixed(1),
-                              style: GoogleFonts.dmSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: _ink,
-                              ),
-                            ),
-                          ),
-                          _buildMiniStepper(
-                            icon: Icons.add_rounded,
-                            onTap: () {
-                              if (sem.credits < 35.0) {
-                                setState(() {
-                                  sem.credits = sem.credits + 1.0;
-                                });
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
+                child: Text(
+                  'CREDITS',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: palette.inkMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 5,
+                child: Text(
+                  'GRADE',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: palette.inkMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 44),
             ],
           ),
+          const SizedBox(height: 8),
 
-          if (isPresent) ...[
-            const SizedBox(height: 10),
-            InkWell(
-              onTap: () {
-                _tabController.animateTo(1);
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _blue.withValues(alpha: .08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+          // Course Rows
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _courseRows.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              return _buildCourseRowItem(index, palette);
+            },
+          ),
+          const SizedBox(height: 14),
+
+          // Action Buttons: +ADD COURSE & CALCULATE
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _courseRows
+                          .add(CourseInputRow(credits: '', selectedGrade: null));
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: palette.line),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    backgroundColor: palette.soft,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.auto_awesome_rounded, size: 14, color: _blue),
-                        const SizedBox(width: 8),
+                        Icon(Icons.add_rounded, color: palette.ink, size: 16),
+                        const SizedBox(width: 4),
                         Text(
-                          'Simulate using active courses',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11.5,
+                          'ADD COURSE',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: palette.ink,
                             fontWeight: FontWeight.w700,
-                            color: _blue,
+                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
-                    Icon(Icons.arrow_forward_ios_rounded, size: 12, color: _blue),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniStepper({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 26,
-        height: 26,
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _line),
-        ),
-        child: Icon(icon, size: 15, color: _ink),
-      ),
-    );
-  }
-
-  void _addNewSemester() {
-    HapticFeedback.selectionClick();
-    final nextNum = _semesters.length + 1;
-    setState(() {
-      _semesters.add(
-        SemesterEntry(
-          id: 'sem_future_$nextNum',
-          name: 'Semester $nextNum',
-          sgpa: 9.0,
-          credits: 20.0,
-          isHistorical: false,
-        ),
-      );
-    });
-  }
-
-  // ============================================================================
-  // TAB 2: CURRENT SEMESTER COURSE-BY-COURSE SIMULATOR
-  // ============================================================================
-
-  Widget _buildCourseSimulatorTab() {
-    final sgpa = _presentSemSgpa;
-    final creds = _presentSemCredits;
-
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
-      children: [
-        // Present Semester Mini Hero
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _line),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'CURRENT SEMESTER SGPA',
-                    style: _micro.copyWith(color: _muted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    sgpa.toStringAsFixed(2),
-                    style: GoogleFonts.dmSans(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: _blue,
-                    ),
-                  ),
-                ],
-              ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  _syncCourseSgpaToPresentSem();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Synced SGPA (${sgpa.toStringAsFixed(2)}) to Present Semester in Semesters Tab!',
-                        style: GoogleFonts.dmSans(fontWeight: FontWeight.w600),
-                      ),
-                      backgroundColor: _navy,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _navy,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-                label: Text(
-                  'APPLY TO SEMESTERS',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'ENROLLED COURSES (${_currentSemCourses.length})',
-              style: _micro.copyWith(color: _muted),
-            ),
-            Text(
-              '${creds.toStringAsFixed(1)} Total Credits',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _inkSoft,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 10),
-
-        // Course Cards
-        ..._currentSemCourses.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final course = entry.value;
-          return _buildCourseGradeCard(course, idx);
-        }),
-
-        const SizedBox(height: 14),
-
-        // Add Custom Course
-        OutlinedButton.icon(
-          onPressed: _addCustomCourse,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: _navy,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: _line),
-            ),
-          ),
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: Text(
-            'ADD ANOTHER COURSE',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCourseGradeCard(CourseGradeEntry course, int index) {
-    const grades = ['S', 'A', 'B', 'C', 'D', 'E', 'F'];
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      course.code.isNotEmpty ? course.code : 'COURSE ${index + 1}',
-                      style: _micro.copyWith(color: _orange),
+                child: ElevatedButton(
+                  onPressed: () => _calculateSemesterGpa(palette),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: palette.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      course.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _ink,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Credits Chip
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _paper,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _line),
-                ),
-                child: Text(
-                  '${course.credits.toStringAsFixed(1)} Cr',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: _navy,
+                    elevation: 0,
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Grade Selection Chips
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: grades.map((g) {
-              final isSelected = course.grade == g;
-              Color gradeColor = _blue;
-              if (g == 'S') gradeColor = _green;
-              if (g == 'F') gradeColor = _red;
-
-              return InkWell(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    course.grade = g;
-                    _syncCourseSgpaToPresentSem();
-                  });
-                },
-                borderRadius: BorderRadius.circular(8),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 140),
-                  width: 38,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isSelected ? gradeColor : _paper,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSelected ? gradeColor : _line,
-                      width: isSelected ? 1.5 : 1.0,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      g,
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: isSelected ? Colors.white : _ink,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _addCustomCourse() {
-    HapticFeedback.selectionClick();
-    final nextIdx = _currentSemCourses.length + 1;
-    setState(() {
-      _currentSemCourses.add(
-        CourseGradeEntry(
-          id: 'custom_$nextIdx',
-          code: 'ELECTIVE $nextIdx',
-          title: 'Custom Course $nextIdx',
-          credits: 3.0,
-          grade: 'S',
-        ),
-      );
-      _syncCourseSgpaToPresentSem();
-    });
-  }
-
-  // ============================================================================
-  // TAB 3: TARGET CGPA GOAL SOLVER
-  // ============================================================================
-
-  Widget _buildTargetGoalTab() {
-    // Current completed stats
-    double completedPoints = 0;
-    double completedCredits = 0;
-    for (var s in _semesters.where((s) => s.isHistorical)) {
-      completedPoints += s.totalGradePoints;
-      completedCredits += s.credits;
-    }
-
-    if (completedCredits == 0) {
-      completedCredits = _totalCumulativeCredits - _targetFutureCredits;
-      completedPoints = _totalCumulativePoints - (_presentSemSgpa * _presentSemCredits);
-    }
-
-    final futureCredits = _targetFutureCredits;
-    final totalTargetCredits = completedCredits + futureCredits;
-    final targetPointsTotal = _targetCgpa * totalTargetCredits;
-    final requiredPoints = targetPointsTotal - completedPoints;
-    final requiredSgpa = futureCredits > 0 ? (requiredPoints / futureCredits) : 0.0;
-
-    final isFeasible = requiredSgpa <= 10.0 && requiredSgpa >= 0.0;
-    final maxPossibleCgpa = (completedPoints + (10.0 * futureCredits)) / totalTargetCredits;
-
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
-      children: [
-        // Target Selector Card
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _line),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'TARGET CGPA GOAL',
-                style: _micro.copyWith(color: _muted),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _targetCgpa.toStringAsFixed(2),
-                    style: GoogleFonts.dmSans(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      color: _blue,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: (isFeasible ? _green : _red).withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      isFeasible ? 'ACHIEVABLE 🎯' : 'REQUIRES MORE CREDITS ⚠️',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: isFeasible ? _green : _red,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Target Slider
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: _blue,
-                  inactiveTrackColor: _line,
-                  thumbColor: _navy,
-                  trackHeight: 4,
-                ),
-                child: Slider(
-                  value: _targetCgpa,
-                  min: 6.0,
-                  max: 10.0,
-                  divisions: 80,
-                  label: _targetCgpa.toStringAsFixed(2),
-                  onChanged: (val) {
-                    setState(() {
-                      _targetCgpa = double.parse(val.toStringAsFixed(2));
-                    });
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Future Credits Load
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Across next credits load:',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12.5,
-                      color: _inkSoft,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      _buildMiniStepper(
-                        icon: Icons.remove_rounded,
-                        onTap: () {
-                          if (_targetFutureCredits > 3.0) {
-                            setState(() => _targetFutureCredits -= 1.0);
-                          }
-                        },
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          '${_targetFutureCredits.toInt()} Cr',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 14,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.bolt_rounded,
+                            color: Colors.white, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          'CALCULATE',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: Colors.white,
                             fontWeight: FontWeight.w800,
-                            color: _ink,
+                            fontSize: 12,
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Calculated Result Display
+          if (_calculatedSemesterGpa != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: palette.soft,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: palette.blue.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: palette.blue.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.school_rounded,
+                      color: palette.blue,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SEMESTER SGPA',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: palette.inkMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              _calculatedSemesterGpa!.toStringAsFixed(2),
+                              style: GoogleFonts.spaceGrotesk(
+                                color: palette.blue,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '/ 10.0',
+                              style: GoogleFonts.inter(
+                                color: palette.inkMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Total Credits',
+                        style: GoogleFonts.inter(
+                          color: palette.inkMuted,
+                          fontSize: 10,
+                        ),
                       ),
-                      _buildMiniStepper(
-                        icon: Icons.add_rounded,
-                        onTap: () {
-                          if (_targetFutureCredits < 80.0) {
-                            setState(() => _targetFutureCredits += 1.0);
-                          }
-                        },
+                      Text(
+                        _calculatedSemesterCredits?.toStringAsFixed(1) ?? '0',
+                        style: GoogleFonts.spaceGrotesk(
+                          color: palette.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
-            ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseRowItem(int index, AppPalette palette) {
+    final row = _courseRows[index];
+
+    return Row(
+      children: [
+        // Credits Field
+        Expanded(
+          flex: 4,
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: palette.soft,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: palette.line, width: 1),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            alignment: Alignment.center,
+            child: TextField(
+              controller: row.creditsController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: GoogleFonts.inter(
+                color: palette.ink,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Credits',
+                hintStyle: GoogleFonts.inter(
+                  color: palette.inkMuted,
+                  fontSize: 12,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
           ),
         ),
+        const SizedBox(width: 8),
 
-        const SizedBox(height: 16),
-
-        // Result Card
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _line),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'CALCULATED REQUIREMENT',
-                style: _micro.copyWith(color: _muted),
-              ),
-              const SizedBox(height: 12),
-              if (isFeasible) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      requiredSgpa.toStringAsFixed(2),
-                      style: GoogleFonts.dmSans(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w900,
-                        color: _green,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Required SGPA',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
+        // Select Grade Dropdown
+        Expanded(
+          flex: 5,
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: palette.soft,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: palette.line, width: 1),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: row.selectedGrade,
+                isExpanded: true,
+                dropdownColor: palette.surface,
+                icon: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: palette.inkSoft,
+                  size: 18,
+                ),
+                hint: Text(
+                  'Grade',
+                  style: GoogleFonts.inter(
+                    color: palette.inkMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                items: _gradeOptions.map((opt) {
+                  final grade = opt['grade'] as String;
+                  final label = opt['label'] as String;
+                  return DropdownMenuItem<String>(
+                    value: grade,
+                    child: Text(
+                      label,
+                      style: GoogleFonts.spaceGrotesk(
+                        color: palette.ink,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: _ink,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'You need to maintain an average of ${requiredSgpa.toStringAsFixed(2)} SGPA over the next ${_targetFutureCredits.toInt()} credits to hit your goal of ${_targetCgpa.toStringAsFixed(2)} CGPA.',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 12.5,
-                    height: 1.45,
-                    color: _inkSoft,
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    row.selectedGrade = val;
+                  });
+                },
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // Delete Button
+        Container(
+          width: 38,
+          height: 44,
+          decoration: BoxDecoration(
+            color: palette.red.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: palette.red.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: IconButton(
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              color: palette.red,
+              size: 18,
+            ),
+            padding: EdgeInsets.zero,
+            onPressed: () {
+              if (_courseRows.length <= 1) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('At least one course row is required.'),
+                    duration: Duration(milliseconds: 800),
                   ),
-                ),
-              ] else ...[
-                Text(
-                  'Goal Exceeds Maximum Possible',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: _red,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'With all "S" grades (10.0 SGPA) across the next ${_targetFutureCredits.toInt()} credits, your highest reachable CGPA is ${maxPossibleCgpa.toStringAsFixed(2)}. Increase your planned credit duration to reach ${_targetCgpa.toStringAsFixed(2)}.',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 12.5,
-                    height: 1.45,
-                    color: _inkSoft,
-                  ),
-                ),
-              ],
-            ],
+                );
+                return;
+              }
+              setState(() {
+                row.dispose();
+                _courseRows.removeAt(index);
+              });
+            },
           ),
         ),
       ],
     );
   }
 
-  // ============================================================================
-  // DIALOGS & OVERRIDES
-  // ============================================================================
+  // ==========================================================================
+  // 3. CARD 2: TARGET CGPA PLANNER
+  // ==========================================================================
 
-  void _showEditSgpaDialog(SemesterEntry sem) {
-    final controller = TextEditingController(text: sem.sgpa.toStringAsFixed(2));
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(
-          'Edit SGPA for ${sem.name}',
-          style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
-        ),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            hintText: 'e.g. 9.15',
-            labelText: 'Semester GPA (0.0 - 10.0)',
+  Widget _buildTargetCgpaCard(AppPalette palette) {
+    return NexusCard(
+      variant: NexusCardVariant.standard,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with Target Icon, Title, NEW badge, Info Icon
+          Row(
+            children: [
+              Icon(Icons.track_changes_rounded,
+                  color: palette.orange, size: 19),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'TARGET CGPA PLANNER',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: palette.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: palette.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(
+                    color: palette.orange.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Text(
+                  'GOAL',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: palette.orange,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => _showInfoDialog(
+                  'Target CGPA Planner',
+                  'Calculate the required SGPA needed in your next semester to reach your desired Target CGPA.\n\n'
+                      'Formula:\n'
+                      'Required SGPA = [Target CGPA × (N + 1) - Current CGPA × N] / 1\n\n'
+                      'Where N = Number of completed semesters.',
+                  palette,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: palette.inkMuted,
+                    size: 17,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Input 1: CURRENT CGPA
+          _buildPlannerInputField(
+            label: 'CURRENT CGPA',
+            hint: 'e.g., 8.5',
+            controller: _targetCurrentCgpaController,
+            palette: palette,
+          ),
+          const SizedBox(height: 10),
+
+          // Input 2: SEMESTERS COMPLETED
+          _buildPlannerInputField(
+            label: 'SEMESTERS COMPLETED',
+            hint: 'e.g., 3',
+            controller: _targetCompletedSemsController,
+            isInteger: true,
+            palette: palette,
+          ),
+          const SizedBox(height: 10),
+
+          // Input 3: TARGET CGPA
+          _buildPlannerInputField(
+            label: 'TARGET CGPA GOAL',
+            hint: 'e.g., 9.0',
+            controller: _targetGoalCgpaController,
+            palette: palette,
+          ),
+          const SizedBox(height: 14),
+
+          // Calculate Required SGPA Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => _calculateTargetRequiredSgpa(palette),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: palette.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.ads_click_rounded,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'CALCULATE REQUIRED SGPA',
+                      style: GoogleFonts.spaceGrotesk(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Calculation Result
+          if (_calculatedRequiredSgpa != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _isTargetAchievable == true
+                    ? palette.green.withValues(alpha: 0.1)
+                    : palette.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _isTargetAchievable == true
+                      ? palette.green.withValues(alpha: 0.3)
+                      : palette.red.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'REQUIRED NEXT SGPA',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: _isTargetAchievable == true
+                                ? palette.green
+                                : palette.red,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (_isTargetAchievable == true
+                                  ? palette.green
+                                  : palette.red)
+                              .withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _isTargetAchievable == true
+                              ? 'ACHIEVABLE'
+                              : 'IMPOSSIBLE',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: _isTargetAchievable == true
+                                ? palette.green
+                                : palette.red,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _calculatedRequiredSgpa!.toStringAsFixed(2),
+                    style: GoogleFonts.spaceGrotesk(
+                      color: palette.ink,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _targetFeedbackMessage ?? '',
+                    style: GoogleFonts.inter(
+                      color: palette.inkSoft,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlannerInputField({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    required AppPalette palette,
+    bool isInteger = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.spaceGrotesk(
+            color: palette.inkMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: _muted)),
+        const SizedBox(height: 5),
+        Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: palette.soft,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: palette.line, width: 1),
           ),
-          ElevatedButton(
-            onPressed: () {
-              final val = double.tryParse(controller.text);
-              if (val != null && val >= 0.0 && val <= 10.0) {
-                setState(() {
-                  sem.sgpa = double.parse(val.toStringAsFixed(2));
-                });
-              }
-              Navigator.of(ctx).pop();
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          child: TextField(
+            controller: controller,
+            keyboardType:
+                TextInputType.numberWithOptions(decimal: !isInteger),
+            style: GoogleFonts.inter(
+              color: palette.ink,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: GoogleFonts.inter(
+                color: palette.inkMuted,
+                fontSize: 12,
+              ),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================================================
+  // 4. CARD 3: CUMULATIVE GPA
+  // ==========================================================================
+
+  Widget _buildCumulativeGpaCard(AppPalette palette) {
+    return NexusCard(
+      variant: NexusCardVariant.standard,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Card Title
+          Row(
+            children: [
+              Icon(Icons.layers_rounded, color: palette.blue, size: 19),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'CUMULATIVE GPA (CGPA)',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: palette.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _showInfoDialog(
+                  'Cumulative GPA (CGPA)',
+                  'CGPA represents your overall academic performance across all completed semesters.\n\n'
+                      'Cumulative GPA = Average of all completed Semester GPAs.\n\n'
+                      'Add each of your semester GPAs below to calculate your true cumulative score.',
+                  palette,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: palette.inkMuted,
+                    size: 17,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Header
+          Text(
+            'SEMESTER GPAS RECORD',
+            style: GoogleFonts.spaceGrotesk(
+              color: palette.inkMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Dynamic Semester GPA Rows
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _semesterGpaRows.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              return _buildSemesterGpaRowItem(index, palette);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: _navy),
-            child: const Text('Save'),
+          ),
+          const SizedBox(height: 14),
+
+          // Buttons: +ADD SEM & CALCULATE
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _semesterGpaRows.add(SemesterGpaInputRow(gpa: ''));
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: palette.line),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    backgroundColor: palette.soft,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_rounded, color: palette.ink, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ADD SEMESTER',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: palette.ink,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _calculateCumulativeGpa(palette),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: palette.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.calculate_rounded,
+                            color: Colors.white, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          'CALCULATE CGPA',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Calculated Cumulative GPA Result Display
+          if (_calculatedCumulativeGpa != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: palette.soft,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: palette.blue.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: palette.blue.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.military_tech_rounded,
+                      color: palette.blue,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'CUMULATIVE CGPA',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: palette.inkMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              _calculatedCumulativeGpa!.toStringAsFixed(2),
+                              style: GoogleFonts.spaceGrotesk(
+                                color: palette.blue,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '/ 10.0',
+                              style: GoogleFonts.inter(
+                                color: palette.inkMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Semesters',
+                        style: GoogleFonts.inter(
+                          color: palette.inkMuted,
+                          fontSize: 10,
+                        ),
+                      ),
+                      Text(
+                        '${_semesterGpaRows.length}',
+                        style: GoogleFonts.spaceGrotesk(
+                          color: palette.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSemesterGpaRowItem(int index, AppPalette palette) {
+    final row = _semesterGpaRows[index];
+
+    return Row(
+      children: [
+        // Semester GPA Input
+        Expanded(
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: palette.soft,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: palette.line, width: 1),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.center,
+            child: TextField(
+              controller: row.gpaController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              style: GoogleFonts.inter(
+                color: palette.ink,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Semester ${index + 1} GPA',
+                hintStyle: GoogleFonts.inter(
+                  color: palette.inkMuted,
+                  fontSize: 12,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // Delete Red Trash Button
+        Container(
+          width: 38,
+          height: 44,
+          decoration: BoxDecoration(
+            color: palette.red.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: palette.red.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: IconButton(
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              color: palette.red,
+              size: 18,
+            ),
+            padding: EdgeInsets.zero,
+            onPressed: () {
+              if (_semesterGpaRows.length <= 1) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('At least one semester GPA is required.'),
+                    duration: Duration(milliseconds: 800),
+                  ),
+                );
+                return;
+              }
+              setState(() {
+                row.dispose();
+                _semesterGpaRows.removeAt(index);
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================================================
+  // 5. CARD 4: VIT-AP GRADING SYSTEM GUIDE CARD
+  // ==========================================================================
+
+  Widget _buildGradingSystemCard(AppPalette palette) {
+    return NexusCard(
+      variant: NexusCardVariant.standard,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                color: palette.blue,
+                size: 19,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'VIT-AP Relative Grading System',
+                  style: GoogleFonts.spaceGrotesk(
+                    color: palette.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          Text(
+            'VIT-AP uses a relative grading curve where letter grades and grade points are awarded based on the batch distribution (mean μ and standard deviation σ).',
+            style: GoogleFonts.inter(
+              color: palette.inkSoft,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Grade Points Grid
+          Container(
+            decoration: BoxDecoration(
+              color: palette.soft,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: palette.line),
+            ),
+            child: Column(
+              children: [
+                _buildGradeScaleRow('S Grade', '10 Points', 'Outstanding',
+                    palette.green, palette),
+                Divider(height: 1, color: palette.line),
+                _buildGradeScaleRow('A Grade', '9 Points', 'Excellent',
+                    palette.blue, palette),
+                Divider(height: 1, color: palette.line),
+                _buildGradeScaleRow('B Grade', '8 Points', 'Very Good',
+                    palette.navy, palette),
+                Divider(height: 1, color: palette.line),
+                _buildGradeScaleRow('C Grade', '7 Points', 'Good',
+                    palette.orange, palette),
+                Divider(height: 1, color: palette.line),
+                _buildGradeScaleRow('D Grade', '6 Points', 'Fair',
+                    palette.orange, palette),
+                Divider(height: 1, color: palette.line),
+                _buildGradeScaleRow('E Grade', '5 Points', 'Pass',
+                    palette.inkSoft, palette),
+                Divider(height: 1, color: palette.line),
+                _buildGradeScaleRow('F / N Grade', '0 Points', 'Fail / Absent',
+                    palette.red, palette),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _showEditCreditsDialog(SemesterEntry sem) {
-    final controller = TextEditingController(text: sem.credits.toStringAsFixed(1));
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(
-          'Edit Credits for ${sem.name}',
-          style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w800, color: _ink),
-        ),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            hintText: 'e.g. 21.0',
-            labelText: 'Total Semester Credits',
+  Widget _buildGradeScaleRow(
+    String grade,
+    String points,
+    String label,
+    Color color,
+    AppPalette palette,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: _muted)),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: Text(
+              grade,
+              style: GoogleFonts.spaceGrotesk(
+                color: palette.ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              final val = double.tryParse(controller.text);
-              if (val != null && val > 0.0 && val <= 50.0) {
-                setState(() {
-                  sem.credits = val;
-                });
-              }
-              Navigator.of(ctx).pop();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: _navy),
-            child: const Text('Save'),
+          Expanded(
+            flex: 4,
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: palette.inkMuted,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            points,
+            style: GoogleFonts.spaceGrotesk(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
           ),
         ],
       ),

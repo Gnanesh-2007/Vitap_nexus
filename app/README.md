@@ -1,17 +1,18 @@
-# vitap_nexus_app
+# VITAP Nexus (Flutter app)
 
-A new Flutter project.
+This folder is the Flutter app. For what it does, screenshots of the widgets, architecture and credits, see the [main README](../README.md).
 
-## Getting Started
+```bash
+flutter pub get
+flutter run
+```
 
-This project is a starting point for a Flutter application.
+Needs Flutter (Dart `^3.12.2`), a Rust toolchain, and Android NDK `28.2.13676358`.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+| Path | What is in it |
+| :--- | :--- |
+| `lib/screens` | One file per screen |
+| `lib/providers` | Riverpod state: auth, theme, cached VTOP data |
+| `lib/services` | VTOP client wrapper, storage and cache, widget sync |
+| `rust/` | `lib_vtop`, the on-device VTOP engine (Apache-2.0, see its LICENSE) |
+| `android/app/src/main/kotlin` | Home-screen widgets (`WidgetRender.kt`, `WidgetUpdater.kt`) |

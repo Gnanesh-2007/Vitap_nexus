@@ -1,15 +1,12 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../widgets/motion/nexus_illustrations.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-
 import '../providers/auth_provider.dart';
 import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
-import '../utils/error_formatter.dart';
-import '../utils/vtop_embed_helper.dart';
 
 class VtopWebViewScreen extends ConsumerStatefulWidget {
   const VtopWebViewScreen({super.key});
@@ -19,664 +16,560 @@ class VtopWebViewScreen extends ConsumerStatefulWidget {
 }
 
 class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
+  static const String _vtopBaseUrl = 'https://vtop.vitap.ac.in';
+  static const String _vtopDomain = 'vtop.vitap.ac.in';
+  static const String _vtopOpenPage = '/vtop/open/page';
+  static const String _vtopContentPage = '/vtop/content';
+  static const String _vtopLoginPage = '/vtop/login';
+  static const String _vtopPreLoginPage = '/vtop/prelogin';
+
   WebViewController? _controller;
-  Widget? _webEmbedView;
   bool _isLoading = true;
-  double _progress = 0.0;
+  bool _isContentLoaded = false;
+  bool _isSessionVerified = false;
+  double _loadingProgress = 0;
+  String _currentUrl = '';
+  String? _csrfToken;
+  String? _authorizedId;
   String? _errorMessage;
-  String? _currentUrl;
-  bool _canGoBack = false;
-  bool _canGoForward = false;
-
-  static const String _officialVtopUrl = 'https://vtop.vitap.ac.in/vtop/';
-
-  // Editorial campus theme
-  AppPalette get _palette => AppPalette.of(context);
-  Color get _paper => _palette.paper;
-  Color get _surface => _palette.surface;
-  Color get _ink => _palette.ink;
-  Color get _navy => _palette.navy;
-  Color get _orange => _palette.orange;
-  Color get _green => _palette.green;
-  Color get _red => _palette.red;
-  Color get _muted => _palette.inkMuted;
-  Color get _line => _palette.line;
+  bool _hasRetriedExpiredPage = false;
 
   @override
   void initState() {
     super.initState();
-    _startSession();
+    _initializeWebView();
   }
 
-  Future<void> _startSession() async {
-    setState(() {
-      _isLoading = true;
-      _progress = 0.15;
-      _errorMessage = null;
-    });
+  void _setState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
 
-    final auth = ref.read(authProvider);
-    final username = auth.username ?? '';
-    final password = auth.password ?? '';
-
-    String targetUrl = _officialVtopUrl;
-
-    if (username.isNotEmpty && password.isNotEmpty) {
-      try {
-        final sessionData = await apiService.startProxySession(
-          username: username,
-          password: password,
-        );
-        final portalPath = sessionData['portal_path']?.toString();
-        if (portalPath != null && portalPath.isNotEmpty) {
-          targetUrl = '${ApiClient.defaultBaseUrl}$portalPath';
-        }
-      } catch (e) {
-        debugPrint('Proxy start session fallback to official portal: $e');
-        targetUrl = _officialVtopUrl;
+  List<MapEntry<String, String>> _parseCookieString(String cookieString) {
+    final cookies = <MapEntry<String, String>>[];
+    final parts = cookieString.split(';');
+    for (final part in parts) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      final eqIdx = trimmed.indexOf('=');
+      if (eqIdx == -1) continue;
+      final name = trimmed.substring(0, eqIdx).trim();
+      final value = trimmed.substring(eqIdx + 1).trim();
+      if (name.isNotEmpty) {
+        cookies.add(MapEntry(name, value));
       }
     }
+    return cookies;
+  }
 
-    _currentUrl = targetUrl;
+  Future<void> _injectCookies(String cookieString) async {
+    final cookieManager = WebViewCookieManager();
+    await cookieManager.clearCookies();
+    final cookies = _parseCookieString(cookieString);
+    for (final cookie in cookies) {
+      await cookieManager.setCookie(
+        WebViewCookie(
+          name: cookie.key,
+          value: cookie.value,
+          domain: _vtopDomain,
+          path: '/',
+        ),
+      );
+    }
+  }
 
-    if (!mounted) return;
+  String _htmlAttrEscape(String s) => s
+      .replaceAll('&', '&amp;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
 
-    if (kIsWeb) {
-      setState(() {
-        _webEmbedView = buildVtopEmbed(targetUrl);
-        _isLoading = false;
-      });
+  Future<void> _extractCsrfToken() async {
+    if (_controller == null) return;
+    try {
+      final result = await _controller!.runJavaScriptReturningResult('''
+        (function() {
+          var csrfInput = document.querySelector('input[name="_csrf"]');
+          return csrfInput ? csrfInput.value : '';
+        })()
+      ''');
+      final token = result.toString().replaceAll('"', '');
+      if (token.isEmpty) return;
+      if (_currentUrl.contains(_vtopLoginPage) ||
+          _currentUrl.contains(_vtopPreLoginPage)) {
+        return;
+      }
+      _csrfToken = token;
+    } catch (_) {}
+  }
+
+  Future<void> _navigateWithPost(
+    String path, {
+    Map<String, String>? additionalParams,
+    bool verifyMenu = true,
+  }) async {
+    if (_controller == null || _csrfToken == null || _csrfToken!.isEmpty) {
       return;
     }
 
-    try {
-      late final WebViewController controller;
-      controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(_surface)
-        ..enableZoom(true)
-        ..setNavigationDelegate(
-          NavigationDelegate(
-            onPageStarted: (url) {
-              if (mounted) {
-                setState(() {
-                  _isLoading = true;
-                  _errorMessage = null;
-                  _currentUrl = url;
-                });
-                _updateNavState();
-              }
-            },
-            onProgress: (p) {
-              if (mounted) {
-                setState(() => _progress = p / 100.0);
-              }
-            },
-            onPageFinished: (url) async {
-              if (mounted) {
-                setState(() {
-                  _isLoading = false;
-                  _progress = 1.0;
-                  _currentUrl = url;
-                });
-                _updateNavState();
-              }
+    final params = <String, String>{
+      '_csrf': _csrfToken!,
+      if (_authorizedId != null && _authorizedId!.isNotEmpty)
+        'authorizedID': _authorizedId!,
+      if (verifyMenu) 'verifyMenu': 'true',
+      'nocache': '@(new Date().getTime())',
+      ...?additionalParams,
+    };
 
-              // Pre-fill login credentials if on official login page
-              if (username.isNotEmpty && password.isNotEmpty) {
-                try {
-                  await controller.runJavaScript('''
-                    (function() {
-                      try {
-                        var u = document.getElementById('username') || document.querySelector('input[name="username"]') || document.querySelector('input[name="uname"]');
-                        var p = document.getElementById('password') || document.querySelector('input[name="password"]') || document.querySelector('input[name="passwd"]');
-                        if (u && !u.value) {
-                          u.value = "$username";
-                          u.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                        if (p && !p.value) {
-                          p.value = "$password";
-                          p.dispatchEvent(new Event('input', { bubbles: true }));
-                        }
-                      } catch(e) {}
-                    })();
-                  ''');
-                } catch (_) {}
-              }
-
-              // Inject mobile sidebar popup styles and touch handling
-              try {
-                await controller.runJavaScript('''
-                  (function() {
-                    var styleId = 'vtop-mobile-sidebar-fix';
-                    if (!document.getElementById(styleId)) {
-                      var style = document.createElement('style');
-                      style.id = styleId;
-                      style.innerHTML = `
-                        .main-sidebar, .sidebar, .sidebar-menu {
-                          overflow: visible !important;
-                          position: absolute !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .main-sidebar {
-                          width: 50px !important;
-                          overflow: visible !important;
-                          z-index: 99999 !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .sidebar {
-                          overflow: visible !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .sidebar-menu {
-                          overflow: visible !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .sidebar-menu > li {
-                          position: relative !important;
-                          overflow: visible !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .sidebar-menu > li > a {
-                          cursor: pointer !important;
-                          -webkit-tap-highlight-color: rgba(255,255,255,0.2) !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu,
-                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.active > .treeview-menu {
-                          display: block !important;
-                          position: absolute !important;
-                          left: 50px !important;
-                          top: 0 !important;
-                          min-width: 250px !important;
-                          max-width: 320px !important;
-                          background: #2c3b41 !important;
-                          border: 1px solid #1a2226 !important;
-                          border-radius: 0 8px 8px 0 !important;
-                          box-shadow: 4px 6px 20px rgba(0,0,0,0.5) !important;
-                          padding: 6px 0 !important;
-                          margin: 0 !important;
-                          z-index: 999999 !important;
-                          pointer-events: auto !important;
-                          max-height: 80vh !important;
-                          overflow-y: auto !important;
-                          -webkit-overflow-scrolling: touch !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu > li > a {
-                          display: block !important;
-                          padding: 12px 18px !important;
-                          color: #e0e0e0 !important;
-                          font-size: 13.5px !important;
-                          line-height: 1.4 !important;
-                          border-bottom: 1px solid rgba(255,255,255,0.06) !important;
-                          text-decoration: none !important;
-                          pointer-events: auto !important;
-                        }
-                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu > li > a:hover,
-                        .sidebar-mini.sidebar-collapse .sidebar-menu > li.menu-open > .treeview-menu > li > a:active {
-                          background: #1e282c !important;
-                          color: #ffffff !important;
-                        }
-                        .sidebar-open .main-sidebar {
-                          transform: translate(0, 0) !important;
-                          width: 240px !important;
-                          z-index: 99999 !important;
-                          box-shadow: 4px 0 20px rgba(0,0,0,0.4) !important;
-                        }
-                        .sidebar-toggle {
-                          padding: 14px !important;
-                          display: block !important;
-                          cursor: pointer !important;
-                        }
-                      `;
-                      document.head.appendChild(style);
-                    }
-
-                    function bindVtopSidebar() {
-                      var items = document.querySelectorAll('.sidebar-menu > li');
-                      items.forEach(function(item) {
-                        var a = item.querySelector(':scope > a');
-                        if (a && !a._boundVtopMobile) {
-                          a._boundVtopMobile = true;
-                          a.addEventListener('click', function(e) {
-                            var submenu = item.querySelector(':scope > .treeview-menu');
-                            if (submenu) {
-                              var isCurrentlyOpen = item.classList.contains('menu-open') || submenu.style.display === 'block';
-                              
-                              items.forEach(function(other) {
-                                if (other !== item) {
-                                  other.classList.remove('menu-open');
-                                  var s = other.querySelector(':scope > .treeview-menu');
-                                  if (s) s.style.display = 'none';
-                                }
-                              });
-
-                              if (!isCurrentlyOpen) {
-                                item.classList.add('menu-open');
-                                submenu.style.display = 'block';
-                                submenu.style.visibility = 'visible';
-                              } else {
-                                item.classList.remove('menu-open');
-                                submenu.style.display = 'none';
-                              }
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }
-                          });
-                        }
-                      });
-
-                      var subLinks = document.querySelectorAll('.sidebar-menu .treeview-menu a');
-                      subLinks.forEach(function(link) {
-                        if (!link._boundSubClick) {
-                          link._boundSubClick = true;
-                          link.addEventListener('click', function(e) {
-                            setTimeout(function() {
-                              var openParents = document.querySelectorAll('.sidebar-menu > li.menu-open');
-                              openParents.forEach(function(p) {
-                                p.classList.remove('menu-open');
-                                var sub = p.querySelector('.treeview-menu');
-                                if (sub) sub.style.display = 'none';
-                              });
-                            }, 400);
-                          });
-                        }
-                      });
-
-                      var toggles = document.querySelectorAll('.sidebar-toggle, [data-toggle="offcanvas"], [data-toggle="push-menu"]');
-                      toggles.forEach(function(toggle) {
-                        if (!toggle._boundToggleClick) {
-                          toggle._boundToggleClick = true;
-                          toggle.addEventListener('click', function(e) {
-                            var body = document.body;
-                            if (body.classList.contains('sidebar-collapse')) {
-                              body.classList.remove('sidebar-collapse');
-                              body.classList.add('sidebar-open');
-                            } else {
-                              body.classList.add('sidebar-collapse');
-                              body.classList.remove('sidebar-open');
-                            }
-                          });
-                        }
-                      });
-                    }
-
-                    document.addEventListener('click', function(e) {
-                      if (!e.target.closest('.main-sidebar')) {
-                        var openItems = document.querySelectorAll('.sidebar-menu > li.menu-open');
-                        openItems.forEach(function(item) {
-                          item.classList.remove('menu-open');
-                          var s = item.querySelector('.treeview-menu');
-                          if (s) s.style.display = 'none';
-                        });
-                      }
-                    });
-
-                    bindVtopSidebar();
-                    setInterval(bindVtopSidebar, 1000);
-                  })();
-                ''');
-              } catch (_) {}
-            },
-            onWebResourceError: (error) {
-              if (error.isForMainFrame == true && mounted) {
-                setState(() {
-                  _isLoading = false;
-                  _errorMessage = error.description;
-                });
-              }
-            },
-          ),
+    final formFields = params.entries
+        .map(
+          (e) =>
+              '<input type="hidden" name="${_htmlAttrEscape(e.key)}" value="${_htmlAttrEscape(e.value)}">',
         )
-        ..loadRequest(Uri.parse(targetUrl));
+        .join('');
 
-      setState(() {
-        _controller = controller;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = ErrorFormatter.format(
-            e,
-            fallback: 'Unable to connect to VTOP Portal. Please check your connection and try again.',
-          );
-        });
-      }
-    }
-  }
+    final jsCode = '''
+      (function() {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '$_vtopBaseUrl$path';
+        form.innerHTML = '$formFields';
+        document.body.appendChild(form);
+        form.submit();
+      })()
+    ''';
 
-  Future<void> _updateNavState() async {
-    if (_controller != null && mounted) {
-      final back = await _controller!.canGoBack();
-      final forward = await _controller!.canGoForward();
-      if (mounted) {
-        setState(() {
-          _canGoBack = back;
-          _canGoForward = forward;
-        });
-      }
-    }
-  }
-
-  Future<void> _launchExternal({String? url}) async {
-    final target = url ?? _currentUrl ?? _officialVtopUrl;
     try {
-      await launchUrl(
-        Uri.parse(target),
-        mode: LaunchMode.externalApplication,
-      );
+      await _controller!.runJavaScript(jsCode);
+    } catch (e) {
+      debugPrint('VtopWebViewScreen: Failed to navigate with POST: $e');
+    }
+  }
+
+  Future<void> _injectMobileSidebarEnhancements(
+    WebViewController controller,
+  ) async {
+    const js = '''
+(function() {
+  if (window.__vtopNexusMobileSidebarInstalled) return;
+  window.__vtopNexusMobileSidebarInstalled = true;
+
+  var style = document.createElement('style');
+  style.id = '__vtop_nexus_sidebar_css';
+  style.textContent =
+    '#sidePanel, .sidePanel, .btn-group-vertical, .btn-group.dropend { overflow: visible !important; } ' +
+    '.btn-group.dropend > .dropdown-menu.__vtop-open, .dropdown-menu.__vtop-open { ' +
+    '  display: block !important; ' +
+    '  position: fixed !important; ' +
+    '  z-index: 2147483647 !important; ' +
+    '  background: #ffffff !important; ' +
+    '  border: 1px solid rgba(0,0,0,0.12) !important; ' +
+    '  border-radius: 10px !important; ' +
+    '  box-shadow: 0 10px 30px rgba(0,0,0,0.22) !important; ' +
+    '  padding: 6px 0 !important; ' +
+    '  min-width: 255px !important; ' +
+    '  max-width: 84vw !important; ' +
+    '  max-height: 80vh !important; ' +
+    '  overflow-y: auto !important; ' +
+    '  overflow-x: hidden !important; ' +
+    '} ' +
+    '.dropdown-menu.__vtop-open .dropdown-item { ' +
+    '  display: block !important; ' +
+    '  padding: 8px 16px !important; ' +
+    '  color: #1e293b !important; ' +
+    '  font-size: 13.5px !important; ' +
+    '  white-space: nowrap !important; ' +
+    '  text-decoration: none !important; ' +
+    '} ' +
+    '.dropdown-menu.__vtop-open .dropdown-item:active, .dropdown-menu.__vtop-open .dropdown-item:hover { ' +
+    '  background-color: #eff6ff !important; ' +
+    '  color: #1d4ed8 !important; ' +
+    '}';
+  (document.head || document.documentElement).appendChild(style);
+})();
+''';
+    try {
+      await controller.runJavaScript(js);
     } catch (_) {}
+  }
+
+  Future<void> _initializeWebView({bool forceRenew = false}) async {
+    _setState(() {
+      _isLoading = true;
+      _isContentLoaded = false;
+      _errorMessage = null;
+      _loadingProgress = 0.1;
+    });
+
+    try {
+      final authState = ref.read(authProvider);
+      final creds = await StorageService.getCredentials();
+      final username = authState.username ?? creds['username'] ?? '';
+      final password = authState.password ?? creds['password'] ?? '';
+
+      if (username.isEmpty || password.isEmpty) {
+        _setState(() {
+          _errorMessage =
+              'No saved VTOP credentials found. Please log in again.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get cookies, CSRF token, authorized ID, and matching User-Agent directly
+      // from the on-device Rust VtopClient session.
+      final sessionData = await apiService.getWebViewSessionData(
+        username: username,
+        password: password,
+        forceRefresh: forceRenew,
+      );
+
+      final cookieString = sessionData['cookies'] ?? '';
+      _csrfToken = sessionData['csrf_token'];
+      _authorizedId = sessionData['authorized_id'] ?? username;
+      final userAgent = sessionData['user_agent'] ?? '';
+
+      if (cookieString.isEmpty) {
+        _setState(() {
+          _isLoading = false;
+          _isSessionVerified = false;
+          _errorMessage =
+              'Unable to establish VTOP session cookies. Tap Retry.';
+        });
+        return;
+      }
+
+      await _injectCookies(cookieString);
+
+      _setState(() {
+        _isSessionVerified = true;
+        _loadingProgress = 0.35;
+      });
+
+      final WebViewController controller = WebViewController();
+      await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      if (userAgent.isNotEmpty) {
+        await controller.setUserAgent(userAgent);
+      }
+      await controller.setBackgroundColor(Colors.white);
+      await controller.setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (int progress) {
+            _setState(() {
+              _loadingProgress = progress / 100.0;
+            });
+          },
+          onPageStarted: (String url) {
+            _setState(() {
+              _isLoading = true;
+              _currentUrl = url;
+            });
+          },
+          onPageFinished: (String url) async {
+            _setState(() {
+              _isLoading = false;
+              _currentUrl = url;
+            });
+
+            await _extractCsrfToken();
+
+            if (url.contains(_vtopOpenPage) &&
+                _csrfToken != null &&
+                _csrfToken!.isNotEmpty) {
+              await Future<void>.delayed(const Duration(milliseconds: 250));
+              await _navigateWithPost(_vtopContentPage);
+            } else if (url.contains(_vtopContentPage)) {
+              await _injectMobileSidebarEnhancements(controller);
+              _setState(() {
+                _isContentLoaded = true;
+              });
+            } else if (url.contains(_vtopLoginPage) ||
+                url.contains(_vtopPreLoginPage)) {
+              if (!_hasRetriedExpiredPage) {
+                _hasRetriedExpiredPage = true;
+                await _initializeWebView(forceRenew: true);
+                return;
+              }
+              _setState(() {
+                _errorMessage =
+                    'VTOP session expired. Tap Retry to reconnect.';
+              });
+            } else if (url.startsWith(_vtopBaseUrl)) {
+              await _injectMobileSidebarEnhancements(controller);
+              _setState(() {
+                _isContentLoaded = true;
+              });
+            }
+          },
+          onWebResourceError: (WebResourceError error) {
+            if (error.isForMainFrame ?? false) {
+              _setState(() {
+                _isLoading = false;
+                _errorMessage =
+                    'Failed to load VTOP portal: ${error.description}';
+              });
+            }
+          },
+          onNavigationRequest: (NavigationRequest request) {
+            if (request.url.startsWith(_vtopBaseUrl)) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.prevent;
+          },
+        ),
+      );
+
+      _controller = controller;
+
+      await controller.loadRequest(
+        Uri.parse('$_vtopBaseUrl$_vtopOpenPage'),
+      );
+
+      _setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      if (msg.toLowerCase().contains('otp') &&
+          _controller == null &&
+          Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+        return;
+      }
+      _setState(() {
+        _errorMessage = msg.isNotEmpty
+            ? msg
+            : 'Unable to load Direct VTOP right now. Please tap Retry.';
+        _isLoading = false;
+        _isSessionVerified = false;
+      });
+    }
+  }
+
+  void _handleRefresh() {
+    if (_controller != null && _isContentLoaded && _errorMessage == null) {
+      _setState(() {
+        _isLoading = true;
+        _loadingProgress = 0.2;
+      });
+      _controller!.reload();
+    } else {
+      _hasRetriedExpiredPage = false;
+      _initializeWebView(forceRenew: true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+
     return Scaffold(
-      backgroundColor: _paper,
+      backgroundColor: palette.paper,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
-            _buildHeader(),
-            if (_isLoading)
-              LinearProgressIndicator(
-                value: _progress > 0 && _progress < 1.0 ? _progress : null,
-                minHeight: 2.5,
-                backgroundColor: _line,
-                valueColor: AlwaysStoppedAnimation<Color>(_navy),
+            Container(
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                border: Border(bottom: BorderSide(color: palette.line)),
               ),
-            Expanded(child: _buildBody()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      color: _paper,
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      child: Row(
-        children: [
-          _headerButton(
-            icon: Icons.arrow_back_rounded,
-            onPressed: () async {
-              if (!kIsWeb && _controller != null && _canGoBack) {
-                await _controller!.goBack();
-              } else {
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                }
-              }
-            },
-            tooltip: _canGoBack ? 'Go Back' : 'Close',
-          ),
-          if (_canGoForward) ...[
-            const SizedBox(width: 6),
-            _headerButton(
-              icon: Icons.arrow_forward_rounded,
-              onPressed: () async {
-                if (_controller != null) {
-                  await _controller!.goForward();
-                }
-              },
-              tooltip: 'Go Forward',
-            ),
-          ],
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'ACADEMIC PORTAL',
-                  style: GoogleFonts.spaceGrotesk(
-                    color: _orange,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'VTOP Portal',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.dmSans(
-                          color: _ink,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    _sessionBadge(),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          _headerButton(
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              if (_controller != null) {
-                _controller!.reload();
-              } else {
-                _startSession();
-              }
-            },
-            tooltip: 'Reload',
-          ),
-          const SizedBox(width: 6),
-          _headerButton(
-            icon: Icons.open_in_new_rounded,
-            onPressed: () => _launchExternal(),
-            tooltip: 'Open in Browser',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _headerButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-    String? tooltip,
-  }) {
-    return Tooltip(
-      message: tooltip ?? '',
-      child: Material(
-        color: _surface,
-        borderRadius: BorderRadius.circular(11),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(11),
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(color: _line),
-            ),
-            child: Icon(icon, color: _navy, size: 18),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _sessionBadge() {
-    final active = _errorMessage == null;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: active ? const Color(0xFFE8F4EF) : const Color(0xFFF9ECE7),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(
-              color: active ? _green : _orange,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _isLoading ? 'LOADING' : 'LIVE PORTAL',
-            style: GoogleFonts.spaceGrotesk(
-              color: active ? _green : _orange,
-              fontSize: 6.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_errorMessage != null) {
-      return _buildErrorState();
-    }
-
-    if (kIsWeb && _webEmbedView != null) {
-      return Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _line),
-        ),
-        child: SizedBox.expand(child: _webEmbedView!),
-      );
-    }
-
-    if (!kIsWeb && _controller != null) {
-      return Container(
-        margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _line),
-        ),
-        child: SizedBox.expand(
-          child: WebViewWidget(controller: _controller!),
-        ),
-      );
-    }
-
-    return Center(
-      child: CircularProgressIndicator(
-        strokeWidth: 2.2,
-        valueColor: AlwaysStoppedAnimation<Color>(_navy),
-      ),
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 430),
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFEBC9C4)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFCEDEA),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(
-                  Icons.cloud_off_rounded,
-                  color: _red,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Could not load VTOP Portal',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(
-                  color: _ink,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _errorMessage ?? 'Network error occurred while connecting to VTOP.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.dmSans(
-                  color: _muted,
-                  fontSize: 11.5,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: _startSession,
-                    icon: Icon(Icons.refresh_rounded, size: 16),
-                    label: Text(
-                      'Try Again',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: palette.ink,
+                      size: 24,
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _navy,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(11),
-                      ),
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.soft,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: palette.line),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isSessionVerified
+                              ? Icons.lock_rounded
+                              : Icons.lock_open_rounded,
+                          color: _isSessionVerified
+                              ? palette.green
+                              : palette.orange,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'vtop.vitap.ac.in',
+                          style: GoogleFonts.spaceGrotesk(
+                            color: palette.ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => _launchExternal(url: _officialVtopUrl),
-                    icon: Icon(Icons.open_in_new_rounded, size: 16),
-                    label: Text(
-                      'Open in Chrome',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.refresh_rounded,
+                      color: palette.ink,
+                      size: 24,
                     ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _navy,
-                      side: BorderSide(color: _line),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                    ),
+                    tooltip: 'Reload VTOP',
+                    onPressed: _handleRefresh,
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            if (_isContentLoaded && _isLoading && _loadingProgress < 1.0)
+              LinearProgressIndicator(
+                value: _loadingProgress > 0 ? _loadingProgress : null,
+                minHeight: 2,
+                backgroundColor: palette.line,
+                valueColor: AlwaysStoppedAnimation<Color>(palette.blue),
+              ),
+            Expanded(child: _buildBody(palette)),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBody(AppPalette palette) {
+    if (_errorMessage != null) {
+      return Container(
+        color: palette.paper,
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const NexusIllustration(kind: NexusIllo.error, size: 120),
+            const SizedBox(height: 12),
+            Text(
+              'Unable to Load Direct VTOP',
+              style: GoogleFonts.spaceGrotesk(
+                color: palette.ink,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                color: palette.inkSoft,
+                fontSize: 14,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: () {
+                  _hasRetriedExpiredPage = false;
+                  _initializeWebView(forceRenew: true);
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: palette.blue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                ),
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                label: Text(
+                  'Retry & Open VTOP',
+                  style: GoogleFonts.dmSans(
+                    color: Colors.white,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_controller == null) {
+      return _buildLoadingOverlay(palette);
+    }
+
+    return Stack(
+      children: [
+        Opacity(
+          opacity: _isContentLoaded ? 1.0 : 0.0,
+          child: WebViewWidget(controller: _controller!),
+        ),
+        if (!_isContentLoaded) _buildLoadingOverlay(palette),
+      ],
+    );
+  }
+
+  Widget _buildLoadingOverlay(AppPalette palette) {
+    return Container(
+      color: palette.paper,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const NexusIllustration(kind: NexusIllo.loading, size: 130),
+          const SizedBox(height: 16),
+          Text(
+            'Opening Direct VTOP Portal...',
+            style: GoogleFonts.spaceGrotesk(
+              color: palette.ink,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Injecting authenticated session directly on-device',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSans(
+              color: palette.inkSoft,
+              fontSize: 13.5,
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (_loadingProgress > 0)
+            SizedBox(
+              width: 200,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: _loadingProgress,
+                  minHeight: 5,
+                  backgroundColor: palette.line,
+                  valueColor: AlwaysStoppedAnimation<Color>(palette.blue),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
