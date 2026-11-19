@@ -181,7 +181,7 @@ class _ConnectingScreenState extends ConsumerState<ConnectingScreen> {
               const SizedBox(width: 8),
               Text(
                 'ENCRYPTED VTOP SESSION',
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: _palette.blue,
@@ -212,7 +212,7 @@ class _ConnectingScreenState extends ConsumerState<ConnectingScreen> {
             ],
           ),
           child: Image.asset(
-            'assets/images/konoha_logo.png',
+            'assets/images/vitap_nexus_logo.png',
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) => Icon(
               Icons.school_rounded,
@@ -233,7 +233,7 @@ class _ConnectingScreenState extends ConsumerState<ConnectingScreen> {
 
         Text(
           'VITAP NEXUS',
-          style: GoogleFonts.dmSans(
+          style: GoogleFonts.bricolageGrotesque(
             fontSize: 24,
             fontWeight: FontWeight.w900,
             letterSpacing: -0.5,
@@ -318,7 +318,7 @@ class _ConnectingScreenState extends ConsumerState<ConnectingScreen> {
                       )
                     : Text(
                         '${stepIndex + 1}',
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: _palette.inkMuted,
@@ -365,7 +365,7 @@ class _ConnectingScreenState extends ConsumerState<ConnectingScreen> {
         const SizedBox(height: 20),
         Text(
           'Connection Failed',
-          style: GoogleFonts.dmSans(
+          style: GoogleFonts.bricolageGrotesque(
             fontSize: 20,
             fontWeight: FontWeight.w800,
             color: _palette.ink,

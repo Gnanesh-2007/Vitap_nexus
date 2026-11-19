@@ -30,6 +30,10 @@ data class ExamItem(
     val dayMillis: Long,
     val time: String,
     val venue: String,
+    val type: String = "", // CAT1, CAT2, FAT...
+    val session: String = "", // FN / AN
+    val seatLocation: String = "",
+    val seatNumber: String = "",
 )
 
 class Snapshot(
@@ -40,6 +44,9 @@ class Snapshot(
     val attTotal: Int,
     val courses: List<CourseItem>,
     val exams: List<ExamItem>,
+    val character: String = "naruto", // naruto | none | custom
+    val glass: Int = 0, // 0 = solid, 1..100 = glass
+    val tint: Int? = null, // ARGB, -1 = from the picture, null = each widget's own colours
 ) {
     /** One stable colour per course, shared by every widget. */
     private val colorByCode: Map<String, Int> by lazy {
@@ -159,6 +166,10 @@ object WidgetData {
                         e.optLong("d"),
                         e.optString("t"),
                         e.optString("v"),
+                        e.optString("x"),
+                        e.optString("s"),
+                        e.optString("l"),
+                        e.optString("k"),
                     )
                 )
             }
@@ -172,6 +183,9 @@ object WidgetData {
             attTotal = att?.optInt("t") ?: 0,
             courses = courses,
             exams = exams,
+            character = o.optString("char", "naruto"),
+            glass = o.optInt("glass", 0),
+            tint = if (o.isNull("tint")) null else o.optLong("tint").toInt(),
         )
     }
 

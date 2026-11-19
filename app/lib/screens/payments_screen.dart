@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_segmented.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -30,7 +32,6 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
   Color get _muted => _palette.inkMuted;
   Color get _line => _palette.line;
   Color get _navy => _palette.navy;
-  Color get _orange => _palette.orange;
   Color get _green => _palette.green;
   Color get _red => _palette.red;
   Color get _soft => _palette.soft;
@@ -137,117 +138,29 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: _background,
-        surfaceTintColor: Colors.transparent,
-        toolbarHeight: 72,
-        titleSpacing: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: _ink, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'FINANCIALS',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: _orange,
-                letterSpacing: 1.7,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Payments & Dues',
-              style: GoogleFonts.dmSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-              ),
-            ),
-          ],
-        ),
+      appBar: NexusAppBar(
+        title: 'Payments',
+        subtitle: 'Fees and dues',
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _line),
-            ),
-            child: IconButton(
+          IconButton(
               tooltip: 'Refresh Payments',
               icon: Icon(Icons.refresh_rounded, color: _navy, size: 20),
               onPressed: () {
                 setState(() => _loadPayments(forceRefresh: true));
               },
             ),
-          ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            decoration: BoxDecoration(
-              color: _soft,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _line),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _line),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: _palette.isDark ? 0.3 : 0.06),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+          preferredSize: const Size.fromHeight(58),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            child: AnimatedBuilder(
+              animation: _tabController.animation!,
+              builder: (context, _) => NexusSegmented(
+                labels: const ['Pending dues', 'Receipts'],
+                position: _tabController.animation!.value,
+                onSelect: (i) => _tabController.animateTo(i),
               ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: _navy,
-              unselectedLabelColor: _muted,
-              labelStyle: GoogleFonts.spaceGrotesk(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
-              unselectedLabelStyle: GoogleFonts.spaceGrotesk(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-              ),
-              tabs: const [
-                Tab(
-                  iconMargin: EdgeInsets.zero,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.pending_actions_rounded, size: 16),
-                      SizedBox(width: 8),
-                      Text('Pending Dues'),
-                    ],
-                  ),
-                ),
-                Tab(
-                  iconMargin: EdgeInsets.zero,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.receipt_long_rounded, size: 16),
-                      SizedBox(width: 8),
-                      Text('Receipts'),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ),
         ),
@@ -395,11 +308,11 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                     child: Row(
                       children: [
                         Container(
-                          width: 44,
-                          height: 44,
+                          width: 50,
+                          height: 50,
                         decoration: BoxDecoration(
-                          color: _red.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
+                          color: _red.withValues(alpha: 0.13),
+                          borderRadius: BorderRadius.circular(18),
                         ),
                         child: Icon(Icons.pending_actions_rounded, color: _red, size: 22),
                       ),
@@ -410,9 +323,11 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                           children: [
                             Text(
                               feeDesc,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                              style: GoogleFonts.bricolageGrotesque(
+                                fontSize: 16.5,
+                                height: 1.12,
+                                letterSpacing: -0.2,
+                                fontWeight: FontWeight.w800,
                                 color: _ink,
                               ),
                             ),
@@ -426,7 +341,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                               ),
                               child: Text(
                                 'Due: $dueDate',
-                                style: GoogleFonts.spaceGrotesk(
+                                style: GoogleFonts.bricolageGrotesque(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   color: _red,
@@ -439,9 +354,10 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                       const SizedBox(width: 12),
                       Text(
                         '₹$amount',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
+                        style: GoogleFonts.bricolageGrotesque(
+                          fontSize: 23,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.6,
                           color: _red,
                         ),
                       ),
@@ -611,7 +527,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                           children: [
                             Text(
                               '₹$amount',
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
                                 color: _green,
@@ -626,7 +542,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                               ),
                               child: Text(
                                 'PAID',
-                                style: GoogleFonts.spaceGrotesk(
+                                style: GoogleFonts.bricolageGrotesque(
                                   fontSize: 9.5,
                                   fontWeight: FontWeight.w800,
                                   color: _green,

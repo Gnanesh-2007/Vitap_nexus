@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/app_theme.dart';
 import 'attendance_screen.dart';
-import 'dashboard_screen.dart';
+import 'today_screen.dart';
 import 'marks_screen.dart';
 import 'exam_schedule.dart';
 import 'timetable_screen.dart';
@@ -44,8 +44,8 @@ class _MainNavScreenState extends State<MainNavScreen> {
   Widget _buildScreen(int index) {
     switch (index) {
       case 0:
-        return DashboardScreen(
-          key: ValueKey('dashboard_${_tabRevisions[0]}'),
+        return TodayScreen(
+          key: ValueKey('today_${_tabRevisions[0]}'),
           onNavigateTab: _onTabSelected,
         );
       case 1:
@@ -113,36 +113,78 @@ class _MainNavScreenState extends State<MainNavScreen> {
   }
 
   Widget _buildNavigationBar(AppPalette palette) {
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.surface,
-        border: Border(top: BorderSide(color: palette.line, width: 1)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 72,
-          child: Row(
-            children: List.generate(
-              _navItems.length,
-              (index) => Expanded(
-                child: _buildNavItem(index, _navItems[index], palette),
-              ),
-            ),
-          ),
-        ),
+    final pill = _floatingBar(palette);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+        child: pill,
       ),
     );
   }
 
-  Widget _buildNavItem(int index, _NavTabItem item, AppPalette palette) {
-    final selected = _currentIndex == index;
-    final selectedBg = palette.isDark
-        ? palette.soft
-        : const Color(0xFFE8EEF9);
-    final activeColor = palette.isDark ? palette.navy : const Color(0xFF172B4D);
-    final unselectedColor = palette.inkMuted;
+  /// A floating, rounded dock. The active tab grows into a coloured capsule with its name.
+  /// Tabs sit in a Stack and slide to computed positions, so the bar can never overflow.
+  Widget _floatingBar(AppPalette palette) {
+    final dark = palette.isDark;
+    final base = dark ? const Color(0xFF1B1B24) : const Color(0xFF15151D);
+    final hsl = HSLColor.fromColor(Theme.of(context).colorScheme.primary);
+    final accent = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).withSaturation(hsl.saturation.clamp(0.5, 1.0)).toColor();
+    const dur = Duration(milliseconds: 300);
+    const curve = Curves.easeOutCubic;
+    Widget bar = Container(
+      height: 64,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: base,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white.withValues(alpha: dark ? 0.08 : 0.04)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: dark ? 0.45 : 0.22), blurRadius: 24, offset: const Offset(0, 10))],
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final n = _navItems.length;
+          final selW = c.maxWidth * 0.34;
+          final otherW = (c.maxWidth - selW) / (n - 1);
+          final sel = _currentIndex;
+          double leftOf(int i) => i <= sel ? i * otherW : i * otherW + (selW - otherW);
+          return Stack(
+            children: [
+              // The capsule slides under the active tab.
+              AnimatedPositioned(
+                duration: dur,
+                curve: curve,
+                left: sel * otherW,
+                width: selW,
+                top: 0,
+                bottom: 0,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(26),
+                    gradient: LinearGradient(colors: [accent, Color.lerp(accent, const Color(0xFFFF6FA8), 0.55)!]),
+                  ),
+                ),
+              ),
+              for (var i = 0; i < n; i++)
+                AnimatedPositioned(
+                  duration: dur,
+                  curve: curve,
+                  left: leftOf(i),
+                  width: i == sel ? selW : otherW,
+                  top: 0,
+                  bottom: 0,
+                  child: _dockItem(i, _navItems[i]),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+    return bar;
+  }
 
+  Widget _dockItem(int index, _NavTabItem item) {
+    final selected = _currentIndex == index;
     return Semantics(
       button: true,
       selected: selected,
@@ -150,70 +192,28 @@ class _MainNavScreenState extends State<MainNavScreen> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _onTabSelected(index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-          decoration: BoxDecoration(
-            color: selected ? selectedBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 150),
-                    transitionBuilder: (child, animation) =>
-                        FadeTransition(
-                          opacity: animation,
-                          child: ScaleTransition(
-                            scale: animation,
-                            child: child,
-                          ),
-                        ),
-                    child: Icon(
-                      selected ? item.activeIcon : item.icon,
-                      key: ValueKey('${index}_$selected'),
-                      size: selected ? 22 : 21,
-                      color: selected ? activeColor : unselectedColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 160),
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: selected ? 8.5 : 8,
-                      fontWeight:
-                          selected ? FontWeight.w800 : FontWeight.w600,
-                      letterSpacing: selected ? .65 : .45,
-                      color: selected ? activeColor : unselectedColor,
-                    ),
-                    child: Text(
-                      item.shortLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              Positioned(
-                bottom: 5,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  width: selected ? 18 : 0,
-                  height: 2.5,
-                  decoration: BoxDecoration(
-                    color: palette.orange,
-                    borderRadius: BorderRadius.circular(10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              selected ? item.activeIcon : item.icon,
+              size: 22,
+              color: selected ? Colors.white : Colors.white.withValues(alpha: 0.58),
+            ),
+            if (selected)
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.fade,
+                    style: GoogleFonts.bricolageGrotesque(fontSize: 13.5, fontWeight: FontWeight.w800, color: Colors.white),
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );

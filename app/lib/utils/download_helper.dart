@@ -80,7 +80,7 @@ class DownloadHelper {
                   Expanded(
                     child: Text(
                       'Downloaded $sanitizedName successfully.',
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.dmSans(
                         color: Colors.white,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
@@ -176,7 +176,7 @@ class DownloadHelper {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             content: Text(
               friendlyMsg,
-              style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w500),
+              style: GoogleFonts.dmSans(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w500),
             ),
           ),
         );
@@ -954,7 +954,7 @@ class DownloadHelper {
       backgroundColor: bgColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (modalCtx) {
         return SafeArea(
@@ -1004,7 +1004,7 @@ class DownloadHelper {
                               fileName,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
+                              style: GoogleFonts.dmSans(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
                                 color: textColor,
@@ -1021,7 +1021,7 @@ class DownloadHelper {
                                   ),
                                   child: Text(
                                     ext.toUpperCase(),
-                                    style: GoogleFonts.spaceGrotesk(
+                                    style: GoogleFonts.bricolageGrotesque(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w800,
                                       color: _green,
@@ -1031,7 +1031,7 @@ class DownloadHelper {
                                 const SizedBox(width: 8),
                                 Text(
                                   sizeStr,
-                                  style: GoogleFonts.spaceGrotesk(
+                                  style: GoogleFonts.bricolageGrotesque(
                                     fontSize: 11,
                                     color: subColor,
                                     fontWeight: FontWeight.w600,
@@ -1042,7 +1042,7 @@ class DownloadHelper {
                                 const SizedBox(width: 3),
                                 Text(
                                   'Downloaded',
-                                  style: GoogleFonts.plusJakartaSans(
+                                  style: GoogleFonts.dmSans(
                                     fontSize: 11,
                                     color: _green,
                                     fontWeight: FontWeight.w700,
@@ -1070,7 +1070,7 @@ class DownloadHelper {
                     icon: const Icon(Icons.open_in_new_rounded, size: 18),
                     label: Text(
                       'Open File',
-                      style: GoogleFonts.plusJakartaSans(
+                      style: GoogleFonts.dmSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.3,
@@ -1113,7 +1113,7 @@ class DownloadHelper {
                           icon: const Icon(Icons.drive_file_move_outline, size: 17),
                           label: Text(
                             'Save to Device',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.dmSans(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1141,7 +1141,7 @@ class DownloadHelper {
                           icon: const Icon(Icons.share_rounded, size: 17),
                           label: Text(
                             'Share / Export',
-                            style: GoogleFonts.plusJakartaSans(
+                            style: GoogleFonts.dmSans(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
                             ),

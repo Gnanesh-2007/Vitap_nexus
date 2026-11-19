@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -374,7 +375,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
             Expanded(
               child: Text(
                 title,
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   color: palette.ink,
                   fontWeight: FontWeight.w700,
                   fontSize: 17,
@@ -385,7 +386,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
         ),
         content: Text(
           content,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.dmSans(
             color: palette.inkSoft,
             fontSize: 14,
             height: 1.5,
@@ -396,7 +397,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               'GOT IT',
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.bricolageGrotesque(
                 color: palette.blue,
                 fontWeight: FontWeight.w700,
               ),
@@ -417,25 +418,9 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
 
     return Scaffold(
       backgroundColor: palette.paper,
-      appBar: AppBar(
-        backgroundColor: palette.paper,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded,
-              color: palette.ink, size: 18),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'CGPA CALCULATOR',
-          style: GoogleFonts.spaceGrotesk(
-            color: palette.ink,
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-            letterSpacing: 0.8,
-          ),
-        ),
-        centerTitle: true,
+      appBar: NexusAppBar(
+        title: 'CGPA lab',
+        subtitle: 'Plan your grades',
         actions: [
           if (_isLoadingVtop)
             Padding(
@@ -537,47 +522,46 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
   // ==========================================================================
 
   Widget _buildHeaderBanner(AppPalette palette) {
-    return NexusCard(
-      variant: NexusCardVariant.standard,
-      padding: const EdgeInsets.all(16),
+    final hsl = HSLColor.fromColor(palette.blue);
+    final top = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).withSaturation(hsl.saturation.clamp(0.5, 1.0)).toColor();
+    final bottom = Color.lerp(top, const Color(0xFF16102E), 0.72)!;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [top, bottom]),
+        boxShadow: [BoxShadow(color: top.withValues(alpha: 0.3), blurRadius: 22, offset: const Offset(0, 10))],
+      ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: palette.blue.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.calculate_rounded, color: palette.blue, size: 22),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'VIT-AP ACADEMIC CALCULATOR',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 10,
+                  'What if…',
+                  style: GoogleFonts.bricolageGrotesque(
+                    fontSize: 30,
                     fontWeight: FontWeight.w800,
-                    color: palette.blue,
-                    letterSpacing: 0.8,
+                    color: Colors.white,
+                    height: 1.05,
+                    letterSpacing: -0.8,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
                 Text(
-                  'Calculate semester SGPA, forecast target goals, and compute overall cumulative CGPA.',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: palette.inkSoft,
-                    height: 1.3,
-                  ),
+                  'Work out a semester GPA, aim for a target CGPA, or combine semesters into one cumulative score.',
+                  style: GoogleFonts.dmSans(fontSize: 13, color: Colors.white.withValues(alpha: 0.82), height: 1.35),
                 ),
               ],
             ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
+            child: const Icon(Icons.calculate_rounded, color: Colors.white, size: 28),
           ),
         ],
       ),
@@ -604,7 +588,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
               Expanded(
                 child: Text(
                   'SEMESTER GPA',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: palette.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -643,7 +627,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                 flex: 4,
                 child: Text(
                   'CREDITS',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: palette.inkMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -656,7 +640,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                 flex: 5,
                 child: Text(
                   'GRADE',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: palette.inkMuted,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -709,7 +693,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                         const SizedBox(width: 4),
                         Text(
                           'ADD COURSE',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: palette.ink,
                             fontWeight: FontWeight.w700,
                             fontSize: 12,
@@ -743,7 +727,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                         const SizedBox(width: 4),
                         Text(
                           'CALCULATE',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                             fontSize: 12,
@@ -792,7 +776,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                       children: [
                         Text(
                           'SEMESTER SGPA',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: palette.inkMuted,
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -808,7 +792,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                           children: [
                             Text(
                               _calculatedSemesterGpa!.toStringAsFixed(2),
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 color: palette.blue,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
@@ -817,7 +801,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                             const SizedBox(width: 4),
                             Text(
                               '/ 10.0',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.dmSans(
                                 color: palette.inkMuted,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
@@ -833,14 +817,14 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                     children: [
                       Text(
                         'Total Credits',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.dmSans(
                           color: palette.inkMuted,
                           fontSize: 10,
                         ),
                       ),
                       Text(
                         _calculatedSemesterCredits?.toStringAsFixed(1) ?? '0',
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           color: palette.ink,
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -877,14 +861,14 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
             child: TextField(
               controller: row.creditsController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: GoogleFonts.inter(
+              style: GoogleFonts.dmSans(
                 color: palette.ink,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
                 hintText: 'Credits',
-                hintStyle: GoogleFonts.inter(
+                hintStyle: GoogleFonts.dmSans(
                   color: palette.inkMuted,
                   fontSize: 12,
                 ),
@@ -920,7 +904,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                 ),
                 hint: Text(
                   'Grade',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.dmSans(
                     color: palette.inkMuted,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -933,7 +917,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                     value: grade,
                     child: Text(
                       label,
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         color: palette.ink,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -1014,7 +998,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
               Expanded(
                 child: Text(
                   'TARGET CGPA PLANNER',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: palette.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -1036,7 +1020,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                 ),
                 child: Text(
                   'GOAL',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: palette.orange,
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
@@ -1118,7 +1102,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                     const SizedBox(width: 6),
                     Text(
                       'CALCULATE REQUIRED SGPA',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
                         fontSize: 12,
@@ -1156,7 +1140,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                       Expanded(
                         child: Text(
                           'REQUIRED NEXT SGPA',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: _isTargetAchievable == true
                                 ? palette.green
                                 : palette.red,
@@ -1183,7 +1167,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                           _isTargetAchievable == true
                               ? 'ACHIEVABLE'
                               : 'IMPOSSIBLE',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: _isTargetAchievable == true
                                 ? palette.green
                                 : palette.red,
@@ -1197,7 +1181,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                   const SizedBox(height: 4),
                   Text(
                     _calculatedRequiredSgpa!.toStringAsFixed(2),
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       color: palette.ink,
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
@@ -1206,7 +1190,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                   const SizedBox(height: 4),
                   Text(
                     _targetFeedbackMessage ?? '',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.dmSans(
                       color: palette.inkSoft,
                       fontSize: 12,
                       height: 1.35,
@@ -1233,7 +1217,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.spaceGrotesk(
+          style: GoogleFonts.bricolageGrotesque(
             color: palette.inkMuted,
             fontSize: 10,
             fontWeight: FontWeight.w700,
@@ -1254,14 +1238,14 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
             controller: controller,
             keyboardType:
                 TextInputType.numberWithOptions(decimal: !isInteger),
-            style: GoogleFonts.inter(
+            style: GoogleFonts.dmSans(
               color: palette.ink,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: GoogleFonts.inter(
+              hintStyle: GoogleFonts.dmSans(
                 color: palette.inkMuted,
                 fontSize: 12,
               ),
@@ -1294,7 +1278,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
               Expanded(
                 child: Text(
                   'CUMULATIVE GPA (CGPA)',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: palette.ink,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -1328,7 +1312,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
           // Header
           Text(
             'SEMESTER GPAS RECORD',
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               color: palette.inkMuted,
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -1376,7 +1360,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                         const SizedBox(width: 4),
                         Text(
                           'ADD SEMESTER',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: palette.ink,
                             fontWeight: FontWeight.w700,
                             fontSize: 12,
@@ -1410,7 +1394,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                         const SizedBox(width: 4),
                         Text(
                           'CALCULATE CGPA',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                             fontSize: 12,
@@ -1459,7 +1443,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                       children: [
                         Text(
                           'CUMULATIVE CGPA',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: palette.inkMuted,
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -1475,7 +1459,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                           children: [
                             Text(
                               _calculatedCumulativeGpa!.toStringAsFixed(2),
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 color: palette.blue,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
@@ -1484,7 +1468,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                             const SizedBox(width: 4),
                             Text(
                               '/ 10.0',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.dmSans(
                                 color: palette.inkMuted,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
@@ -1500,14 +1484,14 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
                     children: [
                       Text(
                         'Semesters',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.dmSans(
                           color: palette.inkMuted,
                           fontSize: 10,
                         ),
                       ),
                       Text(
                         '${_semesterGpaRows.length}',
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           color: palette.ink,
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -1544,14 +1528,14 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
               controller: row.gpaController,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              style: GoogleFonts.inter(
+              style: GoogleFonts.dmSans(
                 color: palette.ink,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
                 hintText: 'Semester ${index + 1} GPA',
-                hintStyle: GoogleFonts.inter(
+                hintStyle: GoogleFonts.dmSans(
                   color: palette.inkMuted,
                   fontSize: 12,
                 ),
@@ -1628,7 +1612,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
               Expanded(
                 child: Text(
                   'VIT-AP Relative Grading System',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: palette.ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -1643,7 +1627,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
 
           Text(
             'VIT-AP uses a relative grading curve where letter grades and grade points are awarded based on the batch distribution (mean μ and standard deviation σ).',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.dmSans(
               color: palette.inkSoft,
               fontSize: 12,
               height: 1.4,
@@ -1712,7 +1696,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
             flex: 3,
             child: Text(
               grade,
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.bricolageGrotesque(
                 color: palette.ink,
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
@@ -1725,7 +1709,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
             flex: 4,
             child: Text(
               label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.dmSans(
                 color: palette.inkMuted,
                 fontSize: 11,
               ),
@@ -1735,7 +1719,7 @@ class _CgpaCalculatorScreenState extends ConsumerState<CgpaCalculatorScreen> {
           ),
           Text(
             points,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               color: color,
               fontWeight: FontWeight.w800,
               fontSize: 12,

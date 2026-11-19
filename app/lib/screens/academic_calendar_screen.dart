@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -253,38 +254,9 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _paper,
-      appBar: AppBar(
-        backgroundColor: _paper,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: false,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: _ink, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ACADEMIC SCHEDULE',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
-                color: _muted,
-              ),
-            ),
-            Text(
-              'Academic Calendar',
-              style: GoogleFonts.dmSans(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-                letterSpacing: -0.3,
-              ),
-            ),
-          ],
-        ),
+      appBar: NexusAppBar(
+        title: 'Calendar',
+        subtitle: 'Holidays, exams and events',
         actions: [
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: _inkSoft, size: 22),
@@ -640,11 +612,10 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
     required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _line),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -658,7 +629,7 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 8.5,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
@@ -671,9 +642,11 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
           const SizedBox(height: 6),
           Text(
             value,
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
+            style: GoogleFonts.bricolageGrotesque(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              height: 1,
+              letterSpacing: -0.8,
               color: _ink,
             ),
           ),
@@ -845,25 +818,27 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
         children: [
           // Date block badge
           Container(
-            width: 48,
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            width: 58,
+            padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: badgeColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
               children: [
                 Text(
                   dayNumber,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
+                  style: GoogleFonts.bricolageGrotesque(
+                    fontSize: 25,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                    letterSpacing: -0.6,
                     color: badgeColor,
                   ),
                 ),
                 Text(
                   monthName,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
                     color: badgeColor,
@@ -890,7 +865,7 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
                               weekday.isNotEmpty ? weekday.toUpperCase() : fullFormatted,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.8,
@@ -908,7 +883,7 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
                               ),
                               child: Text(
                                 'TODAY',
-                                style: GoogleFonts.spaceGrotesk(
+                                style: GoogleFonts.bricolageGrotesque(
                                   fontSize: 8.5,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0.5,
@@ -928,7 +903,7 @@ class _AcademicCalendarScreenState extends ConsumerState<AcademicCalendarScreen>
                       ),
                       child: Text(
                         badgeText,
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,

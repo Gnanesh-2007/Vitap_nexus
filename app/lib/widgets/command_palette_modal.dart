@@ -20,6 +20,7 @@ import '../screens/payments_screen.dart';
 import '../screens/mentor_screen.dart';
 import '../screens/diagnostics_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/journey_screen.dart';
 
 class _CommandDestination {
   final String title;
@@ -116,6 +117,14 @@ class _NexusCommandPaletteModalState extends State<NexusCommandPaletteModal> {
       icon: Icons.military_tech_rounded,
       builder: () => const GradesScreen(),
       keywords: ['grades', 'gpa', 'cgpa', 'transcript', 'credits', 's grade', 'a grade'],
+    ),
+    _CommandDestination(
+      title: 'Academic Journey',
+      subtitle: 'Your CGPA story: semester path, grade mix, and what moved it',
+      category: 'RECORDS',
+      icon: Icons.timeline_rounded,
+      builder: () => const JourneyScreen(),
+      keywords: ['journey', 'cgpa', 'gpa', 'trend', 'report', 'story', 'grades', 'progress', 'share'],
     ),
     _CommandDestination(
       title: 'Target CGPA Calculator',
@@ -231,7 +240,7 @@ class _NexusCommandPaletteModalState extends State<NexusCommandPaletteModal> {
       ),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         border: Border(top: BorderSide(color: palette.line, width: 1.2)),
         boxShadow: [
           BoxShadow(
@@ -351,7 +360,7 @@ class _NexusCommandPaletteModalState extends State<NexusCommandPaletteModal> {
                                             ),
                                             child: Text(
                                               dest.category,
-                                              style: GoogleFonts.spaceGrotesk(
+                                              style: GoogleFonts.bricolageGrotesque(
                                                 fontSize: 8.5,
                                                 fontWeight: FontWeight.w800,
                                                 color: palette.inkMuted,

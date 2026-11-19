@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="docs/banner.png" alt="VITAP Nexus" width="100%">
 </p>
 
@@ -25,11 +25,34 @@ VTOP is built for a desktop browser. On a phone it is slow, times out, and makes
 | ⚡ **Opens instantly** | Cached data renders immediately, then refreshes in the background (stale-while-revalidate). |
 | 🦀 **No server in the middle** | A native Rust engine logs in to VTOP and parses the pages **on your phone**. Nothing is proxied through a third-party backend. |
 | 📴 **Works offline** | Timetable, attendance, marks and exam schedule stay available when the campus Wi-Fi does not. |
-| 🧮 **Answers, not tables** | Bunk calculator, skip check, live "now / next" class, CGPA calculator. |
-| 📱 **Home-screen widgets** | Five widgets that stay live without opening the app. |
-| 🎨 **Polished UI** | 7 colour themes, light / dark / AMOLED, command palette, motion throughout. |
+| 🧮 **Answers, not tables** | A home screen that tells you what is happening now, whether you can skip the next class, and what your CGPA could become. |
+| 📱 **Home-screen widgets** | Five widgets that stay live without opening the app, with a character and colours you choose. |
+| 🎨 **Your look** | Character-based colours, light / dark / AMOLED, and motion throughout. |
 
 ---
+
+## 📸 The app
+
+<p align="center"><img src="docs/app/tour-dark.png" alt="Home, attendance, timetable, marks and exams in dark mode"></p>
+<p align="center"><img src="docs/app/tour-light.png" alt="The same screens in light mode"></p>
+
+<sub>All screenshots are rendered from the real app code with sample data, not real student records.</sub>
+
+- **Today:** the home screen is built around the moment. A live card counts down to the end of the current class or the start of the next one, and changes colour and mood with your day. Below it: a strip of your day, a plain "safe to skip / do not skip" verdict for the next class, a ring for every subject, and shortcuts to everything else.
+- **Attendance:** one overall ring, then every subject with its own ring and a verdict like *Miss up to 6* or *Attend next 10*. Day-wise logs and the calculator are one tap away.
+- **Timetable:** a week strip with a sliding highlight and a timeline of the day. The class happening now becomes a bright card with a countdown.
+- **Marks:** a score tile and one bar per assessment, opening into the full breakdown.
+- **Exams:** every exam as a ticket with a countdown, time, venue, room and seat.
+
+<p align="center"><img src="docs/app/more-dark.png" alt="Grades, journey, profile and the floating dock"></p>
+
+- **Journey and what-if:** your CGPA across semesters, the biggest jump, your strongest area, and a "try different grades" mode that shows what a change would do to your CGPA. Export it as a PDF or a picture.
+- **Your colours:** pick widget colours from presets or from your character's picture. Widgets also have an optional glass mode.
+- **Your character:** keep the bundled artwork, use any picture from your gallery or an image link, or turn it off. It appears on the home screen and on every widget.
+
+---
+
+## 📱 Home-screen widgets---
 
 ## 📱 Home-screen widgets
 
@@ -39,12 +62,12 @@ Nexus ships five Android widgets, drawn from scratch so they look the same on ev
   <tr>
     <td width="50%" valign="top">
       <b>🗓 Day timeline</b> (4×2)<br>
-      The current class, what is next, and your whole day as a live strip with a "now" marker.<br><br>
+      The current class, what is next, and your whole day as a live strip with a "now" marker. The character reacts: fighting in class, running when you are late.<br><br>
       <img src="docs/widgets/timetable.png" alt="Day timeline widget">
     </td>
     <td width="50%" valign="top">
       <b>📊 Attendance</b> (4×2)<br>
-      One ring per subject, with a notch at 75% and <i>skip 4</i> / <i>need 10</i> underneath. Theory and lab are tracked separately.<br><br>
+      One ring per subject, with <i>skip 4</i> / <i>need 10</i> underneath. Theory and lab are tracked separately.<br><br>
       <img src="docs/widgets/attendance.png" alt="Attendance widget">
     </td>
   </tr>
@@ -63,16 +86,21 @@ Nexus ships five Android widgets, drawn from scratch so they look the same on ev
   <tr>
     <td valign="top">
       <b>⏱ Next class</b> (2×2)<br>
-      A glowing ring with a live countdown to the start or end of the class.<br><br>
+      A live countdown that ticks every second, to the start or end of the class.<br><br>
       <img src="docs/widgets/next-class.png" width="48%" alt="Next class widget">
     </td>
     <td valign="top">
-      <b>📅 Exam countdown</b> (2×2)<br>
-      Days left until your next exam, plus the one after that.<br><br>
+      <b>📅 Exam countdown</b> (2×2, resizable)<br>
+      Days to the next exam. Stretch it and it lists every upcoming exam with date, time, session, venue, room and seat.<br><br>
       <img src="docs/widgets/exam.png" width="48%" alt="Exam countdown widget">
+      <img src="docs/widgets/exam-list.png" alt="Exam widget, list layout">
     </td>
   </tr>
 </table>
+
+**Glass widgets:** turn on glass and the cards become see-through with a glossy sheen, so your wallpaper shows behind them. Android does not let widgets blur what is behind them, so this is clear tinted glass rather than frosted glass.
+
+<p align="center"><img src="docs/widgets/glass.png" alt="Glass widgets over a wallpaper"></p>
 
 <sub>Images above are rendered from the real widget code with sample data.</sub>
 
@@ -82,10 +110,16 @@ Nexus ships five Android widgets, drawn from scratch so they look the same on ev
 
 ## 🚀 Features
 
+**Home and insights**
+- **Today screen:** live now / next card, day strip, skip verdict, every-subject rings.
+- **Journey and what-if:** semester-by-semester CGPA, biggest jump, strongest area, and a mode to try different grades. PDF and picture export.
+- **Widget character:** bundled artwork, your own picture from the gallery or a link, or none. Widget and app colours follow it if you want.
+- **Glass widgets:** optional see-through widgets that show your wallpaper behind them.
+
 **Academics**
 - **Attendance:** per-course percentages with 75% and 85% thresholds, a bunk calculator (how many you can miss, or must attend), day-wise session logs, and capstone attendance.
 - **Timetable:** weekly view with a live current-class indicator and progress.
-- **Exam schedule:** dates, slots, venues and seating.
+- **Exam schedule:** exam tickets with a countdown, slot, venue, room and seat.
 - **Marks and grades:** component-wise marks, grade view, grade history, and a CGPA calculator.
 - **Courses:** syllabus, lecture material and course details.
 - **Digital assignments:** view assignments and due dates.
@@ -136,7 +170,7 @@ Nexus ships five Android widgets, drawn from scratch so they look the same on ev
 
 | Layer | Technology |
 | :--- | :--- |
-| App | Flutter, Dart 3, Riverpod, Dio, Google Fonts, flutter_animate, Lottie |
+| App | Flutter, Dart 3, Riverpod, Dio, Google Fonts (Bricolage Grotesque + DM Sans), flutter_animate, Lottie |
 | Native engine | Rust ([`lib_vtop`](#-credits)), `reqwest`, `flutter_rust_bridge` 2.12 |
 | Storage | `flutter_secure_storage`, `shared_preferences` |
 | Documents | `pdf`, `printing`, `share_plus`, `open_filex` |
@@ -205,7 +239,7 @@ cd app/android
 ## 🗺️ Roadmap
 
 - [ ] Store the password only in secure storage (remove the plain fallback copy)
-- [ ] Real app screenshots in this README
+- [x] Real app screenshots in this README
 - [ ] iOS home-screen widgets (SwiftUI)
 - [ ] Leave planner: "what happens to my attendance if I am away 21 to 24 Nov?"
 - [ ] End-of-semester summary cards
@@ -215,7 +249,8 @@ cd app/android
 ## 🙏 Credits
 
 - **[`lib_vtop`](app/rust)**, the Rust VTOP engine, comes from [Udhay-Adithya/vitap_student_app](https://github.com/Udhay-Adithya/vitap_student_app) by the VIT-AP student community, licensed under **Apache-2.0** (see [`app/rust/LICENSE`](app/rust/LICENSE)). Nexus builds on that work.
-- Naruto artwork belongs to their respective creators and are used here for personal, non-commercial fun.
+- The app design (home screen, navigation, screens, widgets) is original to this project. Only the VTOP engine is reused.
+- The bundled Naruto artwork belongs to its creators and is used here for personal, non-commercial fun. If you fork this, swap it for your own or choose "None" in Profile, Appearance, Widget character.
 
 ## 📄 License
 

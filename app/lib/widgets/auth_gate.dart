@@ -77,7 +77,7 @@ class _AuthGateState extends ConsumerState<AuthGate> {
               const SizedBox(height: 22),
               Text(
                 'VITAP NEXUS',
-                style: GoogleFonts.dmSans(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 20,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.3,
@@ -251,7 +251,7 @@ class _BiometricUnlockScreenState
                   const SizedBox(height: 20),
                   Text(
                     'VITAP Nexus Locked',
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       color: palette.ink,
@@ -309,7 +309,7 @@ class _BiometricUnlockScreenState
                           hasPin
                               ? 'UNLOCK WITH APP PIN OR VTOP PASSWORD'
                               : 'UNLOCK WITH VTOP PASSWORD',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w800,
                             color: palette.inkMuted,

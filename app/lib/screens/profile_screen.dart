@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +10,8 @@ import '../providers/vtop_providers.dart';
 import '../services/biometric_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/nexus_app_bar.dart';
+import '../widgets/widget_character_sheet.dart';
 import 'cgpa_calculator_screen.dart';
 import 'diagnostics_screen.dart';
 import 'login_screen.dart';
@@ -35,6 +38,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<Map<String, dynamic>> _localSemesters = [];
 
   static const List<String> _avatarAssets = [
+    'assets/images/pfp/man.png',
+    'assets/images/pfp/man_1.png',
     'assets/images/pfp/woman.png',
     'assets/images/pfp/woman_1.png',
     'assets/images/pfp/astronaut.png',
@@ -165,7 +170,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       isScrollControlled: true,
       backgroundColor: cs.surfaceContainerLow,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (sheetCtx) {
         final bottomInset = MediaQuery.of(sheetCtx).viewInsets.bottom;
@@ -277,7 +282,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       backgroundColor: cs.surfaceContainerLow,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (sheetCtx) {
         return SafeArea(
@@ -458,6 +463,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             MenuSection(
               label: 'Appearance',
               children: [
+                MenuTile(
+                  icon: Icons.widgets_rounded,
+                  title: 'Widget character',
+                  subtitle: 'Naruto, your own anime pick, or none',
+                  onTap: () => showWidgetCharacterSheet(context),
+                ),
                 MenuTile(
                   icon: isDarkMode
                       ? Icons.dark_mode_rounded
@@ -643,7 +654,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       backgroundColor: cs.surfaceContainerLow,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (sheetCtx) {
         return SafeArea(
@@ -653,22 +664,49 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(color: cs.outlineVariant, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
                 Text(
-                  'Switch Active Semester',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                  'Which semester?',
+                  style: GoogleFonts.bricolageGrotesque(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
                     color: cs.onSurface,
                   ),
                 ),
-                const SizedBox(height: 12),
+                Text(
+                  'Everything in the app follows your pick.',
+                  style: GoogleFonts.dmSans(fontSize: 13, color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 14),
                 ...semesters.map((s) {
                   final id = s['id']?.toString() ?? '';
                   final name = s['name']?.toString() ?? id;
                   final isCurrent =
                       id == ref.read(authProvider).activeSemesterId;
-                  return ListTile(
-                    title: Text(name),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                    color: isCurrent ? cs.primary.withValues(alpha: 0.16) : cs.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(22),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+                    title: Text(
+                      name,
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: isCurrent ? cs.primary : cs.onSurface,
+                      ),
+                    ),
                     trailing: isCurrent
                         ? Icon(Icons.check_circle_rounded, color: cs.primary)
                         : null,
@@ -686,6 +724,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             isUserInitiated: true,
                           );
                     },
+                  ),
+                  ),
                   );
                 }),
               ],
@@ -729,7 +769,9 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final size = MediaQuery.of(context).size.width / 1.75;
+    final hsl = HSLColor.fromColor(cs.primary);
+    final top = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).withSaturation(hsl.saturation.clamp(0.5, 1.0)).toColor();
+    final bottom = Color.lerp(top, const Color(0xFF16102E), 0.7)!;
 
     ImageProvider avatarProvider;
     if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
@@ -740,97 +782,96 @@ class _ProfileCard extends StatelessWidget {
       avatarProvider = const AssetImage('assets/images/pfp/default.png');
     }
 
-    return Center(
-      child: Column(
-        children: [
-          // Center Avatar with Stat Badges on top-left and bottom-right
-          SizedBox(
-            width: size,
-            height: size,
-            child: Stack(
+    Widget stat(String value, String label) => GestureDetector(
+          onTap: onTogglePrivacy,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(20)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: onTapAvatar,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: cs.outlineVariant.withValues(alpha: 0.5),
-                          width: 2,
-                        ),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Image(
-                        image: avatarProvider,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-                // Top-Left CGPA Badge
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: _TiltedStatBadge(
-                    value: isPrivate ? null : cgpa,
-                    label: 'cgpa',
-                    background: cs.tertiaryContainer,
-                    foreground: cs.onTertiaryContainer,
-                    angle: -0.14,
-                    onTap: onTogglePrivacy,
-                  ),
-                ),
-                // Bottom-Right Credits Badge
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: _TiltedStatBadge(
-                    value: isPrivate ? null : credits,
-                    label: 'credits',
-                    background: cs.primaryContainer,
-                    foreground: cs.onPrimaryContainer,
-                    angle: 0.14,
-                    onTap: onTogglePrivacy,
-                  ),
-                ),
+                isPrivate
+                    ? const Icon(Icons.visibility_off_rounded, size: 20, color: Colors.white)
+                    : Text(value, style: GoogleFonts.bricolageGrotesque(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, height: 1.05)),
+                Text(label.toUpperCase(),
+                    style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1, color: Colors.white70)),
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          Text(
-            studentName,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              activeSemName,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: cs.primary,
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(34),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [top, bottom]),
+        boxShadow: [BoxShadow(color: top.withValues(alpha: 0.35), blurRadius: 26, offset: const Offset(0, 12))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: onTapAvatar,
+                child: Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    image: DecorationImage(image: avatarProvider, fit: BoxFit.cover),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      studentName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.bricolageGrotesque(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1, letterSpacing: -0.4),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Tap the photo to change it',
+                        style: GoogleFonts.dmSans(fontSize: 12, color: Colors.white.withValues(alpha: 0.75))),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          TextButton(
-            onPressed: onChangeSemester,
-            child: const Text(
-              'Change semester',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-            ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              stat(cgpa, 'CGPA'),
+              const SizedBox(width: 10),
+              stat(credits, 'Credits'),
+              const Spacer(),
+              GestureDetector(
+                onTap: onChangeSemester,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 92),
+                        child: Text(activeSemName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w800, color: bottom)),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.unfold_more_rounded, size: 16, color: bottom),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -838,95 +879,11 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
-class _TiltedStatBadge extends StatelessWidget {
-  final String? value;
-  final String label;
-  final Color background;
-  final Color foreground;
-  final double angle;
-  final VoidCallback onTap;
-
-  const _TiltedStatBadge({
-    required this.value,
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.angle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: angle,
-      child: Material(
-        color: background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox(
-            width: 76,
-            height: 76,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (value == null)
-                  Icon(
-                    Icons.visibility_off_rounded,
-                    size: 22,
-                    color: foreground,
-                  )
-                else
-                  Text(
-                    value!,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: foreground,
-                    ),
-                  ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: foreground,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// MENU SECTION & MENU TILE (Android 16 style grouped settings from reference)
-// ============================================================================
-
 class MenuSection extends StatelessWidget {
   final String? label;
   final List<Widget> children;
 
   const MenuSection({super.key, this.label, required this.children});
-
-  static const double outerRadius = 24;
-  static const double innerRadius = 4;
-  static const double tileGap = 2;
-
-  BorderRadius _radiusFor(int index) {
-    const Radius outer = Radius.circular(outerRadius);
-    const Radius inner = Radius.circular(innerRadius);
-    return BorderRadius.vertical(
-      top: index == 0 ? outer : inner,
-      bottom: index == children.length - 1 ? outer : inner,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -937,23 +894,34 @@ class MenuSection extends StatelessWidget {
       children: [
         if (label != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
             child: Text(
-              label!,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: cs.primary,
+              label!.toUpperCase(),
+              style: GoogleFonts.dmSans(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.3,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
-        for (int i = 0; i < children.length; i++) ...[
-          if (i > 0) const SizedBox(height: tileGap),
-          ClipRRect(
-            borderRadius: _radiusFor(i),
-            child: children[i],
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainer,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
           ),
-        ],
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (int i = 0; i < children.length; i++) ...[
+                if (i > 0)
+                  Divider(height: 1, thickness: 1, indent: 72, endIndent: 16, color: cs.outlineVariant.withValues(alpha: 0.35)),
+                children[i],
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -984,20 +952,29 @@ class MenuTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final titleColor = foreground ?? cs.onSurface;
     final accessoryColor = foreground ?? cs.onSurfaceVariant;
+    final chip = foreground ?? cs.primary;
 
     return Material(
-      color: background ?? cs.surfaceContainer,
+      color: background ?? Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: subtitle == null ? 56 : 72),
+          constraints: BoxConstraints(minHeight: subtitle == null ? 60 : 74),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 24, color: accessoryColor),
-                  const SizedBox(width: 16),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: chip.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(icon, size: 21, color: chip),
+                  ),
+                  const SizedBox(width: 14),
                 ],
                 Expanded(
                   child: Column(
@@ -1006,20 +983,18 @@ class MenuTile extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+                        style: GoogleFonts.bricolageGrotesque(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w700,
                           color: titleColor,
+                          letterSpacing: -0.2,
                         ),
                       ),
                       if (subtitle != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           subtitle!,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: accessoryColor,
-                          ),
+                          style: GoogleFonts.dmSans(fontSize: 12.5, color: accessoryColor),
                         ),
                       ],
                     ],
@@ -1042,7 +1017,7 @@ class MenuTile extends StatelessWidget {
 }
 
 // ============================================================================
-// PROFILE DETAIL PAGE (Matches ProfilePage with UserInfoTile rows)
+// PROFILE DETAIL PAGE (rows of UserInfoTile)
 // ============================================================================
 
 class ProfileDetailPage extends StatelessWidget {
@@ -1084,11 +1059,7 @@ class ProfileDetailPage extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-      ),
+      appBar: const NexusAppBar(title: 'Profile', subtitle: 'Your details'),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
@@ -1315,11 +1286,7 @@ class _ManageCredentialsPageState extends State<ManageCredentialsPage> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Credentials'),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-      ),
+      appBar: const NexusAppBar(title: 'Credentials', subtitle: 'Stored only on this phone'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

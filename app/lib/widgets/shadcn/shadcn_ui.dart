@@ -154,7 +154,7 @@ class _ShadcnButtonState extends State<ShadcnButton> {
         break;
     }
 
-    final radius = widget.borderRadius ?? BorderRadius.circular(9);
+    final radius = widget.borderRadius ?? BorderRadius.circular(16);
     final effectiveLabel = widget.semanticsLabel ?? widget.label;
 
     Widget buttonWidget = AnimatedScale(
@@ -333,7 +333,7 @@ class ShadcnBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(20),
         border: border,
       ),
       child: Row(
@@ -346,7 +346,7 @@ class ShadcnBadge extends StatelessWidget {
           ],
           Text(
             label,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               fontSize: 10.5,
               fontWeight: FontWeight.w600,
               color: fg,
@@ -390,7 +390,7 @@ class ShadcnCard extends StatefulWidget {
     this.padding = const EdgeInsets.all(16),
     this.backgroundColor,
     this.borderColor,
-    this.borderRadius = 14,
+    this.borderRadius = 24,
     this.hasHoverEffect = true,
   });
 
@@ -574,7 +574,7 @@ class _ShadcnAccordionState extends State<ShadcnAccordion> {
     return Container(
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: palette.line, width: 1),
       ),
       child: ListView.separated(
@@ -716,7 +716,7 @@ class ShadcnTabs extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: palette.soft,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: palette.line, width: 0.8),
       ),
       child: Stack(
@@ -733,7 +733,7 @@ class ShadcnTabs extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: palette.surface,
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: palette.line, width: 0.8),
                     boxShadow: [
                       BoxShadow(
@@ -794,11 +794,11 @@ class ShadcnTabs extends StatelessWidget {
                               color: isSelected
                                   ? palette.blue.withValues(alpha: 0.14)
                                   : palette.line,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: Text(
                               tab.badge!,
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w700,
                                 color: isSelected ? palette.blue : palette.inkMuted,
@@ -1041,7 +1041,7 @@ class _NexusCardState extends State<NexusCard> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final radius = widget.borderRadius ?? BorderRadius.circular(16);
+    final radius = widget.borderRadius ?? BorderRadius.circular(24);
 
     Color bg;
     Border? border;
@@ -1147,7 +1147,7 @@ class NexusStatCard extends StatelessWidget {
             children: [
               Text(
                 label.toUpperCase(),
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: palette.inkMuted,
@@ -1220,7 +1220,7 @@ class NexusSearchBar extends StatelessWidget {
       height: 44,
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: palette.line, width: 1),
       ),
       child: Row(
@@ -1244,7 +1244,15 @@ class NexusSearchBar extends StatelessWidget {
                   color: palette.inkMuted,
                   fontWeight: FontWeight.w400,
                 ),
+                // The app theme gives every field an outline; this one already sits
+                // inside its own bordered pill, so switch them all off.
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -1311,7 +1319,7 @@ class NexusFilterChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
             color: isSelected ? palette.navy : palette.surface,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: isSelected ? palette.navy : palette.line,
               width: 1,
@@ -1330,7 +1338,7 @@ class NexusFilterChip extends StatelessWidget {
               ],
               Text(
                 label,
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 11,
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   color: isSelected
@@ -1565,7 +1573,7 @@ class NexusBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: accent.withValues(alpha: 0.25)),
       ),
       child: Row(

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -277,24 +278,9 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
 
     return Scaffold(
       backgroundColor: palette.paper,
-      appBar: AppBar(
-        title: Text(
-          'ASSIGNMENTS',
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-            color: palette.ink,
-          ),
-        ),
-        backgroundColor: palette.paper,
-        centerTitle: true,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: palette.ink),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+      appBar: NexusAppBar(
+        title: 'Assignments',
+        subtitle: 'Deadlines and submissions',
         actions: [
           IconButton(
             icon: Icon(Icons.refresh_rounded, size: 20, color: palette.inkSoft),
@@ -356,7 +342,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   const SizedBox(height: 16),
                   Text(
                     'Failed to Load Assignments',
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: palette.ink,
@@ -369,7 +355,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       fallback: 'Unable to load digital assignments. Please check your connection and try again.',
                     ),
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(fontSize: 12, color: palette.inkMuted, height: 1.4),
+                    style: GoogleFonts.dmSans(fontSize: 12, color: palette.inkMuted, height: 1.4),
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
@@ -417,7 +403,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                     const SizedBox(height: 18),
                     Text(
                       'No Assignments Found',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: palette.ink,
@@ -427,7 +413,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                     Text(
                       'No digital assignments are registered for the active semester.',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 13, color: palette.inkMuted, height: 1.4),
+                      style: GoogleFonts.dmSans(fontSize: 13, color: palette.inkMuted, height: 1.4),
                     ),
                   ],
                 ),
@@ -518,131 +504,87 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
 
   Widget _buildStatsHeroBanner(int total, int submitted, int pending, AppPalette palette) {
     final double progress = total > 0 ? (submitted / total).clamp(0.0, 1.0) : 0.0;
+    final hsl = HSLColor.fromColor(palette.blue);
+    final top = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).withSaturation(hsl.saturation.clamp(0.5, 1.0)).toColor();
+    final bottom = Color.lerp(top, const Color(0xFF16102E), 0.72)!;
+
+    Widget stat(String value, String label) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(20)),
+            child: Column(
+              children: [
+                Text(value, style: GoogleFonts.bricolageGrotesque(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
+                const SizedBox(height: 3),
+                Text(label.toUpperCase(),
+                    style: GoogleFonts.dmSans(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.9, color: Colors.white70)),
+              ],
+            ),
+          ),
+        );
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: palette.line),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: palette.isDark ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(32),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [top, bottom]),
+        boxShadow: [BoxShadow(color: top.withValues(alpha: 0.3), blurRadius: 22, offset: const Offset(0, 10))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'ASSIGNMENTS OVERVIEW',
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                  color: palette.blue,
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: progress),
+                  duration: const Duration(milliseconds: 1000),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, v, _) => Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox.expand(
+                        child: CircularProgressIndicator(
+                          value: v,
+                          strokeWidth: 7,
+                          strokeCap: StrokeCap.round,
+                          backgroundColor: Colors.white.withValues(alpha: 0.22),
+                          valueColor: const AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      ),
+                      Text('${(v * 100).round()}%',
+                          style: GoogleFonts.bricolageGrotesque(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ],
+                  ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: palette.blue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(
-                  '${(progress * 100).toInt()}% COMPLETED',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: palette.blue,
-                  ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pending == 0 ? 'All caught up' : '$pending to go',
+                        style: GoogleFonts.bricolageGrotesque(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, height: 1.05, letterSpacing: -0.5)),
+                    Text('$submitted of $total digital assignments submitted',
+                        style: GoogleFonts.dmSans(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.8))),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: palette.soft,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                progress == 1.0 ? palette.green : palette.blue,
-              ),
-            ),
-          ),
           const SizedBox(height: 14),
-
-          // Metric Stats Row
           Row(
             children: [
-              _buildStatBox('Total DAs', total.toString(), Icons.assignment_outlined, palette.blue, palette),
+              stat(total.toString(), 'Total'),
               const SizedBox(width: 8),
-              _buildStatBox('Submitted', submitted.toString(), Icons.check_circle_rounded, palette.green, palette),
+              stat(submitted.toString(), 'Done'),
               const SizedBox(width: 8),
-              _buildStatBox('Pending', pending.toString(), Icons.hourglass_top_rounded, palette.orange, palette),
+              stat(pending.toString(), 'Pending'),
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStatBox(String label, String value, IconData icon, Color color, AppPalette palette) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: palette.soft,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: palette.line),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 14),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: palette.inkMuted,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    value,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: palette.ink,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -715,7 +657,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(
           color: isExpanded ? palette.blue.withValues(alpha: 0.3) : palette.line,
           width: isExpanded ? 1.2 : 1.0,
@@ -743,7 +685,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                 }
               });
             },
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(28),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -761,7 +703,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                         ),
                         child: Text(
                           courseType.isNotEmpty ? '$courseCode • $courseType' : courseCode,
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                             color: palette.blue,
@@ -792,7 +734,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                               const SizedBox(width: 5),
                               Text(
                                 pendingInCourse > 0 ? '$pendingInCourse DUE' : 'ALL DONE',
-                                style: GoogleFonts.spaceGrotesk(
+                                style: GoogleFonts.bricolageGrotesque(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                   color: pendingInCourse > 0 ? palette.orange : palette.green,
@@ -816,7 +758,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   // Course Title
                   Text(
                     courseTitle,
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: palette.ink,
@@ -833,7 +775,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       Expanded(
                         child: Text(
                           faculty.isNotEmpty ? faculty : 'Faculty not specified',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.dmSans(
                             fontSize: 12,
                             color: palette.inkSoft,
                             fontWeight: FontWeight.w500,
@@ -846,7 +788,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'ID: $classId',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             fontSize: 10,
                             color: palette.inkMuted,
                             fontWeight: FontWeight.w700,
@@ -877,7 +819,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       const SizedBox(height: 10),
                       Text(
                         'Fetching assignment details...',
-                        style: GoogleFonts.inter(fontSize: 12, color: palette.inkMuted),
+                        style: GoogleFonts.dmSans(fontSize: 12, color: palette.inkMuted),
                       ),
                     ],
                   ),
@@ -889,7 +831,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                 child: Center(
                   child: Text(
                     'No individual digital assignments posted for this course.',
-                    style: GoogleFonts.inter(fontSize: 12, color: palette.inkMuted),
+                    style: GoogleFonts.dmSans(fontSize: 12, color: palette.inkMuted),
                   ),
                 ),
               )
@@ -990,7 +932,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: palette.soft,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: palette.line),
       ),
       child: Column(
@@ -1003,7 +945,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: palette.ink,
@@ -1033,7 +975,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                     const SizedBox(width: 4),
                     Text(
                       dueStatus['label'] as String,
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w800,
                         color: dueStatus['color'] as Color,
@@ -1083,7 +1025,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
               Expanded(
                 child: Text(
                   'Due: ${_formatDueDateDisplay(rawDueDate)}',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.dmSans(
                     fontSize: 12,
                     color: palette.inkSoft,
                     fontWeight: FontWeight.w500,
@@ -1465,7 +1407,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                   children: [
                     Text(
                       'Confirm Assignment Re-Upload',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: palette.ink,
@@ -1490,7 +1432,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(6),
                       ],
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 6,
@@ -1499,7 +1441,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       decoration: InputDecoration(
                         counterText: '',
                         hintText: '6-DIGIT OTP',
-                        hintStyle: GoogleFonts.spaceGrotesk(
+                        hintStyle: GoogleFonts.bricolageGrotesque(
                           fontSize: 13,
                           letterSpacing: 2,
                           color: palette.inkMuted,
@@ -1623,7 +1565,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           const SizedBox(width: 4),
           Text(
             text,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               color: palette.inkSoft,

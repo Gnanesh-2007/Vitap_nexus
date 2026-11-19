@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_segmented.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,7 +8,6 @@ import 'package:intl/intl.dart';
 import '../providers/vtop_providers.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/motion/nexus_motion.dart';
 import '../widgets/shadcn/shadcn_ui.dart';
 
 class ExamScheduleScreen extends ConsumerStatefulWidget {
@@ -34,9 +34,6 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   Color get _surface => _palette.surface;
   Color get _ink => _palette.ink;
   Color get _navy => _palette.navy;
-  Color get _blue => _palette.blue;
-  Color get _orange => _palette.orange;
-  Color get _green => _palette.green;
   Color get _muted => _palette.inkMuted;
   Color get _line => _palette.line;
   Color get _soft => _palette.soft;
@@ -105,35 +102,6 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
     return '${diff.inDays} days ago 💾';
   }
 
-  String _computeStatus(String dateStr) {
-    if (dateStr.isEmpty) return 'Upcoming';
-    try {
-      DateTime? examDt;
-      for (final fmt in [
-        DateFormat('dd-MMM-yyyy'),
-        DateFormat('dd/MM/yyyy'),
-        DateFormat('yyyy-MM-dd'),
-        DateFormat('dd-MM-yyyy'),
-        DateFormat('d-MMM-yyyy'),
-        DateFormat('dd-MMM-yy'),
-      ]) {
-        try {
-          examDt = fmt.parse(dateStr.trim());
-          break;
-        } catch (_) {}
-      }
-      if (examDt != null) {
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final examDay = DateTime(examDt.year, examDt.month, examDt.day);
-        if (examDay.isBefore(today)) return 'Completed';
-        if (examDay.isAtSameMomentAs(today)) return 'Today';
-        return 'Upcoming';
-      }
-    } catch (_) {}
-    return 'Upcoming';
-  }
-
   @override
   Widget build(BuildContext context) {
     final examAsync = ref.watch(examScheduleProvider);
@@ -171,7 +139,7 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
   // ── Top Navigation Bar ──
   Widget _buildTopBar(DateTime? lastSyncedTime, bool isRefreshing, List<dynamic> groups) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -180,66 +148,38 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'EXAMINATIONS',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                    color: _orange,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Exam Schedule',
-                  style: GoogleFonts.dmSans(
+                  'Exams',
+                  style: GoogleFonts.bricolageGrotesque(
                     color: _ink,
-                    fontSize: 22,
+                    fontSize: 38,
                     fontWeight: FontWeight.w800,
                     height: 1.05,
+                    letterSpacing: -1,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
-                  'Last Synced: ${_formatLastSynced(lastSyncedTime)}',
-                  style: GoogleFonts.dmSans(
-                    color: _muted,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  _formatLastSynced(lastSyncedTime).replaceAll(' 💾', ''),
+                  style: GoogleFonts.dmSans(color: _muted, fontSize: 12.5, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           ),
-          Material(
-            color: _surface,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: isRefreshing ? null : _onRefresh,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _line),
-                ),
-                child: isRefreshing
-                    ? Center(
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(_navy),
-                          ),
-                        ),
-                      )
-                    : Icon(
-                        Icons.refresh_rounded,
-                        color: _navy,
-                        size: 20,
+          GestureDetector(
+            onTap: isRefreshing ? null : _onRefresh,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(color: _soft, shape: BoxShape.circle),
+              child: isRefreshing
+                  ? Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(_ink)),
                       ),
-              ),
+                    )
+                  : Icon(Icons.refresh_rounded, color: _ink, size: 20),
             ),
           ),
         ],
@@ -247,7 +187,52 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
     );
   }
 
+  DateTime? _parseDate(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final fixed = text.replaceAllMapped(
+      RegExp(r'[A-Za-z]+'),
+      (m) => '${m[0]![0].toUpperCase()}${m[0]!.substring(1).toLowerCase()}',
+    );
+    for (final fmt in [
+      DateFormat('dd-MMM-yyyy', 'en_US'),
+      DateFormat('d-MMM-yyyy', 'en_US'),
+      DateFormat('dd-MMM-yy', 'en_US'),
+      DateFormat('dd/MM/yyyy'),
+      DateFormat('yyyy-MM-dd'),
+      DateFormat('dd-MM-yyyy'),
+    ]) {
+      try {
+        return fmt.parseStrict(fixed);
+      } catch (_) {}
+    }
+    return null;
+  }
+
   // ── Main Content with Filter Tabs ──
+  Widget _buildSegmented(List<dynamic> groups, int validIndex) {
+    final labels = [
+      for (final g in groups) _formatExamType(((g is Map ? g['exam_type'] : null) ?? 'Exam').toString()),
+    ];
+    return AnimatedBuilder(
+      animation: _pager,
+      builder: (context, _) {
+        final page = (_pager.hasClients && _pager.page != null) ? _pager.page! : validIndex.toDouble();
+        return NexusSegmented(
+          labels: labels,
+          position: page,
+          onSelect: (i) {
+            if (_pager.hasClients) {
+              _pager.animateToPage(i, duration: const Duration(milliseconds: 340), curve: Curves.easeOutCubic);
+            } else {
+              setState(() => _selectedCategoryIndex = i);
+            }
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildContent(List<dynamic> groups) {
     if (groups.isEmpty) {
       return ListView(
@@ -314,33 +299,9 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
 
     return Column(
       children: [
-        // Sliding top bar: follows the page swipe live.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
-          child: AnimatedBuilder(
-            animation: _pager,
-            builder: (context, _) {
-              final page = (_pager.hasClients && _pager.page != null)
-                  ? _pager.page!
-                  : validIndex.toDouble();
-              return ShadcnTabs(
-                tabs: tabs,
-                selectedIndex: validIndex,
-                progress: page,
-                onTabSelected: (i) {
-                  if (_pager.hasClients) {
-                    _pager.animateToPage(
-                      i,
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeOutCubic,
-                    );
-                  } else {
-                    setState(() => _selectedCategoryIndex = i);
-                  }
-                },
-              );
-            },
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 2, 20, 14),
+          child: _buildSegmented(groups, validIndex),
         ),
         Expanded(
           child: PageView.builder(
@@ -408,228 +369,146 @@ class _ExamScheduleScreenState extends ConsumerState<ExamScheduleScreen> {
     final seatNumber = (exam['seat_number'] ?? '').toString().trim();
     final reportingTime = (exam['reporting_time'] ?? '').toString().trim();
 
-    // Slot/Session badge text (e.g. "18-Aug-2026 • AN1")
+    final date = _parseDate(examDate);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final days = date == null ? null : DateTime(date.year, date.month, date.day).difference(today).inDays;
+    final isCompleted = days != null && days < 0;
+    final isToday = days == 0;
     final sessionTag = slot.isNotEmpty ? slot : examSession;
-    final dateBadgeText = sessionTag.isNotEmpty
-        ? '$examDate • $sessionTag'
-        : examDate;
 
-    // Status: Completed / Today / Upcoming
-    final status = _computeStatus(examDate);
-    final isCompleted = status == 'Completed';
-    final isToday = status == 'Today';
+    final String countdown = days == null
+        ? ''
+        : isCompleted
+            ? 'Done'
+            : isToday
+                ? 'TODAY'
+                : days == 1
+                    ? 'Tomorrow'
+                    : 'In $days days';
+    final hsl = HSLColor.fromColor(_palette.navy);
+    final base = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).toColor();
+    final urgent = !isCompleted && days != null && days <= 2;
+    final c1 = isCompleted ? _soft : (urgent ? const Color(0xFFE5484D) : base);
+    final c2 = isCompleted ? _soft : (urgent ? const Color(0xFF7A1540) : Color.lerp(base, const Color(0xFF1A0E3A), 0.6)!);
+    final onTop = isCompleted ? _muted : Colors.white;
 
-    final innerContent = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top Row: Date • Slot Pill (Left) & Status Badge (Right)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            if (dateBadgeText.isNotEmpty)
-              ShadcnBadge(
-                label: dateBadgeText,
-                variant: ShadcnBadgeVariant.secondary,
-              )
-            else
-              const SizedBox.shrink(),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isToday) ...[
-                  AnimeRadarWave(
-                    size: 9,
-                    color: _blue,
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                ShadcnBadge(
-                  label: isToday
-                      ? 'TODAY'
-                      : (isCompleted ? 'COMPLETED' : 'UPCOMING'),
-                  icon: isToday
-                      ? Icons.bolt_rounded
-                      : (isCompleted
-                          ? Icons.check_circle_rounded
-                          : Icons.schedule_rounded),
-                  variant: isToday
-                      ? ShadcnBadgeVariant.info
-                      : (isCompleted
-                          ? ShadcnBadgeVariant.success
-                          : ShadcnBadgeVariant.warning),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 15),
-
-        // Course Name & Code
-        Text(
-          courseName,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.dmSans(
-            color: _ink,
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            height: 1.25,
-          ),
-        ),
-        if (courseCode.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          ShadcnBadge(
-            label: courseCode,
-            variant: ShadcnBadgeVariant.outline,
-          ),
-        ],
-        const SizedBox(height: 16),
-
-        // 2x2 Details Grid (Time, Venue, Seat Location, Seat Number)
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left Column (Time & Seat Location)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildFieldMetric(
-                    icon: Icons.access_time_rounded,
-                    label: 'Time',
-                    value: examTime.isNotEmpty ? examTime : '—',
-                  ),
-                  const SizedBox(height: 14),
-                  _buildFieldMetric(
-                    icon: Icons.event_seat_rounded,
-                    label: 'Seat Location',
-                    value: seatLocation.isNotEmpty ? seatLocation : '—',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 14),
-
-            // Right Column (Venue & Seat Number)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildFieldMetric(
-                    icon: Icons.location_on_rounded,
-                    label: 'Venue',
-                    value: venue.isNotEmpty ? venue : '—',
-                  ),
-                  const SizedBox(height: 14),
-                  _buildFieldMetric(
-                    icon: Icons.tag_rounded,
-                    label: 'Seat Number',
-                    value: seatNumber.isNotEmpty ? seatNumber : '—',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        // Bottom Reporting Inset Capsule
-        if (reportingTime.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 10,
-            ),
-            decoration: BoxDecoration(
-              color: _soft,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _line),
-            ),
+    Widget detail(IconData icon, String label, String value) => value.isEmpty || value == '-'
+        ? const SizedBox.shrink()
+        : SizedBox(
+            width: 138,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.access_time_rounded,
-                  size: 15,
-                  color: _navy,
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(color: _soft, borderRadius: BorderRadius.circular(10)),
+                  child: Icon(icon, size: 15, color: _ink),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Reporting: $reportingTime',
-                  style: GoogleFonts.spaceGrotesk(
-                    color: _ink,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label.toUpperCase(),
+                          style: GoogleFonts.dmSans(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: _muted)),
+                      Text(value,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, color: _ink, height: 1.2)),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ],
-    );
-
-    final Widget cardWidget = isToday
-        ? KokonutShineCard(
-            borderRadius: 18,
-            padding: const EdgeInsets.all(18),
-            isShining: true,
-            shineColors: [
-              _blue,
-              _green,
-              _orange,
-              _navy,
-            ],
-            child: innerContent,
-          )
-        : ShadcnCard(
-            borderRadius: 18,
-            padding: const EdgeInsets.all(18),
-            child: innerContent,
           );
 
-    return cardWidget;
-  }
-
-  Widget _buildFieldMetric({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
+    return Opacity(
+      opacity: isCompleted ? 0.62 : 1,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: _line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 14, color: _muted),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: GoogleFonts.spaceGrotesk(
-                color: _muted,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]),
+              ),
+              child: Row(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        date == null ? '--' : '${date.day}',
+                        style: GoogleFonts.bricolageGrotesque(fontSize: 46, fontWeight: FontWeight.w800, color: onTop, height: 0.95, letterSpacing: -1.5),
+                      ),
+                      Text(
+                        date == null ? examDate : '${DateFormat('MMM').format(date).toUpperCase()}  ·  ${DateFormat('EEE').format(date).toUpperCase()}',
+                        style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: onTop.withValues(alpha: 0.85)),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (countdown.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(color: isCompleted ? _line : Colors.white, borderRadius: BorderRadius.circular(16)),
+                          child: Text(countdown,
+                              style: GoogleFonts.bricolageGrotesque(
+                                  fontSize: 13.5, fontWeight: FontWeight.w800, color: isCompleted ? _muted : (urgent ? const Color(0xFFB4232A) : base))),
+                        ),
+                      if (sessionTag.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(sessionTag, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w800, color: onTop.withValues(alpha: 0.9))),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(courseName,
+                      style: GoogleFonts.bricolageGrotesque(fontSize: 19, fontWeight: FontWeight.w800, color: _ink, height: 1.12, letterSpacing: -0.3)),
+                  if (courseCode.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(courseCode, style: GoogleFonts.dmSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: _muted)),
+                  ],
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 12,
+                    children: [
+                      detail(Icons.schedule_rounded, 'Time', examTime),
+                      detail(Icons.alarm_rounded, 'Report by', reportingTime),
+                      detail(Icons.apartment_rounded, 'Venue', venue),
+                      detail(Icons.meeting_room_rounded, 'Room', seatLocation),
+                      detail(Icons.event_seat_rounded, 'Seat', seatNumber),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: 3),
-        Text(
-          value,
-          style: GoogleFonts.dmSans(
-            color: _ink,
-            fontSize: 13.5,
-            fontWeight: FontWeight.w700,
-            height: 1.25,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  // ── Loading state ──
   Widget _buildLoading() {
     return Center(
       child: Column(

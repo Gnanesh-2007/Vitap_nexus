@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -10,6 +11,9 @@ import '../utils/error_formatter.dart';
 import '../widgets/shadcn/shadcn_ui.dart';
 import '../widgets/motion/nexus_motion.dart';
 import 'cgpa_calculator_screen.dart';
+import 'journey_screen.dart';
+import '../journey/journey_widgets.dart';
+import '../utils/academic_report.dart';
 
 class GradesScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -41,7 +45,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
   Color get _line => _palette.line;
   Color get _soft => _palette.soft;
 
-  TextStyle get _micro => GoogleFonts.spaceGrotesk(
+  TextStyle get _micro => GoogleFonts.bricolageGrotesque(
         fontSize: 9,
         fontWeight: FontWeight.w700,
         letterSpacing: 1,
@@ -339,6 +343,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     }
 
     final searchQuery = _searchController.text.trim().toLowerCase();
+    final searchQueryIsEmpty = searchQuery.isEmpty;
     if (searchQuery.isNotEmpty) {
       filteredCourses = filteredCourses.where((c) {
         final code = (c['course_code'] ?? '').toString().toLowerCase();
@@ -368,6 +373,15 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             ),
           ),
         ),
+
+        // Semester trend: the story behind the number, one tap from the full journey
+        if (_selectedSemester == 'All' && searchQueryIsEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: _buildTrendCard(data),
+            ),
+          ),
 
         // Interactive Grade Distribution Strip
         if (semFilteredCourses.isNotEmpty)
@@ -429,7 +443,10 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                                     sem,
                               )
                               .toList();
-                          return _buildSemesterGroup(sem, semCourses);
+                          final prev = index > 0
+                              ? _semesterGpaValue(allCourses, semesters[index - 1])
+                              : null;
+                          return _buildSemesterGroup(sem, semCourses, previousGpa: prev);
                         },
                         childCount: semesters.length,
                       ),
@@ -454,112 +471,34 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: () => Navigator.of(context).pop(),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _line),
-              ),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                color: _navy,
-                size: 19,
-              ),
-            ),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ACADEMIC TRANSCRIPT',
-                  style: _micro.copyWith(color: _orange),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Grades & CGPA',
-                  style: GoogleFonts.dmSans(
-                    color: _ink,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Tooltip(
-            message: 'CGPA & GPA Calculator',
-            child: InkWell(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const CgpaCalculatorScreen(),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                height: 40,
-                padding: const EdgeInsets.symmetric(horizontal: 11),
-                decoration: BoxDecoration(
-                  color: _surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _line),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.calculate_outlined,
-                      color: _blue,
-                      size: 17,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      'Calc',
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: _ink,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          InkWell(
-            onTap: () => setState(() => _fetchGrades(forceRefresh: true)),
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _line),
-              ),
-              child: Icon(
-                Icons.refresh_rounded,
-                color: _navy,
-                size: 18,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return NexusAppBar(
+      title: 'Grades',
+      subtitle: 'Transcript and CGPA',
+      actions: [
+        IconButton(
+          tooltip: 'Academic journey',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const JourneyScreen()),
+            );
+          },
+          icon: const Icon(Icons.timeline_rounded),
+        ),
+        IconButton(
+          tooltip: 'CGPA & GPA calculator',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CgpaCalculatorScreen()),
+            );
+          },
+          icon: const Icon(Icons.calculate_rounded),
+        ),
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: () => setState(() => _fetchGrades(forceRefresh: true)),
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
     );
   }
 
@@ -596,11 +535,15 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _palette.heroBg,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: _palette.isDark ? _line : const Color(0xFF172B4D),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            HSLColor.fromColor(_blue).withLightness(HSLColor.fromColor(_blue).lightness.clamp(0.0, 0.40)).toColor(),
+            Color.lerp(HSLColor.fromColor(_blue).withLightness(HSLColor.fromColor(_blue).lightness.clamp(0.0, 0.40)).toColor(), const Color(0xFF16102E), 0.74)!,
+          ],
         ),
+        borderRadius: BorderRadius.circular(34),
         boxShadow: const [
           BoxShadow(
             color: Color(0x17172B4D),
@@ -638,7 +581,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     const SizedBox(width: 5),
                     Text(
                       standingLabel,
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         color: standingColor,
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
@@ -723,7 +666,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             ),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: .06),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: Colors.white.withValues(alpha: .10),
               ),
@@ -751,7 +694,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     const Spacer(),
                     Text(
                       '$earned / $registered',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         color: Colors.white,
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -777,6 +720,117 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildTrendCard(Map<String, dynamic> data) {
+    final report = AcademicReport.build(data);
+    final sems = report.semesters;
+    if (sems.length < 2) return const SizedBox.shrink();
+
+    final best = report.best;
+    final last = sems.last;
+    final delta = last.delta;
+
+    Widget chip(IconData icon, String text, Color color) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(color.withValues(alpha: 0.12), _surface),
+            borderRadius: BorderRadius.circular(99),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 5),
+              Text(
+                text,
+                style: GoogleFonts.dmSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: color),
+              ),
+            ],
+          ),
+        );
+
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => JourneyScreen(initialData: data)),
+        );
+      },
+      borderRadius: BorderRadius.circular(28),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: _line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'SEMESTER TREND',
+                  style: _micro.copyWith(color: _muted, fontSize: 8.5),
+                ),
+                const Spacer(),
+                Text(
+                  'Open journey',
+                  style: GoogleFonts.dmSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: _blue),
+                ),
+                Icon(Icons.chevron_right_rounded, size: 18, color: _blue),
+              ],
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 150,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 1000),
+                curve: Curves.linear,
+                builder: (_, t, _) => CustomPaint(
+                  size: Size.infinite,
+                  painter: TrendChartPainter(
+                    semesters: sems,
+                    progress: t,
+                    accent: _blue,
+                    ink: _ink,
+                    muted: _muted,
+                    grid: _line,
+                    highlight: best?.label,
+                    labelScale: 0.85,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                if (best != null)
+                  chip(Icons.emoji_events_outlined, 'Best ${shortSemester(best.label)}  ${best.gpa!.toStringAsFixed(2)}', _blue),
+                if (delta != null)
+                  chip(
+                    delta >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                    '${delta >= 0 ? '+' : '-'}${delta.abs().toStringAsFixed(2)} last semester',
+                    delta >= 0 ? _green : _red,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// GPA of one semester, or null when it has no graded credits.
+  double? _semesterGpaValue(List<dynamic> all, String semester) {
+    final list = all
+        .where((c) => (c['exam_month']?.toString() ?? '').trim() == semester)
+        .toList();
+    return double.tryParse(_calculateStats(list)['gpa'].toString());
   }
 
   Widget _buildGradeDistributionCard(List<dynamic> courses) {
@@ -806,7 +860,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: _line),
       ),
       child: Column(
@@ -834,6 +888,28 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             ],
           ),
           const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: SizedBox(
+              height: 8,
+              child: Row(
+                children: [
+                  for (var i = 0; i < activeEntries.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 2),
+                    Expanded(
+                      flex: activeEntries[i].value,
+                      child: Container(
+                        color: _getGradeColor(activeEntries[i].key).withValues(
+                          alpha: _selectedGrade == null || _selectedGrade == activeEntries[i].key ? 1 : 0.25,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -876,7 +952,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                         children: [
                           Text(
                             g,
-                            style: GoogleFonts.spaceGrotesk(
+                            style: GoogleFonts.bricolageGrotesque(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                               color: color,
@@ -894,7 +970,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                             ),
                             child: Text(
                               '$count',
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
                                 color: _ink,
@@ -988,7 +1064,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     ),
                     child: Text(
                       '$count',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w800,
                         color: isSelected
@@ -1058,7 +1134,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
           ),
           child: Text(
             '$count COURSES',
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               color: _navy,
               fontSize: 7.5,
               fontWeight: FontWeight.w800,
@@ -1070,7 +1146,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
     );
   }
 
-  Widget _buildSemesterGroup(String semester, List<dynamic> semCourses) {
+  Widget _buildSemesterGroup(String semester, List<dynamic> semCourses, {double? previousGpa}) {
     final stats = _calculateStats(semCourses);
 
     return Container(
@@ -1084,7 +1160,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
               color: _soft,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(color: _line),
             ),
             child: Row(
@@ -1105,7 +1181,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'SGPA: ',
+                  'SGPA ',
                   style: GoogleFonts.dmSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -1114,15 +1190,33 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 ),
                 Text(
                   stats['gpa'],
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 12,
+                  style: GoogleFonts.bricolageGrotesque(
+                    fontSize: 13,
                     fontWeight: FontWeight.w800,
                     color: _navy,
                   ),
                 ),
-                const SizedBox(width: 6),
+                if (previousGpa != null && double.tryParse(stats['gpa'].toString()) != null) ...[
+                  const SizedBox(width: 7),
+                  Builder(builder: (context) {
+                    final d = double.parse(stats['gpa'].toString()) - previousGpa;
+                    final up = d >= 0;
+                    final c = up ? _green : _red;
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(up ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 11, color: c),
+                        Text(
+                          d.abs().toStringAsFixed(2),
+                          style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w800, color: c),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
+                const SizedBox(width: 8),
                 Text(
-                  '• ${semCourses.length}',
+                  '${semCourses.length} ${semCourses.length == 1 ? 'course' : 'courses'}',
                   style: GoogleFonts.dmSans(
                     fontSize: 10.5,
                     color: _inkSoft,
@@ -1191,7 +1285,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
             height: 56,
             decoration: BoxDecoration(
               color: color.withValues(alpha: .11),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(22),
               border: Border.all(
                 color: color.withValues(alpha: .35),
                 width: 1.2,
@@ -1202,7 +1296,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
               children: [
                 Text(
                   grade,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     color: color,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -1213,7 +1307,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                   const SizedBox(height: 3),
                   Text(
                     '$gp GP',
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       color: color.withValues(alpha: 0.85),
                       fontSize: 8.5,
                       fontWeight: FontWeight.w800,
@@ -1322,7 +1416,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
           decoration: BoxDecoration(
             color: _surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
             border: Border(top: BorderSide(color: _line, width: 1.2)),
           ),
           child: Column(
@@ -1348,13 +1442,13 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                     height: 58,
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(28),
                       border: Border.all(color: color.withValues(alpha: 0.4)),
                     ),
                     child: Center(
                       child: Text(
                         grade,
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           color: color,
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
@@ -1369,7 +1463,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                       children: [
                         Text(
                           code,
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w800,
                             color: _blue,
@@ -1396,7 +1490,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: _soft,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(28),
                   border: Border.all(color: _line),
                 ),
                 child: Column(
@@ -1455,7 +1549,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               fontSize: 13,
               fontWeight: FontWeight.w800,
               color: valueColor ?? _ink,
@@ -1471,7 +1565,7 @@ class _GradesScreenState extends ConsumerState<GradesScreen> {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: _line),
       ),
       child: Column(
@@ -1634,7 +1728,7 @@ class _HeroMetric extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               color: Colors.white54,
               fontSize: 7.5,
               fontWeight: FontWeight.w700,
@@ -1678,7 +1772,7 @@ class _Pill extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: GoogleFonts.spaceGrotesk(
+        style: GoogleFonts.bricolageGrotesque(
           color: color,
           fontSize: 8,
           fontWeight: FontWeight.w700,

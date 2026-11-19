@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../widgets/nexus_segmented.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -322,7 +324,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
       isScrollControlled: true,
       backgroundColor: _surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (modalCtx) {
         return SafeArea(
@@ -345,9 +347,10 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 const SizedBox(height: 18),
                 Text(
                   title,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 19,
+                  style: GoogleFonts.bricolageGrotesque(
+                    fontSize: 26,
                     fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
                     color: _ink,
                   ),
                 ),
@@ -365,8 +368,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
                     color: _soft,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _line),
+                    borderRadius: BorderRadius.circular(26),
                   ),
                   child: Column(
                     children: [
@@ -705,8 +707,20 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
               // Outing Type Toggle (Weekend | General)
               _buildSegmentedToggle(),
 
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
+              _buildPassPreview(isWeekend),
+              const SizedBox(height: 16),
 
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(32),
+                  border: Border.all(color: _line),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               if (isWeekend) ...[
                 // 1. Time Slot Choice Chips (OutingConstants.outingTimeSlots)
                 _buildFieldLabel('Time slot'),
@@ -927,12 +941,15 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   ],
                 ),
               ],
+                  ],
+                ),
+              ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 22),
 
               // Primary Apply Button
               SizedBox(
-                height: 52,
+                height: 58,
                 child: FilledButton(
                   onPressed: _isSubmitting ? null : _handleApplyPressed,
                   style: FilledButton.styleFrom(
@@ -940,7 +957,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                     foregroundColor:
                         _palette.isDark ? const Color(0xFF0F172A) : Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(29),
                     ),
                   ),
                   child: _isSubmitting
@@ -955,10 +972,11 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                           ),
                         )
                       : Text(
-                          'Apply',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 15,
+                          'Apply for outing',
+                          style: GoogleFonts.bricolageGrotesque(
+                            fontSize: 17,
                             fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
                           ),
                         ),
                 ),
@@ -968,14 +986,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
               // Secondary Button: View outing history
               SizedBox(
-                height: 50,
+                height: 54,
                 child: OutlinedButton.icon(
                   onPressed: () => setState(() => _showHistory = true),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _ink,
                     side: BorderSide(color: _line, width: 1.4),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(27),
                     ),
                   ),
                   icon: const Icon(Icons.history_rounded, size: 18),
@@ -995,13 +1013,67 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     );
   }
 
+  /// A small ticket that shows what you are about to apply for, live.
+  Widget _buildPassPreview(bool isWeekend) {
+    final hsl = HSLColor.fromColor(_navy);
+    final top = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).withSaturation(hsl.saturation.clamp(0.5, 1.0)).toColor();
+    final bottom = Color.lerp(top, const Color(0xFF16102E), 0.72)!;
+    final from = isWeekend ? _outingDate : _leavingDate;
+    final place = isWeekend
+        ? (_selectedWeekendPlace == 'Others' ? 'Other place' : _selectedWeekendPlace)
+        : (_generalPlaceController.text.trim().isEmpty ? 'Where to?' : _generalPlaceController.text.trim());
+    final subtitle = isWeekend
+        ? _selectedWeekendSlot
+        : 'Back ${DateFormat('d MMM').format(_returningDate)}';
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [top, bottom]),
+        boxShadow: [BoxShadow(color: top.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 9))],
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${from.day}',
+                  style: GoogleFonts.bricolageGrotesque(fontSize: 44, fontWeight: FontWeight.w800, color: Colors.white, height: 0.95, letterSpacing: -1.5)),
+              Text('${DateFormat('MMM').format(from).toUpperCase()}  ·  ${DateFormat('EEE').format(from).toUpperCase()}',
+                  style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: Colors.white70)),
+            ],
+          ),
+          const Spacer(),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(isWeekend ? 'WEEKEND OUTING' : 'GENERAL OUTING',
+                    style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: Colors.white70)),
+                const SizedBox(height: 4),
+                Text(place,
+                    maxLines: 2,
+                    textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.bricolageGrotesque(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1)),
+                const SizedBox(height: 3),
+                Text(subtitle, style: GoogleFonts.dmSans(fontSize: 12, color: Colors.white.withValues(alpha: 0.82))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFieldLabel(String text) {
     return Text(
       text,
-      style: GoogleFonts.dmSans(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: _inkSoft,
+      style: GoogleFonts.bricolageGrotesque(
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.2,
+        color: _ink,
       ),
     );
   }
@@ -1014,14 +1086,14 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
     final selectedFg = _palette.isDark ? const Color(0xFF0F172A) : Colors.white;
     return Material(
       color: selected ? _navy : _soft,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: selected ? _navy : _line,
             ),
@@ -1049,44 +1121,29 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }
 
   Widget _buildApplyHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              'Outing',
-              style: GoogleFonts.dmSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Outing History',
-            onPressed: () => setState(() => _showHistory = true),
-            icon: Icon(Icons.history_rounded, size: 22, color: _ink),
-          ),
-        ],
-      ),
+    return NexusAppBar(
+      title: 'Outing',
+      subtitle: 'Apply for a pass',
+      actions: [
+        IconButton(
+          tooltip: 'Outing History',
+          onPressed: () => setState(() => _showHistory = true),
+          icon: const Icon(Icons.history_rounded),
+        ),
+      ],
     );
   }
 
   Widget _buildSegmentedToggle() {
-    return ShadcnTabs(
-      tabs: const [
-        ShadcnTab(label: 'Weekend', icon: Icons.weekend_rounded),
-        ShadcnTab(label: 'General', icon: Icons.directions_walk_rounded),
-      ],
-      selectedIndex: _outingType == 'weekend' ? 0 : 1,
-      onTabSelected: (i) =>
-          setState(() => _outingType = i == 0 ? 'weekend' : 'general'),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: _outingType == 'weekend' ? 0.0 : 1.0),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (_, pos, _) => NexusSegmented(
+        labels: const ['Weekend', 'General'],
+        position: pos,
+        onSelect: (i) => setState(() => _outingType = i == 0 ? 'weekend' : 'general'),
+      ),
     );
   }
 
@@ -1101,7 +1158,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
         color: _soft,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _line),
       ),
       alignment: Alignment.centerLeft,
@@ -1135,13 +1192,13 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(24),
       child: Container(
         height: 54,
         padding: const EdgeInsets.symmetric(horizontal: 18),
         decoration: BoxDecoration(
           color: _soft,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: _line),
         ),
         child: Row(
@@ -1170,13 +1227,13 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(24),
       child: Container(
         height: 54,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: _soft,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: _line),
         ),
         child: Row(
@@ -1208,34 +1265,16 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
     return Column(
       children: [
-        // Header with Back arrow
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () => setState(() => _showHistory = false),
-                icon: Icon(Icons.arrow_back_rounded, size: 24, color: _ink),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  historyTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: _ink,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () => setState(_loadOutings),
-                icon: Icon(Icons.refresh_rounded, size: 22, color: _ink),
-              ),
-            ],
-          ),
+        NexusAppBar(
+          title: 'History',
+          subtitle: historyTitle,
+          onBack: () => setState(() => _showHistory = false),
+          actions: [
+            IconButton(
+              onPressed: () => setState(_loadOutings),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
         ),
 
         // Type Switcher in History View
@@ -1511,7 +1550,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: NexusCard(
         variant: NexusCardVariant.standard,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         borderColor: isToday ? _blue : _line,
         onTap: () => _openOutingDetailsModal(req, isWeekend),
         child: Column(
@@ -1533,7 +1572,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: _soft,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -1546,7 +1585,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                             const SizedBox(width: 5),
                             Text(
                               formattedDate,
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: _ink,
@@ -1565,11 +1604,11 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                             color: isToday
                                 ? _blue
                                 : _blue.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Text(
                             isToday ? 'TODAY' : 'UPCOMING',
-                            style: GoogleFonts.spaceGrotesk(
+                            style: GoogleFonts.bricolageGrotesque(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w800,
                               color: isToday ? Colors.white : _blue,
@@ -1587,7 +1626,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: statusBg,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1603,7 +1642,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       const SizedBox(width: 5),
                       Text(
                         _getStatusShortText(status),
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           color: statusColor,
@@ -1660,7 +1699,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   Expanded(
                     child: Text(
                       outTime,
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: _ink,
@@ -1677,7 +1716,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                   Expanded(
                     child: Text(
                       '$outDate $outTime  →  $toDate $toTime',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                         color: _ink,
@@ -1695,7 +1734,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: _soft,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: _line),
                 ),
                 child: Row(
@@ -1705,7 +1744,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                     const SizedBox(width: 5),
                     Text(
                       'Pass available',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: _navy,
@@ -1792,7 +1831,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
       isScrollControlled: true,
       backgroundColor: _surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (modalCtx) {
         return StatefulBuilder(
@@ -1876,23 +1915,29 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
 
                       // Header Banner (modeled after vitap_student_app_ref detail bottom sheet)
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: _soft,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: _line),
+                          borderRadius: BorderRadius.circular(28),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              HSLColor.fromColor(statusColor).withLightness(HSLColor.fromColor(statusColor).lightness.clamp(0.0, 0.40)).toColor(),
+                              Color.lerp(HSLColor.fromColor(statusColor).withLightness(HSLColor.fromColor(statusColor).lightness.clamp(0.0, 0.40)).toColor(), const Color(0xFF16102E), 0.72)!,
+                            ],
+                          ),
                         ),
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Icon(
                                 statusIcon,
-                                color: statusColor,
+                                color: Colors.white,
                                 size: 24,
                               ),
                             ),
@@ -1903,10 +1948,11 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                                 children: [
                                   Text(
                                     isWeekend ? 'Weekend Outing' : 'General Outing',
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 16,
+                                    style: GoogleFonts.bricolageGrotesque(
+                                      fontSize: 20,
                                       fontWeight: FontWeight.w800,
-                                      color: _ink,
+                                      letterSpacing: -0.4,
+                                      color: Colors.white,
                                     ),
                                   ),
                                   if (purpose.isNotEmpty && purpose != '-') ...[
@@ -1917,7 +1963,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.dmSans(
                                         fontSize: 13,
-                                        color: _inkSoft,
+                                        color: Colors.white70,
                                       ),
                                     ),
                                   ],
@@ -1931,15 +1977,15 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                                 vertical: 5,
                               ),
                               decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.15),
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Text(
                                 _getStatusShortText(status),
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 11,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w800,
-                                  color: statusColor,
+                                  color: HSLColor.fromColor(statusColor).withLightness(HSLColor.fromColor(statusColor).lightness.clamp(0.0, 0.40)).toColor(),
                                 ),
                               ),
                             ),
@@ -2043,7 +2089,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                       if (canDownload) ...[
                         SizedBox(
                           width: double.infinity,
-                          height: 48,
+                          height: 54,
                           child: FilledButton.icon(
                             onPressed: isBusy
                                 ? null
@@ -2052,7 +2098,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                               backgroundColor: _green,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(27),
                               ),
                             ),
                             icon: activePdfAction == 'view'
@@ -2079,7 +2125,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                         const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
-                          height: 48,
+                          height: 54,
                           child: OutlinedButton.icon(
                             onPressed: isBusy
                                 ? null
@@ -2088,7 +2134,7 @@ class _OutingsScreenState extends ConsumerState<OutingsScreen> {
                               foregroundColor: _green,
                               side: BorderSide(color: _green, width: 1.5),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(27),
                               ),
                             ),
                             icon: activePdfAction == 'download'

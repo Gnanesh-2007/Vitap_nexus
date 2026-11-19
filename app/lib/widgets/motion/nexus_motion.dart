@@ -267,7 +267,7 @@ class _KokonutRollingNumberState extends State<KokonutRollingNumber>
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final defaultStyle = GoogleFonts.spaceGrotesk(
+    final defaultStyle = GoogleFonts.bricolageGrotesque(
       fontSize: 22,
       fontWeight: FontWeight.w800,
       color: palette.ink,
@@ -487,7 +487,7 @@ class BklitGaugeMeter extends StatelessWidget {
                   children: [
                     Text(
                       '${clamped.toStringAsFixed(1)}%',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: size * 0.2,
                         fontWeight: FontWeight.w900,
                         color: progressColor,
@@ -496,7 +496,7 @@ class BklitGaugeMeter extends StatelessWidget {
                     ),
                     Text(
                       clamped >= targetPercentage ? 'SAFE ZONE' : 'ATTENTION REQUIRED',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 8.5,
                         fontWeight: FontWeight.w800,
                         color: clamped >= targetPercentage ? palette.green : palette.red,

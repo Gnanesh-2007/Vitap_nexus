@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -283,33 +284,7 @@ class _FacultyScreenState extends ConsumerState<FacultyScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header: Back arrow + "Faculties" styled with AppPalette
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.arrow_back_rounded,
-                      color: palette.ink,
-                      size: 24,
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'Faculties',
-                      style: GoogleFonts.spaceGrotesk(
-                        color: palette.ink,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const NexusAppBar(title: 'Faculty', subtitle: 'Find and contact faculty'),
 
             // Search bar: Rounded stadium outline styled with AppPalette
             Padding(
@@ -464,30 +439,36 @@ class _FacultyScreenState extends ConsumerState<FacultyScreen> {
         final initial = name.isNotEmpty ? name[0].toUpperCase() : 'F';
         final accent = avatarAccents[index % avatarAccents.length];
 
-        return InkWell(
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Material(
+            color: palette.surface,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+              side: BorderSide(color: palette.line),
+            ),
+            child: InkWell(
           onTap: () => _showFacultyDetailsSheet(fac),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.all(14),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: palette.isDark ? 0.2 : 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.3),
-                    ),
+                    color: accent.withValues(alpha: palette.isDark ? 0.22 : 0.14),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     initial,
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       color: accent,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -500,10 +481,11 @@ class _FacultyScreenState extends ConsumerState<FacultyScreen> {
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           color: palette.ink,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                          letterSpacing: -0.2,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       if (designation.isNotEmpty) ...[
@@ -538,7 +520,9 @@ class _FacultyScreenState extends ConsumerState<FacultyScreen> {
               ],
             ),
           ),
-        );
+        ),
+      ),
+    );
       },
     );
   }
@@ -712,7 +696,7 @@ class _FacultyDetailsSheetState extends ConsumerState<_FacultyDetailsSheet> {
       ),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         border: Border(top: BorderSide(color: palette.line, width: 1.2)),
         boxShadow: palette.elevatedShadow,
       ),
@@ -727,7 +711,7 @@ class _FacultyDetailsSheetState extends ConsumerState<_FacultyDetailsSheet> {
                 Expanded(
                   child: Text(
                     name,
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       color: palette.ink,
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
@@ -831,7 +815,7 @@ class _FacultyDetailsSheetState extends ConsumerState<_FacultyDetailsSheet> {
       children: [
         Text(
           title,
-          style: GoogleFonts.spaceGrotesk(
+          style: GoogleFonts.bricolageGrotesque(
             color: palette.ink,
             fontSize: 15,
             fontWeight: FontWeight.w700,

@@ -540,7 +540,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             children: [
               Text(
                 _getGreeting(),
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: _inkMuted,
@@ -627,7 +627,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       children: [
         Text(
           DateFormat('EEE').format(now).toUpperCase(),
-          style: GoogleFonts.spaceGrotesk(
+          style: GoogleFonts.bricolageGrotesque(
             fontSize: 11,
             fontWeight: FontWeight.w800,
             color: _orange,
@@ -716,7 +716,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       : (lastSynced != null
                           ? 'SYNC • ${StorageService.formatLastSynced(lastSynced).toUpperCase()}'
                           : 'SYNC NOW'),
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                     color: isSyncing ? _blue : _inkSoft,
@@ -774,7 +774,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     const SizedBox(width: 4),
                     Text(
                       'LIVE',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
                         color: _green,
@@ -1120,7 +1120,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               const SizedBox(width: 6),
               Text(
                 '${pct.toStringAsFixed(0)}%  ·  $bufferText',
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: isOngoing ? foreground : tone,
@@ -1163,7 +1163,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     Expanded(
                       child: Text(
                         overline.isEmpty ? 'CLASS' : overline.toUpperCase(),
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 11.5,
                           color: muted,
                           letterSpacing: 0.8,
@@ -1306,7 +1306,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       ),
       child: Text(
         label,
-        style: GoogleFonts.spaceGrotesk(
+        style: GoogleFonts.bricolageGrotesque(
           fontSize: 10.5,
           color: fg,
           fontWeight: FontWeight.w700,
@@ -1370,7 +1370,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 width: 74,
                 child: Text(
                   VtopHelpers.formatTo12Hour(occurrence.startTime),
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 12.5,
                     color: isOngoing ? _blue : _inkSoft,
                     fontWeight: FontWeight.w700,
@@ -1407,7 +1407,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             ),
                             child: Text(
                               '${attPct.toStringAsFixed(0)}%',
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w700,
                                 color: attPct >= 75 ? _green : _orange,
@@ -1421,7 +1421,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                             constraints: const BoxConstraints(maxWidth: 82),
                             child: Text(
                               venue,
-                              style: GoogleFonts.spaceGrotesk(
+                              style: GoogleFonts.bricolageGrotesque(
                                 fontSize: 11.5,
                                 color: _inkSoft,
                                 fontWeight: FontWeight.w600,
@@ -1716,7 +1716,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         const SizedBox(width: 6),
                         Text(
                           _isNextDayPreviewOpen ? 'Hide' : 'Preview',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: _blue,
@@ -1852,7 +1852,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       isScrollControlled: true,
       backgroundColor: _surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (sheetCtx) {
         return SingleChildScrollView(
@@ -1903,7 +1903,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                               children: [
                                 Text(
                                   'ATTENDANCE',
-                                  style: GoogleFonts.spaceGrotesk(
+                                  style: GoogleFonts.bricolageGrotesque(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w700,
                                     color: _inkMuted,
@@ -1915,7 +1915,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                   children: [
                                     Text(
                                       '${attPct.toStringAsFixed(1)}%',
-                                      style: GoogleFonts.spaceGrotesk(
+                                      style: GoogleFonts.bricolageGrotesque(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
                                         color: attPct >= 75 ? _green : _orange,
@@ -1976,7 +1976,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                     children: [
                                       Text(
                                         'MARKS SCORED',
-                                        style: GoogleFonts.spaceGrotesk(
+                                        style: GoogleFonts.bricolageGrotesque(
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.w700,
                                           color: _inkMuted,
@@ -1994,7 +1994,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                                   const SizedBox(height: 4),
                                   Text(
                                     '${gainedWt.toStringAsFixed(1)} / ${testedWt.toStringAsFixed(0)} wt',
-                                    style: GoogleFonts.spaceGrotesk(
+                                    style: GoogleFonts.bricolageGrotesque(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w800,
                                       color: _ink,
@@ -2147,7 +2147,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               children: [
                 Text(
                   _isQuickAccessExpanded ? 'SHOW LESS' : 'VIEW ALL ($total)',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 8.5,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
@@ -2292,7 +2292,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     return Center(
       child: Text(
         'VIT-AP  •  VTOP NEXUS',
-        style: GoogleFonts.spaceGrotesk(
+        style: GoogleFonts.bricolageGrotesque(
           fontSize: 8,
           fontWeight: FontWeight.w700,
           color: _inkMuted,
@@ -2344,7 +2344,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   children: [
                     Text(
                       _getGreeting(),
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
@@ -2694,7 +2694,7 @@ class _ErrorView extends StatelessWidget {
               ),
               label: Text(
                 'TRY AGAIN',
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1,

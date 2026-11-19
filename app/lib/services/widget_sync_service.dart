@@ -36,7 +36,7 @@ class WidgetSyncService {
   static int? _accent;
   static String? _lastWritten;
 
-  static void update({
+  static Future<void> update({
     Map<String, dynamic>? timetable,
     List<dynamic>? attendance,
     List<dynamic>? exams,
@@ -46,7 +46,7 @@ class WidgetSyncService {
     if (attendance != null) _attendance = attendance;
     if (exams != null) _exams = exams;
     if (accent != null) _accent = accent;
-    _flush();
+    return _flush();
   }
 
   static Future<void> clear() async {
@@ -70,7 +70,7 @@ class WidgetSyncService {
           if (old != null) _accent = (jsonDecode(old) as Map)['accent'] as int?;
         } catch (_) {}
       }
-      final json = jsonEncode(_build());
+      final json = jsonEncode(_build(prefs));
       if (json == _lastWritten) return;
       _lastWritten = json;
       await prefs.setString(_snapshotKey, json);
@@ -82,9 +82,13 @@ class WidgetSyncService {
     }
   }
 
-  static Map<String, dynamic> _build() {
+  static Map<String, dynamic> _build([SharedPreferences? prefs]) {
     return {
       'v': 2,
+      'char': prefs?.getString('widget_character_mode') ?? 'naruto',
+      'charv': prefs?.getInt('widget_character_v') ?? 0,
+      'tint': prefs?.getInt('widget_tint'),
+      'glass': prefs?.getInt('widget_glass') ?? 0,
       'accent': _accent,
       'days': _buildDays(),
       'att': _buildAttendance(),
@@ -160,38 +164,76 @@ class WidgetSyncService {
     };
   }
 
-  static List<Map<String, dynamic>> _buildExams() {
+  /// VTOP hands over exams as groups (CAT 1, CAT 2, FAT), each with its own
+  /// `subjects`. Older cached data may still be a flat list of exams, so both
+  /// shapes are accepted. Anything else is skipped rather than trusted.
+  static Iterable<Map<String, dynamic>> _flattenExams(List<dynamic> raw) sync* {
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final subjects = entry['subjects'];
+      if (subjects is List) {
+        final type = (entry['exam_type'] ?? '').toString().trim();
+        for (final s in subjects) {
+          if (s is! Map) continue;
+          yield {...Map<String, dynamic>.from(s), '_type': type};
+        }
+      } else if (subjects == null) {
+        yield Map<String, dynamic>.from(entry);
+      }
+    }
+  }
+
+  static DateTime? _parseExamDate(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    // 'MMM' must match month names however VTOP capitalises them.
+    final candidates = <String>{text, if (RegExp(r'[A-Za-z]').hasMatch(text)) _titleCaseWords(text)};
     final formats = [
-      DateFormat('dd-MMM-yyyy'),
+      DateFormat('dd-MMM-yyyy', 'en_US'),
+      DateFormat('d-MMM-yyyy', 'en_US'),
+      DateFormat('dd-MMM-yy', 'en_US'),
       DateFormat('dd/MM/yyyy'),
       DateFormat('yyyy-MM-dd'),
       DateFormat('dd-MM-yyyy'),
-      DateFormat('d-MMM-yyyy'),
-      DateFormat('dd-MMM-yy'),
     ];
+    for (final candidate in candidates) {
+      for (final f in formats) {
+        try {
+          return f.parseStrict(candidate);
+        } catch (_) {}
+      }
+    }
+    return null;
+  }
+
+  /// "19-AUG-2026" -> "19-Aug-2026".
+  static String _titleCaseWords(String s) => s.replaceAllMapped(
+        RegExp(r'[A-Za-z]+'),
+        (m) => '${m[0]![0].toUpperCase()}${m[0]!.substring(1).toLowerCase()}',
+      );
+
+  static List<Map<String, dynamic>> _buildExams() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final out = <Map<String, dynamic>>[];
-    for (final r in _exams) {
-      if (r is! Map) continue;
-      final m = Map<String, dynamic>.from(r);
-      final dateStr = (m['exam_date'] ?? '').toString().trim();
-      DateTime? dt;
-      for (final f in formats) {
-        try {
-          dt = f.parseStrict(dateStr);
-          break;
-        } catch (_) {}
-      }
+    final seen = <String>{};
+    for (final m in _flattenExams(_exams)) {
+      final dt = _parseExamDate((m['exam_date'] ?? '').toString());
       if (dt == null) continue;
       final day = DateTime(dt.year, dt.month, dt.day);
       if (day.isBefore(today)) continue;
+      final code = (m['course_code'] ?? '').toString().trim();
+      if (!seen.add('$code|${day.millisecondsSinceEpoch}')) continue; // listed twice
       out.add({
         'n': (m['course_name'] ?? 'Exam').toString().trim(),
-        'c': (m['course_code'] ?? '').toString().trim(),
+        'c': code,
         'd': day.millisecondsSinceEpoch,
         't': (m['exam_time'] ?? '').toString().trim(),
         'v': (m['venue'] ?? '').toString().trim(),
+        'x': (m['_type'] ?? m['exam_type'] ?? '').toString().trim(),
+        's': (m['exam_session'] ?? '').toString().trim(),
+        'l': (m['seat_location'] ?? '').toString().trim(),
+        'k': (m['seat_number'] ?? '').toString().trim(),
       });
     }
     out.sort((a, b) => (a['d'] as int).compareTo(b['d'] as int));

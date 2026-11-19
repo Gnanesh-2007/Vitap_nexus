@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
@@ -54,22 +55,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
 
     return Scaffold(
       backgroundColor: palette.paper,
-      appBar: AppBar(
-        backgroundColor: palette.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: palette.ink, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'System Diagnostics',
-          style: GoogleFonts.spaceGrotesk(
-            color: palette.ink,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-      ),
+      appBar: const NexusAppBar(title: 'Diagnostics', subtitle: 'Connection and app health'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -132,7 +118,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
                     children: [
                       Text(
                         'BACKEND LATENCY',
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           color: palette.inkMuted,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -184,7 +170,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
                 children: [
                   Text(
                     'SYNC STATE MACHINE',
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       color: palette.inkMuted,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -233,7 +219,7 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.bricolageGrotesque(
                 color: palette.ink,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

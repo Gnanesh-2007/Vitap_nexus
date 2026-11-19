@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_segmented.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -180,140 +181,189 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     final bool hasCapstone = capstone != null && capstone.isNotEmpty;
     _syncTabs(hasCapstone);
 
+    List<dynamic>? list;
+    if (attendanceAsync.hasValue && attendanceAsync.value!.isNotEmpty) {
+      list = attendanceAsync.value!;
+    } else if (StorageService.getMemoryCache('attendance') is List &&
+        (StorageService.getMemoryCache('attendance') as List).isNotEmpty) {
+      list = List<dynamic>.from(StorageService.getMemoryCache('attendance'));
+    }
+
+    Widget body;
+    if (list != null) {
+      body = _buildAttendanceContent(list, capstone: capstone);
+    } else {
+      body = attendanceAsync.when(
+        data: (l) => _buildAttendanceContent(l, capstone: capstone),
+        loading: () => _buildLoadingView(),
+        error: (err, stack) => _buildErrorView(err.toString()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _background,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: _background,
-        surfaceTintColor: Colors.transparent,
-        toolbarHeight: 72,
-        titleSpacing: 20,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
           children: [
-            Text(
-              'ACADEMICS',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: _orange,
-                letterSpacing: 1.7,
-              ),
+            _buildHeaderBlock(list, lastSyncedTime, attendanceAsync.isLoading),
+            Expanded(child: body),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ({double pct, int attended, int total, int safe, int risky}) _overall(List<dynamic> list) {
+    var a = 0, t = 0, safe = 0, risky = 0;
+    for (final r in list) {
+      if (r is! Map) continue;
+      final at = int.tryParse(r['attended_classes']?.toString() ?? '') ?? 0;
+      final tt = int.tryParse(r['total_classes']?.toString() ?? '') ?? 0;
+      if (tt <= 0) continue;
+      a += at;
+      t += tt;
+      if (at * 100 / tt >= _targetThreshold) {
+        safe++;
+      } else {
+        risky++;
+      }
+    }
+    return (pct: t == 0 ? 0 : a * 100 / t, attended: a, total: t, safe: safe, risky: risky);
+  }
+
+  Widget _buildHeaderBlock(List<dynamic>? list, DateTime? synced, bool loading) {
+    final o = list == null ? null : _overall(list);
+    final rawTone = o == null ? _muted : _getStatusColor(o.pct);
+    final hsl = HSLColor.fromColor(rawTone);
+    final tone = hsl.withLightness(hsl.lightness.clamp(0.0, 0.40)).toColor();
+    Widget iconBtn(IconData i, String tip, VoidCallback? onTap) => Tooltip(
+          message: tip,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(color: _soft, shape: BoxShape.circle),
+              child: Icon(i, size: 20, color: onTap == null ? _muted : _ink),
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Attendance',
-              style: GoogleFonts.dmSans(
-                fontSize: 25,
-                fontWeight: FontWeight.w800,
-                color: _ink,
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Attendance',
+                        style: GoogleFonts.bricolageGrotesque(
+                            fontSize: 38, fontWeight: FontWeight.w800, color: _ink, height: 1.05, letterSpacing: -1)),
+                    const SizedBox(height: 2),
+                    Text(_formatLastSynced(synced),
+                        style: GoogleFonts.dmSans(fontSize: 12, color: _muted, fontWeight: FontWeight.w600)),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Last Synced: ${_formatLastSynced(lastSyncedTime)} 💾',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                color: _muted,
-                fontWeight: FontWeight.w600,
+              iconBtn(Icons.calculate_rounded, 'Attendance calculator', () => _showCalculatorSheet(context)),
+              const SizedBox(width: 8),
+              iconBtn(Icons.refresh_rounded, 'Refresh', loading ? null : _onRefresh),
+            ],
+          ),
+          if (o != null && o.total > 0) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [tone.withValues(alpha: 0.95), Color.lerp(tone, const Color(0xFF14102E), 0.72)!],
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 74,
+                    height: 74,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: (o.pct / 100).clamp(0, 1)),
+                      duration: const Duration(milliseconds: 1100),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, v, _) => Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox.expand(
+                            child: CircularProgressIndicator(
+                              value: v,
+                              strokeWidth: 8,
+                              strokeCap: StrokeCap.round,
+                              backgroundColor: Colors.white.withValues(alpha: 0.22),
+                              valueColor: const AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          ),
+                          Text('${(v * 100).round()}%',
+                              style: GoogleFonts.bricolageGrotesque(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('OVERALL',
+                            style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: Colors.white70)),
+                        const SizedBox(height: 2),
+                        Text('${o.attended} of ${o.total} classes',
+                            style: GoogleFonts.bricolageGrotesque(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          children: [
+                            _miniPill('${o.safe} safe', Icons.check_rounded),
+                            if (o.risky > 0) _miniPill('${o.risky} need care', Icons.priority_high_rounded),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _line),
-            ),
-            child: IconButton(
-              tooltip: 'Attendance Calculator',
-              icon: Icon(Icons.calculate_outlined, color: _navy, size: 20),
-              onPressed: () => _showCalculatorSheet(context),
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _line),
-            ),
-            child: IconButton(
-              tooltip: 'Refresh Attendance',
-              icon: Icon(Icons.refresh_rounded, color: _navy, size: 20),
-              onPressed: attendanceAsync.isLoading ? null : _onRefresh,
-            ),
-          ),
+          const SizedBox(height: 12),
+          _buildSegments(),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Container(
-            height: 48,
-            margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _line),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              indicator: BoxDecoration(
-                color: _navy,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              labelColor: _palette.isDark ? const Color(0xFF0F172A) : Colors.white,
-              unselectedLabelColor: _muted,
-              labelStyle: GoogleFonts.spaceGrotesk(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.6,
-              ),
-              unselectedLabelStyle: GoogleFonts.spaceGrotesk(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
-              tabs: _tabs.map((t) => Tab(text: t)).toList(),
-            ),
-          ),
-        ),
       ),
-      body: (attendanceAsync.hasValue && attendanceAsync.value!.isNotEmpty)
-          ? _buildAttendanceContent(attendanceAsync.value!, capstone: capstone)
-          : (StorageService.getMemoryCache('attendance') is List &&
-                  (StorageService.getMemoryCache('attendance') as List).isNotEmpty)
-              ? _buildAttendanceContent(
-                  List<dynamic>.from(StorageService.getMemoryCache('attendance')),
-                  capstone: capstone,
-                )
-              : attendanceAsync.when(
-                  data: (list) => _buildAttendanceContent(list, capstone: capstone),
-                  loading: () => _buildLoadingView(),
-                  error: (err, stack) => _buildErrorView(err.toString()),
-                ),
-      floatingActionButton: FloatingActionButton.extended(
-        tooltip: 'Open Attendance & Bunk Calculator',
-        backgroundColor: _navy,
-        foregroundColor: _palette.isDark ? const Color(0xFF0F172A) : Colors.white,
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        icon: const Icon(Icons.calculate_rounded, size: 20),
-        label: Text(
-          'CALCULATE',
-          style: GoogleFonts.spaceGrotesk(
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
-            letterSpacing: 0.8,
-          ),
-        ),
-        onPressed: () => _showCalculatorSheet(context),
+    );
+  }
+
+  Widget _miniPill(String text, IconData icon) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 12, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(text, style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+        ]),
+      );
+
+  Widget _buildSegments() {
+    final c = _tabController!;
+    final labels = _tabs.map((t) => t == 'LAB / PRACTICAL' ? 'Lab' : t == 'THEORY' ? 'Theory' : 'Capstone').toList();
+    return AnimatedBuilder(
+      animation: c.animation!,
+      builder: (context, _) => NexusSegmented(
+        labels: labels,
+        position: c.animation!.value,
+        onSelect: (i) => c.animateTo(i),
       ),
     );
   }
@@ -425,7 +475,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                   children: [
                     Text(
                       'CAPSTONE / SDP ATTENDANCE',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                         color: _orange,
@@ -435,7 +485,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                     if (rawPct.isNotEmpty)
                       Text(
                         '$rawPct%',
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
                           color: _green,
@@ -501,7 +551,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
             const SizedBox(height: 20),
             Text(
               'PUNCH LOG (${punches.length} DAYS)',
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.bricolageGrotesque(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w800,
                 color: _muted,
@@ -551,7 +601,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                           const SizedBox(height: 2),
                           Text(
                             'Punch: $punchTime',
-                            style: GoogleFonts.spaceGrotesk(
+                            style: GoogleFonts.bricolageGrotesque(
                               fontSize: 11.5,
                               color: _inkSoft,
                               fontWeight: FontWeight.w600,
@@ -571,7 +621,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                       ),
                       child: Text(
                         pStatus.isEmpty ? 'Logged' : pStatus,
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: tone,
@@ -604,7 +654,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
         children: [
           Text(
             '$count',
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: color,
@@ -683,247 +733,101 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
     final faculty = (course['faculty'] ?? '').toString();
     final attended = int.tryParse(course['attended_classes']?.toString() ?? '0') ?? 0;
     final total = int.tryParse(course['total_classes']?.toString() ?? '0') ?? 0;
-    final rawPercentageStr =
-        course['attendance_percentage']?.toString().replaceAll('%', '').trim() ?? '0';
-    final percentage = double.tryParse(rawPercentageStr) ??
-        (total > 0 ? (attended / total) * 100 : 0.0);
+    final rawPercentageStr = course['attendance_percentage']?.toString().replaceAll('%', '').trim() ?? '';
+    final percentage = double.tryParse(rawPercentageStr) ?? (total > 0 ? (attended / total) * 100 : 0.0);
 
     final bunkStats = _calculateBunkStats(attended, total);
-    final statusColor = _getStatusColor(percentage);
-
-    final statusText = percentage >= 75 ? 'Safe attendance' : 'Low attendance';
-    final bunkDescription = (bunkStats['canBunk'] as bool)
-        ? 'Can miss ${bunkStats['count']} classes'
-        : 'Must attend ${bunkStats['count']} classes';
+    final canBunk = bunkStats['canBunk'] as bool;
+    final count = bunkStats['count'];
+    final tone = _getStatusColor(percentage);
+    final verdict = canBunk ? (count == 0 ? 'On the edge' : 'Miss up to $count') : 'Attend next $count';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: NexusCard(
-        variant: NexusCardVariant.standard,
-        semanticsLabel: '$courseCode $courseName, $percentage% attendance, $statusText, $attended of $total attended, $bunkDescription',
-        onTap: () => _showAttendanceDetailModal(context, course),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: _green.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.menu_book_rounded,
-                        color: _green,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                courseCode,
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: _green,
-                                ),
-                              ),
-                              if (slot.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _soft,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: _line),
-                                  ),
-                                  child: Text(
-                                    slot,
-                                    style: GoogleFonts.spaceGrotesk(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: _muted,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            courseName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: _ink,
-                            ),
-                          ),
-                          if (faculty.isNotEmpty) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              faculty,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 12,
-                                color: _muted,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Semantics(
+        button: true,
+        label: '$courseCode $courseName, ${percentage.toStringAsFixed(1)}% attendance, $attended of $total attended, $verdict',
+        child: GestureDetector(
+          onTap: () => _showAttendanceDetailModal(context, course),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: _line),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 66,
+                  height: 66,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: (percentage / 100).clamp(0, 1)),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, _) => Stack(
+                      alignment: Alignment.center,
                       children: [
-                        Text(
-                          '${percentage.toStringAsFixed(1)}%',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: statusColor,
+                        SizedBox.expand(
+                          child: CircularProgressIndicator(
+                            value: v,
+                            strokeWidth: 7,
+                            strokeCap: StrokeCap.round,
+                            backgroundColor: tone.withValues(alpha: 0.16),
+                            valueColor: AlwaysStoppedAnimation(tone),
                           ),
                         ),
-                        Text(
-                          'ATTENDANCE',
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: _muted,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                        Text('${percentage.round()}',
+                            style: GoogleFonts.bricolageGrotesque(fontSize: 20, fontWeight: FontWeight.w800, color: _ink)),
                       ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                NexusAnimatedProgressBar(
-                  percentage: percentage,
-                  height: 6,
-                  color: statusColor,
-                  backgroundColor: _soft,
-                  duration: const Duration(milliseconds: 600),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '$attended / $total attended',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: _inkSoft,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (bunkStats['canBunk'] as bool)
-                            ? _green.withValues(alpha: 0.15)
-                            : _orange.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: (bunkStats['canBunk'] as bool)
-                              ? _green.withValues(alpha: 0.3)
-                              : _orange.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            (bunkStats['canBunk'] as bool)
-                                ? Icons.check_circle_outline_rounded
-                                : Icons.info_outline_rounded,
-                            size: 13,
-                            color: (bunkStats['canBunk'] as bool) ? _green : _orange,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            (bunkStats['canBunk'] as bool)
-                                ? 'Miss ${bunkStats['count']}'
-                                : 'Attend ${bunkStats['count']}',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: (bunkStats['canBunk'] as bool) ? _green : _orange,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Divider(height: 1, color: _line),
-                const SizedBox(height: 10),
-                Semantics(
-                  button: true,
-                  label: 'View day-wise session attendance for $courseName',
-                  child: InkWell(
-                    onTap: () => _showAttendanceDetailModal(context, course, initialTabIndex: 1),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.calendar_month_rounded, size: 14, color: _orange),
-                              const SizedBox(width: 6),
-                              Text(
-                                'DAY-WISE ATTENDANCE',
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: _orange,
-                                  letterSpacing: 0.6,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              Text(
-                                'View Sessions',
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: _inkSoft,
-                                ),
-                              ),
-                              const SizedBox(width: 3),
-                              Icon(Icons.arrow_forward_ios_rounded, size: 10.5, color: _muted),
-                            ],
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
-          ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(courseName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.bricolageGrotesque(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink, height: 1.12, letterSpacing: -0.2)),
+                      const SizedBox(height: 3),
+                      Text(
+                        [courseCode, if (slot.isNotEmpty) slot, '$attended/$total'].join('  ·  '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(fontSize: 12, color: _muted, fontWeight: FontWeight.w600),
+                      ),
+                      if (faculty.isNotEmpty)
+                        Text(faculty, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.dmSans(fontSize: 11.5, color: _muted)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(color: tone.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+                            child: Text(verdict, style: GoogleFonts.dmSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: tone)),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () => _showAttendanceDetailModal(context, course, initialTabIndex: 1),
+                            child: Row(
+                              children: [
+                                Icon(Icons.calendar_month_rounded, size: 15, color: _inkSoft),
+                                const SizedBox(width: 4),
+                                Text('Days', style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w700, color: _inkSoft)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -1139,7 +1043,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
       height: MediaQuery.of(context).size.height * 0.88,
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         border: Border(top: BorderSide(color: _line, width: 1)),
       ),
       child: Column(
@@ -1165,7 +1069,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                     children: [
                       Text(
                         'ATTENDANCE DETAILS',
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
                           color: _orange,
@@ -1190,7 +1094,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                             if (courseCode.isNotEmpty)
                               Text(
                                 courseCode,
-                                style: GoogleFonts.spaceGrotesk(
+                                style: GoogleFonts.bricolageGrotesque(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                   color: _green,
@@ -1209,7 +1113,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                             if (slot.isNotEmpty) ...[
                               Text(
                                 ' • $slot',
-                                style: GoogleFonts.spaceGrotesk(
+                                style: GoogleFonts.bricolageGrotesque(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w700,
                                   color: _muted,
@@ -1258,11 +1162,11 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
               ),
               labelColor: _palette.isDark ? const Color(0xFF0F172A) : Colors.white,
               unselectedLabelColor: _muted,
-              labelStyle: GoogleFonts.spaceGrotesk(
+              labelStyle: GoogleFonts.bricolageGrotesque(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
-              unselectedLabelStyle: GoogleFonts.spaceGrotesk(
+              unselectedLabelStyle: GoogleFonts.bricolageGrotesque(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -1333,7 +1237,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                     const SizedBox(height: 2),
                     Text(
                       isEligible ? 'ELIGIBLE' : 'DEBARRED',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
                         color: isEligible ? _green : _red,
@@ -1362,7 +1266,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
         const SizedBox(height: 24),
         Text(
           'COURSE SPECIFICATIONS',
-          style: GoogleFonts.spaceGrotesk(
+          style: GoogleFonts.bricolageGrotesque(
             fontSize: 9.5,
             fontWeight: FontWeight.w800,
             color: _muted,
@@ -1575,7 +1479,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                       ),
                       child: Text(
                         '${list.length} Sessions',
-                        style: GoogleFonts.spaceGrotesk(fontSize: 11, fontWeight: FontWeight.w700, color: _muted),
+                        style: GoogleFonts.bricolageGrotesque(fontSize: 11, fontWeight: FontWeight.w700, color: _muted),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1615,7 +1519,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
                   horizontalMargin: 12,
                   columnSpacing: 10,
                   headingRowColor: WidgetStateProperty.all(_surface),
-                  headingTextStyle: GoogleFonts.spaceGrotesk(fontSize: 10, fontWeight: FontWeight.w800, color: _muted),
+                  headingTextStyle: GoogleFonts.bricolageGrotesque(fontSize: 10, fontWeight: FontWeight.w800, color: _muted),
                   columns: const [
                     DataColumn(label: Text('SNo.')),
                     DataColumn(label: Text('Date')),
@@ -1636,7 +1540,7 @@ class _AttendanceDetailModalState extends ConsumerState<_AttendanceDetailModal>
 
                     return DataRow(
                       cells: [
-                        DataCell(Text('${entry.key + 1}', style: GoogleFonts.spaceGrotesk(fontSize: 11, color: _muted, fontWeight: FontWeight.w700))),
+                        DataCell(Text('${entry.key + 1}', style: GoogleFonts.bricolageGrotesque(fontSize: 11, color: _muted, fontWeight: FontWeight.w700))),
                         DataCell(Text(date, style: GoogleFonts.dmSans(fontSize: 11.5, fontWeight: FontWeight.w600, color: _ink))),
                         DataCell(Text(timeDisplay, style: GoogleFonts.dmSans(fontSize: 11, color: _inkSoft))),
                         DataCell(
@@ -1732,7 +1636,7 @@ class _AttendanceCalculatorModalState extends State<_AttendanceCalculatorModal> 
       ),
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
         border: Border(top: BorderSide(color: _line, width: 1)),
       ),
       child: SingleChildScrollView(
@@ -1759,7 +1663,7 @@ class _AttendanceCalculatorModalState extends State<_AttendanceCalculatorModal> 
                   children: [
                     Text(
                       'ATTENDANCE CALCULATOR',
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.bricolageGrotesque(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w800,
                         color: _orange,
@@ -1863,7 +1767,7 @@ class _AttendanceCalculatorModalState extends State<_AttendanceCalculatorModal> 
             const SizedBox(height: 16),
             Text(
               'TARGET PERCENTAGE: ${_targetPercentage.toInt()}%',
-              style: GoogleFonts.spaceGrotesk(fontSize: 9.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 1.2),
+              style: GoogleFonts.bricolageGrotesque(fontSize: 9.5, fontWeight: FontWeight.w800, color: _muted, letterSpacing: 1.2),
             ),
             Slider(
               value: _targetPercentage,

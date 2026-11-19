@@ -10,21 +10,21 @@
         android:layout_height="match_parent"
         android:scaleType="fitXY" />
 
+    <!-- Position and size are set from code to line up with the picture. -->
     <FrameLayout
+        android:id="@+id/wc_timer_box"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:paddingBottom="10dp">
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start">
 
         <Chronometer
             android:id="@+id/wc_timer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:fontFamily="sans-serif-medium"
+            android:fontFamily="sans-serif-black"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="#FFFFFF"
-            android:textSize="15dp"
-            android:textStyle="bold" />
+            android:textSize="34sp" />
     </FrameLayout>
 </FrameLayout>

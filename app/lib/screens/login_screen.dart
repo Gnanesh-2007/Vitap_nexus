@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
@@ -10,6 +11,7 @@ import '../services/biometric_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_formatter.dart';
+import '../widgets/auth/auth_kit.dart';
 import '../widgets/otp_listener.dart';
 import 'main_nav_screen.dart';
 import 'onboarding_screen.dart';
@@ -25,6 +27,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _userFocus = FocusNode();
+  final _passFocus = FocusNode();
 
   bool _obscurePassword = true;
   bool _hasSavedBiometricCreds = false;
@@ -59,6 +63,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _hasSavedBiometricCreds = true;
     }
     _checkAsyncSavedCreds();
+    _userFocus.addListener(_onFocusChange);
+    _passFocus.addListener(_onFocusChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final authState = ref.read(authProvider);
@@ -129,8 +135,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  void _onFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  /// A greeting that follows the clock - a small sign the app is paying attention.
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h >= 5 && h < 12) return 'Good morning.';
+    if (h >= 12 && h < 17) return 'Good afternoon.';
+    if (h >= 17 && h < 22) return 'Good evening.';
+    return 'Up late.';
+  }
+
   @override
   void dispose() {
+    _userFocus.dispose();
+    _passFocus.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -211,10 +232,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       backgroundColor: _background,
-      body: SafeArea(
-        child: isWide
-            ? _buildWideLayout(authState)
-            : _buildMobileLayout(authState),
+      body: AuthBackdrop(
+        child: SafeArea(
+          child: isWide
+              ? _buildWideLayout(authState)
+              : _buildMobileLayout(authState),
+        ),
       ),
     );
   }
@@ -295,7 +318,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Spacer(),
                 Text(
                   'YOUR CAMPUS,\nIN ONE PLACE.',
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 48,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
@@ -335,7 +358,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Spacer(),
                 Text(
                   'VIT-AP UNIVERSITY',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
                     color: Colors.white38,
@@ -398,48 +421,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // ============================================================
 
   Widget _buildMobileLayout(AuthState authState) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 30),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildBrandMark(),
-              _buildTopActionRow(),
-            ],
-          ),
-          const SizedBox(height: 40),
-          Text(
-            'Welcome back.',
-            style: GoogleFonts.dmSans(
-              fontSize: 34,
-              fontWeight: FontWeight.w900,
-              color: _ink,
-              letterSpacing: -1.5,
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .slideY(begin: .06, end: 0),
-          const SizedBox(height: 7),
-          Text(
-            'Sign in to continue to your VIT-AP dashboard.',
-            style: GoogleFonts.dmSans(
-              fontSize: 12.5,
-              color: _inkSoft,
-              height: 1.4,
+    // Fills the screen so the privacy note can sit at the very bottom, but
+    // still scrolls when the keyboard is up or the phone is small.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: IntrinsicHeight(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildBrandMark(),
+                      _buildTopActionRow(),
+                    ],
+                  ),
+                  const SizedBox(height: 46),
+                  _buildHeadline(titleSize: 36),
+                  const SizedBox(height: 28),
+                  _buildLoginForm(authState),
+                  const Spacer(),
+                  const SizedBox(height: 22),
+                  _buildSecurityNote(),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 30),
-          _buildLoginForm(authState),
-          const SizedBox(height: 22),
-          _buildSecurityNote(),
-        ],
+        ),
       ),
     );
+  }
+
+  Widget _buildHeadline({required double titleSize}) {
+    final returning = _hasSavedBiometricCreds;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AuthEyebrow(DateFormat('EEEE, d MMM').format(DateTime.now())),
+        const SizedBox(height: 10),
+        Text(
+          _greeting,
+          style: GoogleFonts.dmSans(
+            fontSize: titleSize,
+            fontWeight: FontWeight.w900,
+            color: _ink,
+            letterSpacing: -1.6,
+            height: 1.02,
+          ),
+        ),
+        const SizedBox(height: 9),
+        Text(
+          returning
+              ? 'Welcome back. Sign in to pick up where you left off.'
+              : 'Sign in with your VTOP account to get started.',
+          style: GoogleFonts.dmSans(
+            fontSize: 13.5,
+            color: _inkSoft,
+            height: 1.4,
+          ),
+        ),
+      ],
+    ).animate().fadeIn(duration: 420.ms).slideY(begin: .05, end: 0, curve: Curves.easeOutCubic);
   }
 
   Widget _buildTopActionRow() {
@@ -475,7 +522,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(width: 5),
                   Text(
                     'Tour',
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.bricolageGrotesque(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: _ink,
@@ -553,7 +600,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           children: [
             Text(
               'VITAP',
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.bricolageGrotesque(
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 color: dark ? Colors.white70 : _muted,
@@ -562,7 +609,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             Text(
               'NEXUS',
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.bricolageGrotesque(
                 fontSize: 17,
                 fontWeight: FontWeight.w900,
                 color: dark ? Colors.white : _ink,
@@ -594,26 +641,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ],
         ),
         const SizedBox(height: 56),
-        Text(
-          'Welcome back.',
-          style: GoogleFonts.dmSans(
-            fontSize: 38,
-            fontWeight: FontWeight.w900,
-            color: _ink,
-            letterSpacing: -1.8,
-          ),
-        )
-            .animate()
-            .fadeIn(duration: 400.ms)
-            .slideY(begin: .06, end: 0),
-        const SizedBox(height: 7),
-        Text(
-          'Sign in to continue to your VIT-AP dashboard.',
-          style: GoogleFonts.dmSans(
-            fontSize: 13,
-            color: _inkSoft,
-          ),
-        ),
+        _buildHeadline(titleSize: 40),
         const SizedBox(height: 30),
         _buildLoginForm(authState),
         const SizedBox(height: 22),
@@ -623,101 +651,150 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildLoginForm(AuthState authState) {
+    final showBiometric =
+        _hasSavedBiometricCreds || StorageService.isBiometricEnabledSync();
+
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _fieldLabel('VTOP USERNAME / REGISTRATION NUMBER'),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _usernameController,
-            textCapitalization: TextCapitalization.characters,
-            inputFormatters: [
-              TextInputFormatter.withFunction(
-                (oldValue, newValue) => newValue.copyWith(
-                  text: newValue.text.toUpperCase(),
+          // Both fields live in one card, split by a hairline.
+          Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _line),
+              boxShadow: _palette.cardShadow,
+            ),
+            child: Column(
+              children: [
+                _fieldRow(
+                  icon: Icons.badge_outlined,
+                  label: 'Registration number',
+                  focus: _userFocus,
+                  field: TextFormField(
+                    controller: _usernameController,
+                    focusNode: _userFocus,
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.next,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    onFieldSubmitted: (_) => _passFocus.requestFocus(),
+                    inputFormatters: [
+                      TextInputFormatter.withFunction(
+                        (oldValue, newValue) => newValue.copyWith(
+                          text: newValue.text.toUpperCase(),
+                        ),
+                      ),
+                    ],
+                    style: _fieldText,
+                    decoration: _bareDecoration('Your VTOP username'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Enter your VTOP username';
+                      }
+                      return null;
+                    },
+                  ),
                 ),
-              ),
-            ],
-            style: GoogleFonts.dmSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: _ink,
+                Divider(height: 1, thickness: 1, color: _line),
+                _fieldRow(
+                  icon: Icons.lock_outline_rounded,
+                  label: 'Password',
+                  focus: _passFocus,
+                  trailing: IconButton(
+                    tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: _muted,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                  field: TextFormField(
+                    controller: _passwordController,
+                    focusNode: _passFocus,
+                    obscureText: _obscurePassword,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    keyboardType: TextInputType.visiblePassword,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) {
+                      if (!authState.isLoading) _handleLogin();
+                    },
+                    style: _fieldText,
+                    decoration: _bareDecoration('Your VTOP password'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Enter your password';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
             ),
-            decoration: _inputDecoration(
-              hint: 'e.g. username',
-              icon: Icons.person_outline_rounded,
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Please enter your username';
-              }
-              return null;
-            },
           )
               .animate()
-              .fadeIn(duration: 350.ms, delay: 100.ms)
-              .slideY(begin: .05, end: 0),
+              .fadeIn(duration: 380.ms, delay: 90.ms)
+              .slideY(begin: .04, end: 0, curve: Curves.easeOutCubic),
 
-          const SizedBox(height: 22),
-
-          _fieldLabel('VTOP PASSWORD'),
-          const SizedBox(height: 8),
-          _buildPasswordField()
-              .animate()
-              .fadeIn(duration: 350.ms, delay: 150.ms)
-              .slideY(begin: .05, end: 0),
-
-          const SizedBox(height: 26),
+          const SizedBox(height: 16),
 
           Row(
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 54,
+                  height: 56,
                   child: ElevatedButton(
                     onPressed: authState.isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _navy,
-                      disabledBackgroundColor: _navy.withValues(alpha: .45),
+                      disabledBackgroundColor: _navy.withValues(alpha: .6),
                       foregroundColor: _palette.onNavy,
+                      disabledForegroundColor: _palette.onNavy,
                       elevation: 0,
-                      padding: EdgeInsets.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
+                      duration: const Duration(milliseconds: 200),
                       child: authState.isLoading
-                          ? SizedBox(
+                          ? Row(
                               key: const ValueKey('loading'),
-                              width: 21,
-                              height: 21,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  _palette.onNavy,
-                                ),
-                              ),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('Connecting to VTOP', style: _buttonText),
+                                const SizedBox(width: 10),
+                                AuthWaitingDots(color: _palette.onNavy),
+                              ],
                             )
                           : Row(
                               key: const ValueKey('login'),
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'CONTINUE TO VTOP',
-                                  style: GoogleFonts.spaceGrotesk(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.1,
+                                Text('Continue', style: _buttonText),
+                                const SizedBox(width: 10),
+                                Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: _palette.onNavy.withValues(alpha: .14),
+                                    shape: BoxShape.circle,
                                   ),
-                                ),
-                                const SizedBox(width: 9),
-                                const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  size: 18,
+                                  child: Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 16,
+                                    color: _palette.onNavy,
+                                  ),
                                 ),
                               ],
                             ),
@@ -725,26 +802,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
               ),
-              if (_hasSavedBiometricCreds ||
-                  StorageService.isBiometricEnabledSync()) ...[
+              if (showBiometric) ...[
                 const SizedBox(width: 10),
                 SizedBox(
-                  width: 54,
-                  height: 54,
+                  width: 56,
+                  height: 56,
                   child: OutlinedButton(
-                    onPressed: authState.isLoading
-                        ? null
-                        : _handleBiometricQuickLogin,
+                    onPressed:
+                        authState.isLoading ? null : _handleBiometricQuickLogin,
                     style: OutlinedButton.styleFrom(
                       padding: EdgeInsets.zero,
                       backgroundColor: _surface,
-                      side: BorderSide(color: _line, width: 1.2),
+                      side: BorderSide(color: _line),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: Tooltip(
-                      message: 'Sign in with Biometrics',
+                      message: 'Sign in with biometrics',
                       child: Icon(
                         Icons.fingerprint_rounded,
                         color: _blue,
@@ -757,159 +832,192 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           )
               .animate()
-              .fadeIn(duration: 350.ms, delay: 200.ms)
-              .slideY(begin: .05, end: 0),
+              .fadeIn(duration: 380.ms, delay: 160.ms)
+              .slideY(begin: .04, end: 0, curve: Curves.easeOutCubic),
 
-          const SizedBox(height: 17),
+          const SizedBox(height: 30),
 
-          Container(
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              color: _cream,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 16,
-                  color: _inkSoft,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    'Use the same credentials you use on VTOP. OTP verification will appear automatically when required.',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 10.5,
-                      height: 1.45,
-                      fontWeight: FontWeight.w500,
-                      color: _inkSoft,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildHowItWorks()
+              .animate()
+              .fadeIn(duration: 420.ms, delay: 260.ms),
         ],
       ),
     );
   }
 
-  Widget _fieldLabel(String text) {
-    return Text(
-      text,
-      style: GoogleFonts.spaceGrotesk(
-        fontSize: 9,
+  TextStyle get _fieldText => GoogleFonts.dmSans(
+        fontSize: 15,
+        fontWeight: FontWeight.w700,
+        color: _ink,
+        letterSpacing: .1,
+      );
+
+  TextStyle get _buttonText => GoogleFonts.dmSans(
+        fontSize: 15,
         fontWeight: FontWeight.w800,
-        color: _inkSoft,
-        letterSpacing: 1.25,
+        letterSpacing: .1,
+      );
+
+  /// One row of the grouped field card: icon tile, small label, bare input.
+  /// The row tints very slightly and the icon takes the accent colour on focus.
+  Widget _fieldRow({
+    required IconData icon,
+    required String label,
+    required FocusNode focus,
+    required Widget field,
+    Widget? trailing,
+  }) {
+    final on = focus.hasFocus;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: focus.requestFocus,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        color: on
+            ? Color.alphaBlend(_blue.withValues(alpha: .055), _surface)
+            : _surface,
+        padding: const EdgeInsets.fromLTRB(14, 12, 6, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 38,
+              height: 38,
+              margin: const EdgeInsets.only(top: 2),
+              decoration: BoxDecoration(
+                color: on ? _blue.withValues(alpha: .13) : _cream,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, size: 18, color: on ? _blue : _inkSoft),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AuthEyebrow(label, color: on ? _blue : _muted),
+                  field,
+                ],
+              ),
+            ),
+            if (trailing != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: trailing,
+              )
+            else
+              const SizedBox(width: 8),
+          ],
+        ),
       ),
     );
   }
 
-  InputDecoration _inputDecoration({
-    required String hint,
-    required IconData icon,
-  }) {
+  InputDecoration _bareDecoration(String hint) {
     return InputDecoration(
+      isDense: true,
       hintText: hint,
       hintStyle: GoogleFonts.dmSans(
-        fontSize: 13,
-        color: _muted,
+        fontSize: 14.5,
+        color: _muted.withValues(alpha: .75),
         fontWeight: FontWeight.w500,
       ),
-      prefixIcon: Icon(
-        icon,
-        color: _inkSoft,
-        size: 19,
-      ),
-      filled: true,
-      fillColor: _surface,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 15,
-        vertical: 17,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: _line),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: _line),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(
-          color: _blue,
-          width: 1.5,
-        ),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(
-          color: _palette.red,
-        ),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(
-          color: _palette.red,
-          width: 1.5,
-        ),
-      ),
+      filled: false,
+      contentPadding: const EdgeInsets.only(top: 5, bottom: 4),
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      errorBorder: InputBorder.none,
+      focusedErrorBorder: InputBorder.none,
       errorStyle: GoogleFonts.dmSans(
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: FontWeight.w600,
+        color: _palette.red,
+        height: 1.1,
       ),
     );
   }
 
-  Widget _buildPasswordField() {
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: _passwordController,
-      builder: (context, value, child) {
-        return TextFormField(
-          controller: _passwordController,
-          obscureText: _obscurePassword,
-          autocorrect: false,
-          enableSuggestions: false,
-          keyboardType: TextInputType.visiblePassword,
-          style: GoogleFonts.dmSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: _ink,
-          ),
-          decoration: _inputDecoration(
-            hint: 'Enter your password',
-            icon: Icons.lock_outline_rounded,
-          ).copyWith(
-            suffixIcon: IconButton(
-              tooltip: _obscurePassword
-                  ? 'Show password'
-                  : 'Hide password',
-              icon: Icon(
-                _obscurePassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: _inkSoft,
-                size: 20,
-              ),
-              onPressed: () {
-                setState(() {
-                  _obscurePassword = !_obscurePassword;
-                });
-              },
+  /// What actually happens after "Continue", as a three-stop line.
+  Widget _buildHowItWorks() {
+    Widget stop(int n, String title, String caption, {bool last = false}) {
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _surface,
+                    border: Border.all(color: _line),
+                  ),
+                  child: Text(
+                    '$n',
+                    style: GoogleFonts.bricolageGrotesque(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: _inkSoft,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    margin: const EdgeInsets.only(left: 6, right: 6),
+                    color: last ? Colors.transparent : _line,
+                  ),
+                ),
+              ],
             ),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your password';
-            }
-            return null;
-          },
-        );
-      },
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: _ink,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                caption,
+                style: GoogleFonts.dmSans(
+                  fontSize: 10.5,
+                  height: 1.3,
+                  fontWeight: FontWeight.w500,
+                  color: _inkSoft,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const AuthEyebrow('What happens next'),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            stop(1, 'Sign in', 'With your own VTOP login'),
+            stop(2, 'Captcha', 'Solved on your phone'),
+            stop(3, 'Email code', 'Only if VTOP asks', last: true),
+          ],
+        ),
+      ],
     );
   }
 
@@ -925,7 +1033,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SizedBox(width: 6),
         Flexible(
           child: Text(
-            'Credentials are encrypted and stored locally',
+            'Stays on this phone. Sent only to VTOP.',
             textAlign: TextAlign.center,
             style: GoogleFonts.dmSans(
               fontSize: 10,

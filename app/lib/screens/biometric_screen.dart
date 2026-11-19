@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -140,40 +141,9 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
 
     return Scaffold(
       backgroundColor: _paper,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: _paper,
-        surfaceTintColor: Colors.transparent,
-        toolbarHeight: 72,
-        titleSpacing: 20,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: _ink, size: 18),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'CAMPUS ACCESS',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: _orange,
-                letterSpacing: 1.7,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Biometric Logs',
-              style: GoogleFonts.dmSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-              ),
-            ),
-          ],
-        ),
+      appBar: NexusAppBar(
+        title: 'Biometric',
+        subtitle: 'Campus entry and exit logs',
         actions: [
           if (!isToday)
             Padding(
@@ -193,7 +163,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                 ),
                 child: Text(
                   'TODAY',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
                     color: _orange,
@@ -202,21 +172,13 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                 ),
               ),
             ),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _line),
-            ),
-            child: IconButton(
+          IconButton(
               tooltip: 'Refresh Logs',
               icon: Icon(Icons.refresh_rounded, color: _navy, size: 20),
               onPressed: () {
                 setState(() => _fetchBiometric(forceRefresh: true));
               },
             ),
-          ),
         ],
       ),
       body: Column(
@@ -227,9 +189,8 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _line),
+                color: _soft,
+                borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
                 children: [
@@ -267,7 +228,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                                 children: [
                                   Text(
                                     '${DateFormat('EEEE').format(_selectedDate).toUpperCase()}${isToday ? ' • TODAY' : ''}',
-                                    style: GoogleFonts.spaceGrotesk(
+                                    style: GoogleFonts.bricolageGrotesque(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.w800,
                                       color: _orange,
@@ -300,7 +261,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                                   const SizedBox(width: 5),
                                   Text(
                                     'PICK',
-                                    style: GoogleFonts.spaceGrotesk(
+                                    style: GoogleFonts.bricolageGrotesque(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 0.6,
@@ -370,20 +331,26 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                             decoration: BoxDecoration(
-                              color: _surface,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: _line),
+                              borderRadius: BorderRadius.circular(30),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  HSLColor.fromColor(_navy).withLightness(HSLColor.fromColor(_navy).lightness.clamp(0.0, 0.42)).toColor(),
+                                  Color.lerp(HSLColor.fromColor(_navy).withLightness(HSLColor.fromColor(_navy).lightness.clamp(0.0, 0.42)).toColor(), const Color(0xFF16102E), 0.72)!,
+                                ],
+                              ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _buildSummaryStat('TOTAL PUNCHES', '${logs.length}', _navy),
-                                Container(width: 1, height: 28, color: _line),
-                                _buildSummaryStat('FIRST PUNCH', firstTime, _green),
-                                Container(width: 1, height: 28, color: _line),
-                                _buildSummaryStat('LATEST PUNCH', lastTime, _orange),
+                                _buildSummaryStat('PUNCHES', '${logs.length}', Colors.white),
+                                Container(width: 1, height: 34, color: Colors.white24),
+                                _buildSummaryStat('FIRST', firstTime, Colors.white),
+                                Container(width: 1, height: 34, color: Colors.white24),
+                                _buildSummaryStat('LATEST', lastTime, Colors.white),
                               ],
                             ),
                           ),
@@ -414,11 +381,11 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                             child: Row(
                               children: [
                                 Container(
-                                  width: 44,
-                                  height: 44,
+                                  width: 50,
+                                  height: 50,
                                   decoration: BoxDecoration(
-                                    color: accentColor.withValues(alpha: 0.14),
-                                    borderRadius: BorderRadius.circular(12),
+                                    color: accentColor.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(18),
                                   ),
                                   child: Icon(
                                     Icons.fingerprint_rounded,
@@ -435,9 +402,10 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                                         location,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 14.5,
+                                        style: GoogleFonts.bricolageGrotesque(
+                                          fontSize: 16.5,
                                           fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.2,
                                           color: _ink,
                                         ),
                                       ),
@@ -454,7 +422,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                                               const SizedBox(width: 4),
                                               Text(
                                                 outTime.isNotEmpty ? '$time - $outTime' : time,
-                                                style: GoogleFonts.spaceGrotesk(
+                                                style: GoogleFonts.bricolageGrotesque(
                                                   fontSize: 12.5,
                                                   fontWeight: FontWeight.w700,
                                                   color: _ink,
@@ -484,7 +452,7 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
                                   ),
                                   child: Text(
                                     '#$serial',
-                                    style: GoogleFonts.spaceGrotesk(
+                                    style: GoogleFonts.bricolageGrotesque(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 0.5,
@@ -514,18 +482,18 @@ class _BiometricScreenState extends ConsumerState<BiometricScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 8.5,
+          style: GoogleFonts.dmSans(
+            fontSize: 10,
             fontWeight: FontWeight.w800,
-            color: _muted,
-            letterSpacing: 0.8,
+            color: Colors.white70,
+            letterSpacing: 1,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 13.5,
+          style: GoogleFonts.bricolageGrotesque(
+            fontSize: 20,
             fontWeight: FontWeight.w800,
             color: accent,
           ),

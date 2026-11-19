@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import java.util.Calendar
@@ -93,19 +94,27 @@ object WidgetUpdater {
 
     private fun build(ctx: Context, cls: Class<*>, snap: Snapshot?, w: Float, h: Float, density: Float): RemoteViews {
         val cal = Calendar.getInstance()
+        val art: WidgetArt = artFor(ctx, snap)
+
         if (cls == NextClassWidget::class.java) {
-            val frame = WidgetRender.nextClass(snap, w, h, density, cal)
-            val v = RemoteViews(
-                ctx.packageName,
-                if (frame.compact) R.layout.widget_canvas_timer_compact else R.layout.widget_canvas_timer,
-            )
+            val frame = WidgetRender.nextClass(snap, w, h, density, cal, art)
+            val v = RemoteViews(ctx.packageName, R.layout.widget_canvas_timer)
             v.setImageViewBitmap(R.id.wc_image, frame.bitmap)
             if (frame.remainingMs != null) {
-                v.setViewVisibility(R.id.wc_timer, View.VISIBLE)
+                // The seconds tick on their own: this is a real Chronometer over the picture.
+                v.setViewVisibility(R.id.wc_timer_box, View.VISIBLE)
+                v.setViewPadding(
+                    R.id.wc_timer_box,
+                    (frame.timerX * density).toInt(),
+                    (frame.timerY * density).toInt(),
+                    0,
+                    0,
+                )
+                v.setTextViewTextSize(R.id.wc_timer, TypedValue.COMPLEX_UNIT_SP, frame.timerSp)
                 v.setChronometerCountDown(R.id.wc_timer, true)
                 v.setChronometer(R.id.wc_timer, SystemClock.elapsedRealtime() + frame.remainingMs, null, true)
             } else {
-                v.setViewVisibility(R.id.wc_timer, View.GONE)
+                v.setViewVisibility(R.id.wc_timer_box, View.GONE)
             }
             v.setContentDescription(R.id.wc_image, "Next class")
             open(ctx)?.let { v.setOnClickPendingIntent(R.id.wc_root, it) }
@@ -113,16 +122,44 @@ object WidgetUpdater {
         }
 
         val (bitmap, desc) = when (cls) {
-            TimetableWidget::class.java -> WidgetRender.timeline(snap, w, h, density, cal) to "Today's timetable"
-            AttendanceWidget::class.java -> WidgetRender.attendance(snap, w, h, density) to "Attendance by subject"
-            SkipCheckWidget::class.java -> WidgetRender.skipCheck(snap, w, h, density, cal) to "Skip check"
-            else -> WidgetRender.exam(snap, w, h, density, cal) to "Exam countdown"
+            TimetableWidget::class.java -> WidgetRender.timeline(snap, w, h, density, cal, art) to "Today's timetable"
+            AttendanceWidget::class.java -> WidgetRender.attendance(snap, w, h, density, art) to "Attendance by subject"
+            SkipCheckWidget::class.java -> WidgetRender.skipCheck(snap, w, h, density, cal, art) to "Skip check"
+            else -> WidgetRender.exam(snap, w, h, density, cal, art) to "Exam countdown"
         }
         val v = RemoteViews(ctx.packageName, R.layout.widget_canvas)
         v.setImageViewBitmap(R.id.wc_image, bitmap)
         v.setContentDescription(R.id.wc_image, desc)
         open(ctx)?.let { v.setOnClickPendingIntent(R.id.wc_root, it) }
         return v
+    }
+
+    @Volatile
+    private var bundledArt: WidgetArt? = null
+
+    @Volatile
+    private var customArt: CustomArt? = null
+
+    private fun artFor(ctx: Context, snap: Snapshot?): WidgetArt {
+        val app = ctx.applicationContext
+        val base = baseArt(app, snap)
+        val t = snap?.tint
+        val colour = if (t == -1) (base as? CustomArt)?.dominant else t
+        val glass = snap?.glass ?: 0
+        return if (colour == null && glass == 0) base else Themed(base, colour, glass)
+    }
+
+    private fun baseArt(app: Context, snap: Snapshot?): WidgetArt {
+        return when (snap?.character) {
+            "none" -> NoArt
+            "custom" -> {
+                val f = java.io.File(app.filesDir, "widget_art/custom.png")
+                val cached = customArt
+                if (cached != null && cached.stamp == f.lastModified()) cached
+                else CustomArt(f).also { customArt = it }
+            }
+            else -> bundledArt ?: ResArt(app).also { bundledArt = it }
+        }
     }
 
     private fun open(ctx: Context): PendingIntent? {

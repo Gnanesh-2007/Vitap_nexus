@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
+import '../widgets/nexus_segmented.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -165,108 +167,80 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
 
     return Scaffold(
       backgroundColor: p.paper,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: p.paper,
-        surfaceTintColor: Colors.transparent,
-        toolbarHeight: 72,
-        titleSpacing: 20,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
           children: [
-            Text(
-              'ACADEMICS',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: p.orange,
-                letterSpacing: 1.7,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Marks',
+                          style: GoogleFonts.bricolageGrotesque(
+                            fontSize: 38,
+                            fontWeight: FontWeight.w800,
+                            color: p.ink,
+                            height: 1.05,
+                            letterSpacing: -1,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          StorageService.formatLastSynced(lastSyncedTime),
+                          style: GoogleFonts.dmSans(fontSize: 12.5, color: p.inkMuted, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Tooltip(
+                    message: 'Refresh marks',
+                    child: GestureDetector(
+                      onTap: marksAsync.isLoading ? null : _onRefresh,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(color: p.soft, shape: BoxShape.circle),
+                        child: Icon(Icons.refresh_rounded, size: 20, color: p.ink),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Marks',
-              style: GoogleFonts.dmSans(
-                fontSize: 25,
-                fontWeight: FontWeight.w800,
-                color: p.ink,
+            if (_tabController != null && _courseCategories.length > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: _buildSegmented(p),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Last Synced: ${StorageService.formatLastSynced(lastSyncedTime)} 💾',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                color: p.inkMuted,
-                fontWeight: FontWeight.w600,
-              ),
+            Expanded(
+              child: marksList.isNotEmpty
+                  ? _buildMarksBody(marksList)
+                  : marksAsync.when(
+                      data: _buildMarksBody,
+                      loading: () => const NexusLoadingState(title: 'Loading marks...'),
+                      error: (err, _) => _buildErrorView(err.toString()),
+                    ),
             ),
           ],
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: p.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: p.line),
-            ),
-            child: IconButton(
-              tooltip: 'Refresh Marks',
-              icon: Icon(Icons.refresh_rounded, color: p.navy, size: 20),
-              onPressed: marksAsync.isLoading ? null : _onRefresh,
-            ),
-          ),
-        ],
-        bottom: _tabController != null && _courseCategories.isNotEmpty
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(56),
-                child: Container(
-                  height: 48,
-                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: p.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: p.line),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    dividerColor: Colors.transparent,
-                    indicator: BoxDecoration(
-                      color: p.navy,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    labelColor: p.isDark ? const Color(0xFF0F172A) : Colors.white,
-                    unselectedLabelColor: p.inkMuted,
-                    labelStyle: GoogleFonts.spaceGrotesk(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                    ),
-                    unselectedLabelStyle: GoogleFonts.spaceGrotesk(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                    ),
-                    tabs: _courseCategories
-                        .map((c) => Tab(text: c.toUpperCase()))
-                        .toList(),
-                  ),
-                ),
-              )
-            : null,
       ),
-      body: marksList.isNotEmpty
-          ? _buildMarksBody(marksList)
-          : marksAsync.when(
-              data: _buildMarksBody,
-              loading: () => const NexusLoadingState(title: 'Loading marks...'),
-              error: (err, _) => _buildErrorView(err.toString()),
-            ),
+    );
+  }
+
+  Widget _buildSegmented(AppPalette p) {
+    final c = _tabController!;
+    return AnimatedBuilder(
+      animation: c.animation!,
+      builder: (context, _) => NexusSegmented(
+        labels: _courseCategories,
+        position: c.animation!.value,
+        onSelect: (i) => c.animateTo(i),
+      ),
     );
   }
 
@@ -335,7 +309,7 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
   Color _tone(AppPalette p, double ratio) =>
       ratio >= 0.75 ? p.green : (ratio >= 0.5 ? p.blue : p.orange);
 
-  /// Rounded card: round points at rest, simple table in the drop-down.
+  /// Score tile + one bar per assessment; tap to open each assessment's numbers.
   Widget _buildCourseCard(Map<String, dynamic> course) {
     final p = AppPalette.of(context);
     final title = (course['course_title'] ?? 'Course').toString().trim();
@@ -353,11 +327,19 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
     final key = '$code-$title';
     final open = _expanded.contains(key);
 
+    // One mini bar per assessment, height = how well it went.
+    final bars = <double>[];
+    for (final raw in details.whereType<Map>()) {
+      final sc = double.tryParse((raw['scored_mark'] ?? raw['scored'] ?? '').toString());
+      final mx = double.tryParse((raw['max_mark'] ?? raw['max_marks'] ?? '').toString());
+      if (sc != null && mx != null && mx > 0) bars.add((sc / mx).clamp(0.0, 1.0));
+    }
+
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: p.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: p.line),
       ),
       child: Column(
@@ -369,202 +351,198 @@ class _MarksScreenState extends ConsumerState<MarksScreen>
               setState(() => open ? _expanded.remove(key) : _expanded.add(key));
             },
             child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Round points (static, no animation)
-                  SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CircularProgressIndicator(
-                          value: ratio,
-                          strokeWidth: 5,
-                          strokeCap: StrokeCap.round,
-                          backgroundColor: p.line,
-                          color: tone,
-                        ),
-                        Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                t.max > 0 ? t.earned.round().toString() : '—',
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.0,
-                                  color: p.ink,
-                                ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.bricolageGrotesque(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                height: 1.12,
+                                letterSpacing: -0.3,
+                                color: p.ink,
                               ),
-                              if (t.max > 0)
-                                Text(
-                                  '/${t.max.round()}',
-                                  style: GoogleFonts.spaceGrotesk(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.2,
-                                    color: p.inkMuted,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              [if (code.isNotEmpty) code, type].join('  ·  '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w700, color: p.inkMuted),
+                            ),
+                            if (faculty.isNotEmpty)
+                              Text(
+                                faculty,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.dmSans(fontSize: 11.5, color: p.inkMuted),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: tone.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              t.max > 0 ? _w(t.earned) : '—',
+                              style: GoogleFonts.bricolageGrotesque(fontSize: 24, fontWeight: FontWeight.w800, height: 1, color: tone),
+                            ),
+                            if (t.max > 0)
+                              Text('of ${_w(t.max)}',
+                                  style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w700, color: p.inkMuted)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (bars.isNotEmpty)
+                        SizedBox(
+                          height: 34,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              for (final b in bars.take(14))
+                                Container(
+                                  width: 9,
+                                  height: 6 + 28 * b,
+                                  margin: const EdgeInsets.only(right: 4),
+                                  decoration: BoxDecoration(
+                                    color: _tone(p, b),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
                             ],
                           ),
+                        )
+                      else
+                        Text('No scores yet', style: GoogleFonts.dmSans(fontSize: 12, color: p.inkMuted)),
+                      const Spacer(),
+                      if (hasGrade)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(color: p.soft, borderRadius: BorderRadius.circular(12)),
+                          child: Text('Grade $grade',
+                              style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w800, color: p.ink)),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            height: 1.25,
-                            color: p.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          [
-                            if (code.isNotEmpty) code,
-                            type,
-                            if (hasGrade) 'Grade $grade',
-                          ].join('  ·  '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: p.inkMuted,
-                          ),
-                        ),
-                        if (faculty.isNotEmpty)
-                          Text(
-                            faculty,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12,
-                              color: p.inkMuted,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    open
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 24,
-                    color: p.inkMuted,
+                      const SizedBox(width: 6),
+                      Icon(open ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, size: 24, color: p.inkMuted),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-          if (open)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              decoration: BoxDecoration(
-                color: p.soft,
-                border: Border(top: BorderSide(color: p.line)),
-              ),
-              child: _buildTable(details, t),
-            ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: open
+                ? Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                    decoration: BoxDecoration(
+                      color: p.soft,
+                      border: Border(top: BorderSide(color: p.line)),
+                    ),
+                    child: _buildTable(details, t),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );
   }
 
-  /// Simple table with exact (unrounded) values.
+  /// Each assessment as a row with its own bar, plus the running total.
   Widget _buildTable(List<dynamic> details, ({double earned, double max}) t) {
     final p = AppPalette.of(context);
-    TextStyle head() => GoogleFonts.spaceGrotesk(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.9,
-          color: p.inkMuted,
-        );
-    TextStyle body() => GoogleFonts.dmSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: p.ink,
-        );
-
-    Widget row(Widget a, Widget b, Widget c) => Row(
+    if (details.isEmpty) {
+      return Text(
+        'No individual assessments uploaded yet.',
+        style: GoogleFonts.dmSans(fontSize: 12.5, color: p.inkMuted),
+      );
+    }
+    final rows = <Widget>[];
+    for (final raw in details.whereType<Map>()) {
+      final d = Map<String, dynamic>.from(raw);
+      final name = (d['mark_title'] ?? d['title'] ?? 'Assessment').toString().trim();
+      final sc = double.tryParse((d['scored_mark'] ?? d['scored'] ?? '').toString());
+      final mx = double.tryParse((d['max_mark'] ?? d['max_marks'] ?? '').toString());
+      final wm = double.tryParse((d['weightage_mark'] ?? '').toString());
+      final r = (sc != null && mx != null && mx > 0) ? (sc / mx).clamp(0.0, 1.0) : 0.0;
+      rows.add(Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 5, child: a),
-            Expanded(flex: 4, child: Center(child: b)),
-            Expanded(flex: 3, child: Align(alignment: Alignment.centerRight, child: c)),
-          ],
-        );
-
-    return Column(
-      children: [
-        row(
-          Text('ASSESSMENT', style: head()),
-          Text('SCORED / MAX', style: head()),
-          Text('WEIGHTAGE', style: head()),
-        ),
-        const SizedBox(height: 8),
-        Divider(height: 1, color: p.line),
-        if (details.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              'No individual assessments uploaded yet.',
-              style: GoogleFonts.dmSans(fontSize: 12.5, color: p.inkMuted),
-            ),
-          )
-        else
-          for (final raw in details.whereType<Map>())
-            Builder(builder: (_) {
-              final d = Map<String, dynamic>.from(raw);
-              final name = (d['mark_title'] ?? d['title'] ?? 'Assessment').toString().trim();
-              final sc = double.tryParse((d['scored_mark'] ?? d['scored'] ?? '').toString());
-              final mx = double.tryParse((d['max_mark'] ?? d['max_marks'] ?? '').toString());
-              final wm = double.tryParse((d['weightage_mark'] ?? '').toString());
-              return Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: row(
-                  Text(name, style: body()),
-                  Text(
-                    '${sc == null ? '–' : _w(sc)} / ${mx == null ? '–' : _w(mx)}',
-                    style: body(),
-                  ),
-                  Text(
-                    wm == null ? '–' : _w(wm),
-                    style: body().copyWith(color: p.blue, fontWeight: FontWeight.w700),
-                  ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(name,
+                      style: GoogleFonts.dmSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: p.ink)),
                 ),
-              );
-            }),
-        const SizedBox(height: 12),
-        Divider(height: 1, color: p.line),
-        const SizedBox(height: 12),
-        row(
-          Text(
-            'Total',
-            style: body().copyWith(fontWeight: FontWeight.w800),
-          ),
-          Text('${_w(t.earned)} / ${_w(t.max)}', style: body()),
-          Text(
-            _w(t.earned),
-            style: body().copyWith(fontWeight: FontWeight.w800),
-          ),
+                Text('${sc == null ? '–' : _w(sc)} / ${mx == null ? '–' : _w(mx)}',
+                    style: GoogleFonts.dmSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: p.ink)),
+                if (wm != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(color: _tone(p, r).withValues(alpha: 0.16), borderRadius: BorderRadius.circular(8)),
+                    child: Text('+${_w(wm)}',
+                        style: GoogleFonts.dmSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: _tone(p, r))),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: r),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOutCubic,
+                builder: (_, v, _) => LinearProgressIndicator(
+                  value: v,
+                  minHeight: 7,
+                  backgroundColor: p.line,
+                  valueColor: AlwaysStoppedAnimation(_tone(p, r)),
+                ),
+              ),
+            ),
+          ],
         ),
+      ));
+    }
+    rows.add(Row(
+      children: [
+        Text('Total', style: GoogleFonts.bricolageGrotesque(fontSize: 15, fontWeight: FontWeight.w800, color: p.ink)),
+        const Spacer(),
+        Text('${_w(t.earned)} / ${_w(t.max)}',
+            style: GoogleFonts.bricolageGrotesque(fontSize: 15, fontWeight: FontWeight.w800, color: p.ink)),
       ],
-    );
+    ));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
   }
 
   Widget _buildErrorView(String error) {
@@ -674,11 +652,7 @@ class _MarkDetailPageState extends ConsumerState<MarkDetailPage> {
     final details = (course['details'] as List<dynamic>?) ?? const [];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(courseCode),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-      ),
+      appBar: NexusAppBar(title: courseCode, subtitle: 'Assessment details'),
       body: ListView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 36),

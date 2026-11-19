@@ -94,7 +94,7 @@ class _LastSyncedBadgeState extends State<LastSyncedBadge>
               const SizedBox(width: 8),
               Text(
                 formattedTime,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.dmSans(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w500,
                   color: widget.isRefreshing
@@ -126,7 +126,7 @@ class _LastSyncedBadgeState extends State<LastSyncedBadge>
                       const SizedBox(width: 4),
                       Text(
                         'Sync Now',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.dmSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.cyanAccent,

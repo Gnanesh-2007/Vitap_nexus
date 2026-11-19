@@ -1015,6 +1015,9 @@ class StorageService {
     await prefs.setBool(_keyOnboardingCompleted, completed);
   }
 
+  /// Bumped whenever the chosen avatar changes, so screens showing it can refresh.
+  static final ValueNotifier<int> avatarChanged = ValueNotifier<int>(0);
+
   static String? getCustomAvatarPathSync() {
     return _prefs?.getString(_keyCustomAvatarPath);
   }
@@ -1026,6 +1029,7 @@ class StorageService {
     } else {
       await prefs.setString(_keyCustomAvatarPath, path);
     }
+    avatarChanged.value++;
   }
 
   static bool isPrivacyModeEnabledSync() {

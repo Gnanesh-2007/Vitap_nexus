@@ -5,8 +5,8 @@ void main() {
   group('VtopHelpers.extractCallingName Tests', () {
     test('Extracts middle/given calling name from 3-word name', () {
       expect(
-        VtopHelpers.extractCallingName('CHITRAJU GNANESH REDDY'),
-        equals('Gnanesh'),
+        VtopHelpers.extractCallingName('VENKATA RAHUL SHARMA'),
+        equals('Rahul'),
       );
       expect(
         VtopHelpers.extractCallingName('BATHINA CHANDRA SEKHAR'),
@@ -16,11 +16,11 @@ void main() {
 
     test('Extracts given name from 2-word name with surname first', () {
       expect(
-        VtopHelpers.extractCallingName('CHITRAJU GNANESH'),
-        equals('Gnanesh'),
+        VtopHelpers.extractCallingName('VENKATA RAHUL'),
+        equals('Rahul'),
       );
       expect(
-        VtopHelpers.extractCallingName('REDDY SURYA'),
+        VtopHelpers.extractCallingName('SHARMA SURYA'),
         equals('Surya'),
       );
     });
@@ -31,19 +31,19 @@ void main() {
         equals('Sai'),
       );
       expect(
-        VtopHelpers.extractCallingName('DR. GNANESH REDDY'),
-        equals('Reddy'),
+        VtopHelpers.extractCallingName('DR. RAHUL SHARMA'),
+        equals('Sharma'),
       );
     });
 
     test('Handles single name token properly in Title Case', () {
       expect(
-        VtopHelpers.extractCallingName('GNANESH'),
-        equals('Gnanesh'),
+        VtopHelpers.extractCallingName('RAHUL'),
+        equals('Rahul'),
       );
       expect(
-        VtopHelpers.extractCallingName('gnanesh'),
-        equals('Gnanesh'),
+        VtopHelpers.extractCallingName('rahul'),
+        equals('Rahul'),
       );
     });
 

@@ -413,7 +413,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'vtop.vitap.ac.in',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.bricolageGrotesque(
                             color: palette.ink,
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -461,7 +461,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
             const SizedBox(height: 12),
             Text(
               'Unable to Load Direct VTOP',
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.bricolageGrotesque(
                 color: palette.ink,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -540,7 +540,7 @@ class _VtopWebViewScreenState extends ConsumerState<VtopWebViewScreen> {
           const SizedBox(height: 16),
           Text(
             'Opening Direct VTOP Portal...',
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.bricolageGrotesque(
               color: palette.ink,
               fontSize: 17,
               fontWeight: FontWeight.w700,

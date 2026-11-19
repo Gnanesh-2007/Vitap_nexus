@@ -200,7 +200,6 @@ class AppPalette {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final isAmoled = isDark && theme.scaffoldBackgroundColor == Colors.black;
-
     return AppPalette(
       paper: isAmoled ? Colors.black : cs.surface,
       surface: isAmoled
@@ -342,6 +341,21 @@ class AppTheme {
 
   static List<BoxShadow> get cyanGlow => primaryGlow;
 
+  /// Bricolage Grotesque for headings, DM Sans for everything you read.
+  static TextTheme _nexusTextTheme(TextTheme base, Color color) {
+    final body = GoogleFonts.dmSansTextTheme(base).apply(bodyColor: color, displayColor: color);
+    TextStyle? head(TextStyle? s) => GoogleFonts.bricolageGrotesque(textStyle: s, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: color);
+    return body.copyWith(
+      displayLarge: head(body.displayLarge),
+      displayMedium: head(body.displayMedium),
+      displaySmall: head(body.displaySmall),
+      headlineLarge: head(body.headlineLarge),
+      headlineMedium: head(body.headlineMedium),
+      headlineSmall: head(body.headlineSmall),
+      titleLarge: head(body.titleLarge),
+    );
+  }
+
   /// Builds a complete Material 3 ThemeData from a [NexusSeedTheme], [isDarkMode], and [isAmoled]
   static ThemeData getThemeData({
     required NexusSeedTheme seedTheme,
@@ -367,11 +381,14 @@ class AppTheme {
       scaffoldBackgroundColor: scaffoldBg,
       canvasColor: scaffoldBg,
       primaryColor: cs.primary,
-      textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).apply(
-        bodyColor: cs.onSurface,
-        displayColor: cs.onSurface,
-      ),
+      textTheme: _nexusTextTheme(base.textTheme, cs.onSurface),
       appBarTheme: AppBarTheme(
+        titleTextStyle: GoogleFonts.bricolageGrotesque(
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          color: cs.onSurface,
+          letterSpacing: -0.5,
+        ),
         backgroundColor: scaffoldBg,
         foregroundColor: cs.onSurface,
         surfaceTintColor: Colors.transparent,
@@ -385,7 +402,7 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
           side: BorderSide(
             color: cs.outlineVariant.withValues(alpha: isDarkMode ? 0.35 : 0.5),
             width: 1,
@@ -432,7 +449,7 @@ class AppTheme {
         modalBackgroundColor: cardBg,
         elevation: 8,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
         ),
       ),
     );

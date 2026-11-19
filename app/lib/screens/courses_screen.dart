@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
@@ -68,17 +69,10 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   Color get _inkSoft => _palette.inkSoft;
   Color get _navy => _palette.navy;
   Color get _blue => _palette.blue;
-  Color get _orange => _palette.orange;
   Color get _red => _palette.red;
   Color get _muted => _palette.inkMuted;
   Color get _line => _palette.line;
   Color get _soft => _palette.soft;
-
-  TextStyle get _micro => GoogleFonts.spaceGrotesk(
-        fontSize: 9,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1,
-      );
 
   @override
   void initState() {
@@ -400,54 +394,14 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   // HEADER
   // ============================================================
   Widget _buildHeader() {
-    return Row(
-      children: [
-        InkWell(
-          onTap: () => Navigator.of(context).pop(),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _line),
-            ),
-            child: Icon(Icons.arrow_back_rounded, color: _navy, size: 19),
-          ),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('ACADEMICS', style: _micro.copyWith(color: _orange)),
-              const SizedBox(height: 3),
-              Text(
-                'Course Page',
-                style: GoogleFonts.dmSans(
-                  color: _ink,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  height: 1.05,
-                ),
-              ),
-            ],
-          ),
-        ),
-        InkWell(
-          onTap: () => setState(() => _loadCourses(forceRefresh: true)),
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _line),
-            ),
-            child: Icon(Icons.refresh_rounded, color: _navy, size: 18),
-          ),
+    return NexusAppBar(
+      title: 'Courses',
+      subtitle: 'Faculty, lectures and materials',
+      actions: [
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: () => setState(() => _loadCourses(forceRefresh: true)),
+          icon: const Icon(Icons.refresh_rounded),
         ),
       ],
     );
@@ -461,47 +415,48 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
     final displayTitle = isSelected
         ? _formatCourseDisplayTitle(_selectedCourse!)
         : 'Choose a course';
+    final hsl = HSLColor.fromColor(_navy);
+    final top = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).withSaturation(hsl.saturation.clamp(0.5, 1.0)).toColor();
+    final bottom = Color.lerp(top, const Color(0xFF16102E), 0.7)!;
 
-    return NexusCard(
-      variant: NexusCardVariant.standard,
+    return GestureDetector(
       onTap: () => _openCoursePickerBottomSheet(courses),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      borderColor: isSelected ? _navy : _line,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Select Course',
-            style: GoogleFonts.dmSans(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isSelected ? _blue : _muted,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  displayTitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? _ink : _muted,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [top, bottom]),
+          boxShadow: [BoxShadow(color: top.withValues(alpha: 0.3), blurRadius: 22, offset: const Offset(0, 10))],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isSelected ? 'COURSE' : 'START HERE',
+                    style: GoogleFonts.dmSans(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: Colors.white70),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    displayTitle,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.bricolageGrotesque(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white, height: 1.12, letterSpacing: -0.4),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: _inkSoft,
-                size: 22,
-              ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+              child: const Icon(Icons.unfold_more_rounded, color: Colors.white, size: 22),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -531,7 +486,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       isScrollControlled: true,
       backgroundColor: _surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
       ),
       builder: (modalCtx) {
         return StatefulBuilder(
@@ -591,7 +546,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                           ),
                           child: Text(
                             '${courses.length} COURSES',
-                            style: GoogleFonts.spaceGrotesk(
+                            style: GoogleFonts.bricolageGrotesque(
                               fontSize: 8.5,
                               fontWeight: FontWeight.w800,
                               color: _navy,
@@ -689,7 +644,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
                                                 Text(
                                                   code.toUpperCase(),
                                                   style:
-                                                      GoogleFonts.spaceGrotesk(
+                                                      GoogleFonts.bricolageGrotesque(
                                                         fontSize: 10,
                                                         fontWeight:
                                                             FontWeight.w800,
@@ -777,17 +732,18 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   // ============================================================
   Widget _buildFacultySectionHeader() {
     return Text(
-      'Select Faculty',
-      style: GoogleFonts.dmSans(
-        fontSize: 16,
+      'Pick a faculty',
+      style: GoogleFonts.bricolageGrotesque(
+        fontSize: 22,
         fontWeight: FontWeight.w800,
         color: _ink,
+        letterSpacing: -0.5,
       ),
     );
   }
 
   // ============================================================
-  // FACULTY LIST CARDS (ClassEntryCard model)
+  // FACULTY LIST CARDS
   // ============================================================
   Widget _buildFacultyList() {
     final filtered = _getFilteredFaculties();
@@ -805,6 +761,10 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       );
     }
 
+    const tints = [
+      Color(0xFF6C7CFF), Color(0xFF14B8A6), Color(0xFFF59E0B), Color(0xFFEC4899), Color(0xFF22C55E), Color(0xFF8B5CF6),
+    ];
+
     return Column(
       children: filtered.asMap().entries.map((entry) {
         final index = entry.key;
@@ -816,50 +776,63 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
             _selectedCourse?['course_code']?.toString() ??
             '';
         final slot = section['slot']?.toString() ?? '';
-        final subtitle = courseCode.isNotEmpty && slot.isNotEmpty
-            ? '$courseCode - $slot'
-            : (slot.isNotEmpty ? slot : courseCode);
+        final tint = tints[index % tints.length];
+        final initial = facultyName.trim().isEmpty ? '?' : facultyName.trim()[0].toUpperCase();
 
         return AnimeStaggerItem(
           index: index,
           child: Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: NexusCard(
-              variant: NexusCardVariant.standard,
+            child: GestureDetector(
               onTap: () => _openLecturesPage(section),
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          facultyName,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: _ink,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _inkSoft,
-                          ),
-                        ),
-                      ],
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: _line),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(color: tint.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(18)),
+                      alignment: Alignment.center,
+                      child: Text(initial, style: GoogleFonts.bricolageGrotesque(fontSize: 22, fontWeight: FontWeight.w800, color: tint)),
                     ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: _inkSoft,
-                    size: 16,
-                  ),
-                ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            facultyName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.bricolageGrotesque(fontSize: 16.5, fontWeight: FontWeight.w800, color: _ink, height: 1.12, letterSpacing: -0.2),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              if (slot.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                  decoration: BoxDecoration(color: tint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                                  child: Text(slot, style: GoogleFonts.dmSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: tint)),
+                                ),
+                              if (courseCode.isNotEmpty)
+                                Text(courseCode, style: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: _inkSoft)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_rounded, color: _inkSoft, size: 20),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1036,7 +1009,6 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
   Color get _ink => _palette.ink;
   Color get _navy => _palette.navy;
   Color get _blue => _palette.blue;
-  Color get _orange => _palette.orange;
   Color get _green => _palette.green;
   Color get _red => _palette.red;
   Color get _muted => _palette.inkMuted;
@@ -1250,24 +1222,9 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
 
     return Scaffold(
       backgroundColor: _paper,
-      appBar: AppBar(
-        backgroundColor: _paper,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icon(Icons.arrow_back_rounded, color: _ink),
-        ),
-        title: Text(
-          widget.courseTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.dmSans(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: _ink,
-          ),
-        ),
+      appBar: NexusAppBar(
+        title: widget.courseTitle,
+        subtitle: 'Course page',
         actions: [
           IconButton(
             onPressed: _fetchDetail,
@@ -1307,7 +1264,7 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
                     if (widget.courseCode.isNotEmpty)
                       _buildInfoChip(widget.courseCode, _blue),
                     if (widget.courseType.isNotEmpty)
-                      _buildInfoChip(widget.courseType, _orange),
+                      _buildInfoChip(widget.courseType, _palette.orange),
                     if (widget.slot.isNotEmpty)
                       _buildInfoChip(widget.slot, _green),
                   ],
@@ -1412,7 +1369,7 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
       ),
       child: Text(
         label,
-        style: GoogleFonts.spaceGrotesk(
+        style: GoogleFonts.bricolageGrotesque(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
           color: color,
@@ -1556,10 +1513,10 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: _surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: _line),
       ),
       child: Column(
@@ -1574,10 +1531,11 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
                   children: [
                     Text(
                       formattedDate,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: _ink,
+                        letterSpacing: -0.3,
                       ),
                     ),
                     if (day.isNotEmpty)
@@ -1613,7 +1571,7 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
                       const SizedBox(width: 4),
                       Text(
                         '${materials.length}',
-                        style: GoogleFonts.spaceGrotesk(
+                        style: GoogleFonts.bricolageGrotesque(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                           color: _blue,
@@ -1631,7 +1589,8 @@ class _CourseLecturesScreenState extends ConsumerState<CourseLecturesScreen> {
           Text(
             topic.isEmpty ? 'No topic specified' : topic,
             style: GoogleFonts.dmSans(
-              fontSize: 14,
+              fontSize: 14.5,
+              height: 1.3,
               fontWeight: FontWeight.w600,
               color: topic.isEmpty ? _muted : _ink,
               fontStyle: topic.isEmpty ? FontStyle.italic : FontStyle.normal,

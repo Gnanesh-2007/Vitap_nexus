@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../widgets/nexus_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -149,65 +150,17 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
 
     return Scaffold(
       backgroundColor: _background,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: _background,
-        surfaceTintColor: Colors.transparent,
-        toolbarHeight: 72,
-        titleSpacing: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: _ink, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'CAMPUS',
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: _orange,
-                letterSpacing: 1.7,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Mentor Details',
-              style: GoogleFonts.dmSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Last Synced: ${_formatLastSynced(lastSyncedTime)} 💾',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                color: _muted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+      appBar: NexusAppBar(
+        title: 'Mentor',
+        subtitle: _formatLastSynced(lastSyncedTime),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _line),
-            ),
-            child: IconButton(
+          IconButton(
               tooltip: 'Refresh Mentor',
               icon: Icon(Icons.refresh_rounded, color: _navy, size: 20),
               onPressed: () {
                 setState(() => _fetchMentor(forceRefresh: true));
               },
             ),
-          ),
         ],
       ),
       body: RefreshIndicator(
@@ -270,7 +223,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                 // Contact & Office Information Card
                 Text(
                   'OFFICE & CONTACT DIRECTORY',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                     color: _muted,
@@ -295,7 +248,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                 // Responsibilities & Proctoring Guide
                 Text(
                   'PROCTORING & MENTORING',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.bricolageGrotesque(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                     color: _muted,
@@ -331,25 +284,56 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
         imageProvider = MemoryImage(base64Decode(cleanBase64));
       } catch (_) {}
     }
+    final hsl = HSLColor.fromColor(_navy);
+    final top = hsl.withLightness(hsl.lightness.clamp(0.0, 0.42)).withSaturation(hsl.saturation.clamp(0.5, 1.0)).toColor();
+    final bottom = Color.lerp(top, const Color(0xFF16102E), 0.72)!;
+    final hasPhone = phone.isNotEmpty && phone != 'Not Available';
 
-    return NexusCard(
-      variant: NexusCardVariant.standard,
+    Widget pill(IconData icon, String label, VoidCallback onTap, {required bool solid}) => Expanded(
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              decoration: BoxDecoration(
+                color: solid ? Colors.white : Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 18, color: solid ? bottom : Colors.white),
+                  const SizedBox(width: 8),
+                  Text(label,
+                      style: GoogleFonts.bricolageGrotesque(fontSize: 14.5, fontWeight: FontWeight.w800, color: solid ? bottom : Colors.white)),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(34),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [top, bottom]),
+        boxShadow: [BoxShadow(color: top.withValues(alpha: 0.32), blurRadius: 24, offset: const Offset(0, 12))],
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
               Container(
-                width: 72,
-                height: 72,
+                width: 78,
+                height: 78,
                 decoration: BoxDecoration(
                   color: _soft,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _line, width: 2),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: Colors.white, width: 2.5),
                 ),
-                child: ClipOval(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(25),
                   child: imageProvider != null
                       ? Image(
                           image: imageProvider,
@@ -365,105 +349,36 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _green.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _green.withValues(alpha: 0.3)),
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.verified_rounded, size: 12, color: _green),
-                          const SizedBox(width: 4),
-                          Text(
-                            'ASSIGNED PROCTOR',
-                            style: GoogleFonts.spaceGrotesk(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: _green,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
+                          const Icon(Icons.verified_rounded, size: 13, color: Colors.white),
+                          const SizedBox(width: 5),
+                          Text('YOUR MENTOR',
+                              style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.9)),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      name,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: _ink,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      designation,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12.5,
-                        color: _inkSoft,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    const SizedBox(height: 8),
+                    Text(name,
+                        style: GoogleFonts.bricolageGrotesque(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, height: 1.1, letterSpacing: -0.4)),
+                    const SizedBox(height: 3),
+                    Text(designation,
+                        style: GoogleFonts.dmSans(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.82), fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 18),
-          Divider(height: 1, color: _line),
-          const SizedBox(height: 16),
-
-          // Action Buttons: Call & Email
           Row(
             children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _navy,
-                    foregroundColor: _palette.isDark ? const Color(0xFF0F172A) : Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(Icons.email_outlined, size: 18),
-                  label: Text(
-                    'Email Mentor',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  onPressed: () => _launchEmail(email),
-                ),
-              ),
-              if (phone.isNotEmpty && phone != 'Not Available') ...[
+              pill(Icons.email_rounded, 'Email', () => _launchEmail(email), solid: true),
+              if (hasPhone) ...[
                 const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _soft,
-                      foregroundColor: _ink,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: _line),
-                      ),
-                    ),
-                    icon: Icon(Icons.phone_outlined, size: 18, color: _green),
-                    label: Text(
-                      'Call Mentor',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    onPressed: () => _launchCall(phone),
-                  ),
-                ),
+                pill(Icons.call_rounded, 'Call', () => _launchCall(phone), solid: false),
               ],
             ],
           ),
@@ -561,7 +476,7 @@ class _MentorScreenState extends ConsumerState<MentorScreen> {
             children: [
               Text(
                 label,
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.bricolageGrotesque(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: _muted,

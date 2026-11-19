@@ -139,7 +139,7 @@ class _SemesterSelectionScreenState
                           border: Border.all(color: _line),
                         ),
                         child: Image.asset(
-                          'assets/images/konoha_logo.png',
+                          'assets/images/vitap_nexus_logo.png',
                           fit: BoxFit.contain,
                           errorBuilder: (_, _, _) => Icon(
                             Icons.school_rounded,
@@ -212,7 +212,7 @@ class _SemesterSelectionScreenState
                   const SizedBox(height: 12),
                   Text(
                     'Select Academic Semester',
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.bricolageGrotesque(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       color: _ink,
