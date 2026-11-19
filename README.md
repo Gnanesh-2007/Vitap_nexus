@@ -5,253 +5,259 @@
 <p align="center">
   <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-Dart_3-02569B?logo=flutter&logoColor=white" alt="Flutter"></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-on--device_engine-DEA584?logo=rust&logoColor=white" alt="Rust"></a>
-  <a href="https://riverpod.dev"><img src="https://img.shields.io/badge/State-Riverpod_2-2563EB" alt="Riverpod"></a>
+  <a href="https://riverpod.dev"><img src="https://img.shields.io/badge/State-Riverpod-2563EB" alt="Riverpod"></a>
   <img src="https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white" alt="Android">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-<h3 align="center">VITAP Nexus is a fast, offline-first mobile client for VTOP, the VIT-AP student portal.<br>Your timetable, attendance and marks open instantly, and your home screen shows them without opening the app.</h3>
+# VITAP Nexus
 
-> **Unofficial project.** VITAP Nexus is a student-built app. It is not affiliated with or endorsed by VIT-AP University or the VTOP team. You log in with your own VTOP account, and you use the app at your own risk.
+VITAP Nexus is an offline-first Android client for VTOP, the VIT-AP University student portal. It presents your timetable, attendance, marks and exam schedule in a form designed for a phone, and keeps them visible on the home screen through widgets.
 
----
+> **Unofficial project.** VITAP Nexus is a student-built application. It is not affiliated with, or endorsed by, VIT-AP University or the VTOP team. You sign in with your own VTOP account and use the app at your own risk.
 
-## ✨ Why Nexus?
+## Contents
 
-VTOP is built for a desktop browser. On a phone it is slow, times out, and makes you dig through tables to answer simple questions like *"do I have class right now?"* or *"can I skip this one?"*.
+- [Overview](#overview)
+- [Screenshots](#screenshots)
+- [Home-screen widgets](#home-screen-widgets)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Technology](#technology)
+- [Repository layout](#repository-layout)
+- [Getting started](#getting-started)
+- [Privacy and security](#privacy-and-security)
+- [Roadmap](#roadmap)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
 
-| | |
+## Overview
+
+VTOP is designed for a desktop browser. On a phone it is slow, sessions time out, and simple questions such as "do I have class right now?" or "can I skip this one?" require reading through tables.
+
+Nexus addresses this in four ways:
+
+| Goal | How it is achieved |
 | :--- | :--- |
-| ⚡ **Opens instantly** | Cached data renders immediately, then refreshes in the background (stale-while-revalidate). |
-| 🦀 **No server in the middle** | A native Rust engine logs in to VTOP and parses the pages **on your phone**. Nothing is proxied through a third-party backend. |
-| 📴 **Works offline** | Timetable, attendance, marks and exam schedule stay available when the campus Wi-Fi does not. |
-| 🧮 **Answers, not tables** | A home screen that tells you what is happening now, whether you can skip the next class, and what your CGPA could become. |
-| 📱 **Home-screen widgets** | Five widgets that stay live without opening the app, with a character and colours you choose. |
-| 🎨 **Your look** | Character-based colours, light / dark / AMOLED, and motion throughout. |
+| Fast to open | Cached data is shown immediately and refreshed in the background (stale-while-revalidate). |
+| No intermediary server | A native Rust engine signs in to VTOP and parses the pages on the device. No data passes through a third-party backend. |
+| Usable offline | The timetable, attendance, marks and exam schedule remain available without a connection. |
+| Direct answers | The home screen shows what is happening now, whether the next class can be skipped safely, and how grades affect CGPA. |
 
----
-
-## 📸 The app
+## Screenshots
 
 <p align="center"><img src="docs/app/tour-dark.png" alt="Home, attendance, timetable, marks and exams in dark mode"></p>
 <p align="center"><img src="docs/app/tour-light.png" alt="The same screens in light mode"></p>
 
-<sub>All screenshots are rendered from the real app code with sample data, not real student records.</sub>
+<sub>Screenshots are rendered from the application code using sample data. They do not contain real student records.</sub>
 
-- **Today:** the home screen is built around the moment. A live card counts down to the end of the current class or the start of the next one, and changes colour and mood with your day. Below it: a strip of your day, a plain "safe to skip / do not skip" verdict for the next class, a ring for every subject, and shortcuts to everything else.
-- **Attendance:** one overall ring, then every subject with its own ring and a verdict like *Miss up to 6* or *Attend next 10*. Day-wise logs and the calculator are one tap away.
-- **Timetable:** a week strip with a sliding highlight and a timeline of the day. The class happening now becomes a bright card with a countdown.
-- **Marks:** a score tile and one bar per assessment, opening into the full breakdown.
-- **Exams:** every exam as a ticket with a countdown, time, venue, room and seat.
+| Screen | Description |
+| :--- | :--- |
+| Today | A live card that counts down to the end of the current class or the start of the next one, a strip showing the day, a skip verdict for the next class, a ring for every subject, and shortcuts to the other screens. |
+| Attendance | An overall ring and one ring per subject, each with a verdict such as "Miss up to 6" or "Attend next 10". Day-wise logs and the calculator are available from each subject. |
+| Timetable | A week strip and a timeline of the day. The class in progress is highlighted with a countdown. |
+| Marks | A score tile and one bar per assessment, expanding to the full breakdown. |
+| Exams | Each exam shown with a countdown, time, venue, room and seat. |
 
-<p align="center"><img src="docs/app/more-dark.png" alt="Grades, journey, profile and the floating dock"></p>
+<p align="center"><img src="docs/app/more-dark.png" alt="Grades, journey, profile and navigation"></p>
 
-- **Journey and what-if:** your CGPA across semesters, the biggest jump, your strongest area, and a "try different grades" mode that shows what a change would do to your CGPA. Export it as a PDF or a picture.
-- **Your colours:** pick widget colours from presets or from your character's picture. Widgets also have an optional glass mode.
-- **Your character:** keep the bundled artwork, use any picture from your gallery or an image link, or turn it off. It appears on the home screen and on every widget.
+| Screen | Description |
+| :--- | :--- |
+| Journey | CGPA across semesters, the largest improvement, the strongest subject area, and a "try different grades" mode that shows the effect of a change on CGPA. Exportable as PDF or image. |
+| Widget character | Use the bundled artwork, a picture from the gallery or an image link, or no character. The choice applies to the home screen and to every widget. |
+| Widget colours | Choose a preset, take the colours from the character picture, or keep each widget's own colours. |
 
----
+## Home-screen widgets
 
-## 📱 Home-screen widgets---
-
-## 📱 Home-screen widgets
-
-Nexus ships five Android widgets, drawn from scratch so they look the same on every launcher. Each subject keeps one colour across all of them, and the glow follows your app theme.
+Nexus provides five Android widgets. They are drawn directly with `Canvas`, so they look the same on every launcher. Each subject keeps the same colour across all widgets.
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <b>🗓 Day timeline</b> (4×2)<br>
-      The current class, what is next, and your whole day as a live strip with a "now" marker. The character reacts: fighting in class, running when you are late.<br><br>
+      <b>Day timeline</b> (4×2)<br>
+      The current class, the next class, and the whole day as a live strip with a marker for the current time.<br><br>
       <img src="docs/widgets/timetable.png" alt="Day timeline widget">
     </td>
     <td width="50%" valign="top">
-      <b>📊 Attendance</b> (4×2)<br>
-      One ring per subject, with <i>skip 4</i> / <i>need 10</i> underneath. Theory and lab are tracked separately.<br><br>
+      <b>Attendance</b> (4×2)<br>
+      One ring per subject with the number of classes that can be missed or must be attended. Theory and lab are tracked separately.<br><br>
       <img src="docs/widgets/attendance.png" alt="Attendance widget">
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <b>🤔 Skip check</b> (4×2)<br>
-      For each upcoming class: what your attendance becomes if you skip it, and a verdict.<br><br>
+      <b>Skip check</b> (4×2)<br>
+      For each upcoming class, the resulting attendance if it is skipped, with a verdict.<br><br>
       <img src="docs/widgets/skip-check.png" alt="Skip check widget">
     </td>
     <td valign="top">
-      <b>📋 Attendance list</b> (resize taller)<br>
-      Stretch the attendance widget and it becomes a full per-subject list with progress bars.<br><br>
+      <b>Attendance list</b> (attendance widget, resized taller)<br>
+      A per-subject list with progress bars.<br><br>
       <img src="docs/widgets/attendance-list.png" alt="Attendance widget, list layout">
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <b>⏱ Next class</b> (2×2)<br>
-      A live countdown that ticks every second, to the start or end of the class.<br><br>
+      <b>Next class</b> (2×2)<br>
+      A countdown, updated every second, to the start or end of the class.<br><br>
       <img src="docs/widgets/next-class.png" width="48%" alt="Next class widget">
     </td>
     <td valign="top">
-      <b>📅 Exam countdown</b> (2×2, resizable)<br>
-      Days to the next exam. Stretch it and it lists every upcoming exam with date, time, session, venue, room and seat.<br><br>
+      <b>Exam countdown</b> (2×2, resizable)<br>
+      Days until the next exam. When enlarged, it lists every upcoming exam with date, time, session, venue, room and seat.<br><br>
       <img src="docs/widgets/exam.png" width="48%" alt="Exam countdown widget">
       <img src="docs/widgets/exam-list.png" alt="Exam widget, list layout">
     </td>
   </tr>
 </table>
 
-**Glass widgets:** turn on glass and the cards become see-through with a glossy sheen, so your wallpaper shows behind them. Android does not let widgets blur what is behind them, so this is clear tinted glass rather than frosted glass.
+**Glass option.** Widgets can optionally use translucent cards so the wallpaper shows through. Android does not allow widgets to blur the content behind them, so the effect is tinted transparency rather than frosted glass.
 
-<p align="center"><img src="docs/widgets/glass.png" alt="Glass widgets over a wallpaper"></p>
+<p align="center"><img src="docs/widgets/glass.png" alt="Widgets with the glass option over a wallpaper"></p>
 
-<sub>Images above are rendered from the real widget code with sample data.</sub>
+<sub>Widget images are rendered from the widget code using sample data.</sub>
 
-**How they stay current:** the app saves a small snapshot of your timetable, attendance and exams whenever it syncs. The widgets work out "now" and "next" from the clock, and refresh themselves at each class start and end and at midnight, even if the app is closed. They never log in to VTOP on their own, so they show your last synced data.
+**How widgets stay current.** After each sync the app stores a small snapshot of the timetable, attendance and exams. The widgets derive "now" and "next" from the system clock and refresh at each class start and end and at midnight, even when the app is closed. Widgets never sign in to VTOP themselves, so they display the most recently synced data.
 
----
+To add a widget: sign in once and let the app sync, then long-press the home screen, choose **Widgets** and select **VITAP Nexus**.
 
-## 🚀 Features
+## Features
 
 **Home and insights**
-- **Today screen:** live now / next card, day strip, skip verdict, every-subject rings.
-- **Journey and what-if:** semester-by-semester CGPA, biggest jump, strongest area, and a mode to try different grades. PDF and picture export.
-- **Widget character:** bundled artwork, your own picture from the gallery or a link, or none. Widget and app colours follow it if you want.
-- **Glass widgets:** optional see-through widgets that show your wallpaper behind them.
+- Today screen with a live current and next class, day strip, skip verdict and per-subject rings.
+- Journey view with semester-by-semester CGPA and a what-if mode for trying different grades, with PDF and image export.
+- Optional widget character and colour themes.
 
 **Academics**
-- **Attendance:** per-course percentages with 75% and 85% thresholds, a bunk calculator (how many you can miss, or must attend), day-wise session logs, and capstone attendance.
-- **Timetable:** weekly view with a live current-class indicator and progress.
-- **Exam schedule:** exam tickets with a countdown, slot, venue, room and seat.
-- **Marks and grades:** component-wise marks, grade view, grade history, and a CGPA calculator.
-- **Courses:** syllabus, lecture material and course details.
-- **Digital assignments:** view assignments and due dates.
-- **Academic calendar, faculty directory, and mentor details.**
+- Attendance: per-course percentages with 75% and 85% thresholds, a calculator for classes that can be missed or must be attended, day-wise session logs, and capstone attendance.
+- Timetable: weekly view with a live indicator for the class in progress.
+- Exam schedule: dates, slots, venues, rooms and seats.
+- Marks and grades: component-wise marks, grade history and a CGPA calculator.
+- Courses: syllabus, lecture material and course details.
+- Digital assignments: assignments and due dates.
+- Academic calendar, faculty directory and mentor details.
 
 **Campus life**
-- **Hostel outings:** apply for general and weekend outings, track status, and generate a gate-pass PDF.
-- **Biometric attendance records.**
-- **Payments:** pending fees and receipts.
+- Hostel outings: apply for general and weekend outings, track their status and generate the gate-pass PDF.
+- Biometric attendance records.
+- Payments: pending fees and receipts.
 
-**The app itself**
-- **Command palette:** jump to any screen by typing.
-- **Themes:** 7 seed colours, light / dark / AMOLED, and a privacy mode that hides CGPA and credits.
-- **App lock:** biometric unlock and a fallback PIN.
-- **OTP handling:** if VTOP asks for an email OTP mid-session, Nexus asks for it in place and carries on.
-- **Diagnostics screen** for debugging sync problems.
+**Application**
+- Command palette for navigating to any screen by typing.
+- Seven seed colours, light, dark and AMOLED themes, and a privacy mode that hides CGPA and credits.
+- Biometric unlock with a PIN fallback.
+- In-app handling of the email OTP that VTOP may request during a session.
+- Diagnostics screen for investigating synchronisation problems.
 
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                       Flutter app (Dart)                     │
 │   Screens · Riverpod providers · Stale-while-revalidate cache│
-│   Secure + local storage · Theme system · Command palette    │
+│   Secure and local storage · Theming · Command palette       │
 └───────────────┬──────────────────────────────┬───────────────┘
                 │ flutter_rust_bridge          │ SharedPreferences snapshot
                 ▼                              ▼
 ┌───────────────────────────────┐   ┌─────────────────────────────┐
 │   lib_vtop (Rust, on-device)  │   │  Android home-screen widgets │
-│   Login · captcha · session   │   │  Kotlin + Canvas rendering   │
-│   HTML parsing → JSON         │   │  Alarm-driven refresh        │
+│   Sign-in · captcha · session │   │  Kotlin and Canvas rendering │
+│   HTML parsing to JSON        │   │  Alarm-driven refresh        │
 └───────────────┬───────────────┘   └─────────────────────────────┘
                 │ HTTPS
                 ▼
         VTOP (VIT-AP student portal)
 ```
 
-- **Rust engine:** logs in (including captcha and OTP), fetches pages, and parses them into JSON. It runs natively, so parsing large tables is fast and nothing goes through a middleman server.
-- **Offline-first cache:** every feature has its own freshness window (for example 15 minutes for attendance, 8 hours for the timetable). The UI always shows what it has first and refreshes after.
-- **Single-flight login:** many screens asking for data at once share one VTOP login, so you do not trigger duplicate logins or OTP emails.
-- **Widgets:** the Flutter app writes a compact JSON snapshot; Kotlin draws each widget to a bitmap with `Canvas`. A JVM test renders every widget to PNG, which is how the pictures in this README were made.
+- **Rust engine.** Handles sign-in (including captcha and OTP), fetches pages and parses them into JSON. It runs natively on the device, so large tables parse quickly and nothing passes through an intermediary.
+- **Offline-first cache.** Each feature has its own freshness window, for example 15 minutes for attendance and 8 hours for the timetable. The interface shows cached data first and refreshes afterwards.
+- **Single-flight sign-in.** Concurrent requests from several screens share one VTOP sign-in, which avoids duplicate logins and duplicate OTP emails.
+- **Widgets.** The Flutter app writes a compact JSON snapshot. Kotlin draws each widget to a bitmap with `Canvas`. A JVM test renders every widget to PNG, which is how the widget images in this document were produced.
 
----
-
-## 🛠️ Tech stack
+## Technology
 
 | Layer | Technology |
 | :--- | :--- |
-| App | Flutter, Dart 3, Riverpod, Dio, Google Fonts (Bricolage Grotesque + DM Sans), flutter_animate, Lottie |
-| Native engine | Rust ([`lib_vtop`](#-credits)), `reqwest`, `flutter_rust_bridge` 2.12 |
+| Application | Flutter, Dart 3, Riverpod, Dio, Google Fonts (Bricolage Grotesque and DM Sans), flutter_animate, Lottie |
+| Native engine | Rust ([`lib_vtop`](#acknowledgements)), `reqwest`, `flutter_rust_bridge` 2.12 |
 | Storage | `flutter_secure_storage`, `shared_preferences` |
 | Documents | `pdf`, `printing`, `share_plus`, `open_filex` |
-| Widgets | Kotlin, Android `AppWidgetProvider`, `Canvas`, Robolectric (preview renders) |
+| Widgets | Kotlin, Android `AppWidgetProvider`, `Canvas`, Robolectric (preview rendering) |
 
----
-
-## 📁 Repository layout
+## Repository layout
 
 ```
 .
-├── app/                    # The Flutter app (this is the project)
-│   ├── lib/                #   Dart source: screens, providers, services, theme
-│   ├── rust/               #   lib_vtop, the on-device VTOP engine (Rust)
-│   ├── rust_builder/       #   Flutter plugin glue that builds the Rust crate
-│   ├── android/            #   Android host app, including the home-screen widgets
-│   └── assets/             #   Images, Lottie animations, bundled data
-├── docs/                   # README images
-├── src/, api/,             # Legacy FastAPI gateway from the first version of Nexus.
-│   vitap_vtop_client/      # The current app does not need it.
+├── app/                    The Flutter application
+│   ├── lib/                Dart source: screens, providers, services, theme
+│   ├── rust/               lib_vtop, the on-device VTOP engine (Rust)
+│   ├── rust_builder/       Flutter plugin that builds the Rust crate
+│   ├── android/            Android host app, including the home-screen widgets
+│   └── assets/             Images, Lottie animations and bundled data
+├── docs/                   Images used in this document
+├── src/, api/,             Legacy FastAPI gateway from the first version of Nexus.
+│   vitap_vtop_client/      The current application does not use it.
 └── LICENSE
 ```
 
----
+## Getting started
 
-## ⚙️ Getting started
-
-**You will need:** Flutter (Dart `^3.12.2`), a Rust toolchain via [rustup](https://rustup.rs), and the Android SDK with NDK `28.2.13676358`. The Rust library is built automatically as part of the Android build.
+**Requirements:** Flutter (Dart `^3.12.2`), a Rust toolchain installed with [rustup](https://rustup.rs), and the Android SDK with NDK `28.2.13676358`. The Rust library is built automatically as part of the Android build.
 
 ```bash
 git clone https://github.com/Gnanesh-2007/Vitap_nexus.git
 cd Vitap_nexus/app
 
 flutter pub get
-flutter run                      # on a connected device or emulator
+flutter run        # on a connected device or emulator
 ```
 
-**Build a small release APK** (arm64 covers almost every phone made in the last several years):
+**Release build.** The arm64 build covers nearly all current phones:
 
 ```bash
 flutter build apk --release --split-per-abi --target-platform android-arm64
-# -> build/app/outputs/flutter-apk/app-arm64-v8a-release.apk  (about 37 MB)
+# Output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk (about 36 MB)
 ```
 
-**Using the widgets:** install the app, log in once and let it sync, then long-press your home screen, choose **Widgets**, and pick **VITAP Nexus**.
+**Tests and static analysis:**
 
-**Re-render the widget previews** (no phone needed):
+```bash
+flutter analyze lib
+flutter test test
+```
+
+**Widget previews.** Render every widget to PNG without a device:
 
 ```bash
 cd app/android
 ./gradlew :app:testDebugUnitTest --tests "*WidgetRenderTest*"
-# PNGs land in app/build/widget_previews
+# Images are written to app/build/widget_previews
 ```
 
----
+## Privacy and security
 
-## 🔒 Privacy and security
+- **Direct connection to VTOP.** The app communicates with VTOP from the device. There is no Nexus server, no analytics, and no account operated by the project that holds user data.
+- **Local storage.** Credentials and cached data stay on the device. Credentials are sent only to VTOP when signing in.
+- **Password storage.** The saved password is held in the Android Keystore (`flutter_secure_storage`) and nowhere else. If the Keystore is unavailable, the password remains in memory for that session and the user signs in again at the next launch. Installations from earlier versions that kept a plain copy are migrated to the Keystore and the copy is deleted on first launch.
+- **Privacy mode and app lock.** CGPA and credits can be hidden on screen, and the app can require biometrics or a PIN to open.
 
-- **Direct to VTOP.** The app talks to VTOP from your phone. There is no Nexus server, no analytics, and no account of ours that holds your data.
-- **Local storage.** Your credentials and cached data are stored on the device only, and credentials are sent only to VTOP when logging in.
-- **Privacy mode and app lock.** Hide CGPA and credits on screen, and require biometrics or a PIN to open the app.
-- **Known limitation.** The saved password is written to `flutter_secure_storage` (Android Keystore) and also to plain `SharedPreferences` as a fallback. Removing the plain copy is on the [roadmap](#-roadmap).
+If you find a security problem, please contact the maintainer privately rather than opening a public issue.
 
----
+## Roadmap
 
-## 🗺️ Roadmap
-
-- [ ] Store the password only in secure storage (remove the plain fallback copy)
-- [x] Real app screenshots in this README
+- [x] Store the password only in secure storage
+- [x] Application screenshots in this document
+- [ ] Class and exam reminders as local notifications
+- [ ] Leave planner: projected attendance for a planned absence
+- [ ] End-of-semester summary
 - [ ] iOS home-screen widgets (SwiftUI)
-- [ ] Leave planner: "what happens to my attendance if I am away 21 to 24 Nov?"
-- [ ] End-of-semester summary cards
 
----
+## Acknowledgements
 
-## 🙏 Credits
+- **[`lib_vtop`](app/rust)**, the Rust engine for VTOP, originates from [Udhay-Adithya/vitap_student_app](https://github.com/Udhay-Adithya/vitap_student_app) by the VIT-AP student community and is licensed under **Apache-2.0** (see [`app/rust/LICENSE`](app/rust/LICENSE)). Nexus builds on that work.
+- The remainder of the application, including the interface, navigation and widgets, was written for this project.
+- The bundled character artwork is third-party material and is not covered by this project's MIT licence. Replace it with your own artwork, or choose "None" under Profile, Appearance, Widget character, before redistributing a modified build.
 
-- **[`lib_vtop`](app/rust)**, the Rust VTOP engine, comes from [Udhay-Adithya/vitap_student_app](https://github.com/Udhay-Adithya/vitap_student_app) by the VIT-AP student community, licensed under **Apache-2.0** (see [`app/rust/LICENSE`](app/rust/LICENSE)). Nexus builds on that work.
-- The app design (home screen, navigation, screens, widgets) is original to this project. Only the VTOP engine is reused.
-- The bundled Naruto artwork belongs to its creators and is used here for personal, non-commercial fun. If you fork this, swap it for your own or choose "None" in Profile, Appearance, Widget character.
+## License
 
-## 📄 License
-
-The Nexus app code is released under the **MIT License**, see [LICENSE](LICENSE). The bundled `lib_vtop` crate keeps its own Apache-2.0 license.
+The Nexus application code is released under the **MIT License**; see [LICENSE](LICENSE). The bundled `lib_vtop` crate keeps its own Apache-2.0 licence.

@@ -227,7 +227,8 @@ class StorageService {
     final prefs = await _getPrefs();
 
     await prefs.setString(_keyUsername, cleanUser);
-    await prefs.setString(_keyPassword, password);
+    // The password never goes into plain SharedPreferences. Drop any old copy.
+    await prefs.remove(_keyPassword);
 
     if (semesterId != null) {
       await prefs.setString('${cleanUser}_$_keySemester', semesterId);
@@ -246,17 +247,47 @@ class StorageService {
       'semesterName': semesterName ?? _cachedCredentials['semesterName'],
     };
 
-    // Write password securely in background so keystore never blocks login UI
+    // Only the Android Keystore holds the password. If it is slow or fails, the password
+    // stays in memory for this session and the user signs in again next time. It is never
+    // written to a plain file as a fallback.
     try {
       await _secureStorage
           .write(key: _keyUsername, value: cleanUser)
-          .timeout(const Duration(milliseconds: 500));
+          .timeout(_keystoreTimeout);
       await _secureStorage
           .write(key: _keyPassword, value: password)
-          .timeout(const Duration(milliseconds: 500));
+          .timeout(_keystoreTimeout);
     } catch (e) {
-      debugPrint('StorageService secureStorage write fallback note: $e');
+      debugPrint('StorageService: could not save the password securely ($e). Kept in memory only.');
     }
+  }
+
+  static const Duration _keystoreTimeout = Duration(seconds: 4);
+  static const Duration _keystoreReadTimeout = Duration(seconds: 2);
+
+  /// Reads the saved password from the Keystore. Older versions also kept a plain copy in
+  /// SharedPreferences: if that is all there is, it is moved into the Keystore and deleted.
+  static Future<String?> _readPassword(SharedPreferences prefs) async {
+    String? secure;
+    try {
+      secure = await _secureStorage.read(key: _keyPassword).timeout(_keystoreReadTimeout);
+    } catch (_) {}
+    final legacy = prefs.getString(_keyPassword);
+    if (secure != null && secure.isNotEmpty) {
+      if (legacy != null) await prefs.remove(_keyPassword);
+      return secure;
+    }
+    if (legacy != null && legacy.isNotEmpty) {
+      try {
+        await _secureStorage.write(key: _keyPassword, value: legacy).timeout(_keystoreTimeout);
+        final check = await _secureStorage.read(key: _keyPassword).timeout(_keystoreTimeout);
+        if (check == legacy) await prefs.remove(_keyPassword);
+      } catch (_) {
+        // Keep the old copy for now rather than log the user out; try again next launch.
+      }
+      return legacy;
+    }
+    return null;
   }
 
   static Future<void> saveSemester(
@@ -389,25 +420,16 @@ class StorageService {
     final prefs = await _getPrefs();
 
     var username = prefs.getString(_keyUsername);
-    var password = prefs.getString(_keyPassword);
     var semesterId = prefs.getString(_keySemester);
     var semesterName = prefs.getString(_keySemesterName);
 
-    if (username == null ||
-        username.isEmpty ||
-        password == null ||
-        password.isEmpty) {
+    if (username == null || username.isEmpty) {
       try {
-        final secUser = await _secureStorage
-            .read(key: _keyUsername)
-            .timeout(const Duration(milliseconds: 500));
-        final secPass = await _secureStorage
-            .read(key: _keyPassword)
-            .timeout(const Duration(milliseconds: 500));
+        final secUser = await _secureStorage.read(key: _keyUsername).timeout(_keystoreReadTimeout);
         if (secUser != null && secUser.isNotEmpty) username = secUser;
-        if (secPass != null && secPass.isNotEmpty) password = secPass;
       } catch (_) {}
     }
+    final password = (username == null || username.isEmpty) ? null : await _readPassword(prefs);
 
     if (username != null && username.isNotEmpty) {
       _currentUsername = username.toUpperCase().trim();
@@ -429,23 +451,8 @@ class StorageService {
     if (_cachedCredentials.isNotEmpty && _cachedCredentials['username'] != null) {
       return _cachedCredentials;
     }
-    if (_prefs != null) {
-      final u = _prefs!.getString(_keyUsername);
-      final p = _prefs!.getString(_keyPassword);
-      final s = _prefs!.getString(_keySemester);
-      final sn = _prefs!.getString(_keySemesterName);
-      if (u != null && u.isNotEmpty && p != null && p.isNotEmpty) {
-        final cleanUser = u.toUpperCase().trim();
-        final creds = {
-          'username': cleanUser,
-          'password': p,
-          'semesterId': _prefs!.getString('${cleanUser}_$_keySemester') ?? s,
-          'semesterName': _prefs!.getString('${cleanUser}_$_keySemesterName') ?? sn,
-        };
-        _cachedCredentials = creds;
-        return creds;
-      }
-    }
+    // The password lives only in the Keystore, which can only be read asynchronously.
+    // getCredentials() (run at startup) fills the cache; until then there is nothing to return.
     return {};
   }
 
