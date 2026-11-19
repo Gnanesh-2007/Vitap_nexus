@@ -23,13 +23,15 @@ class WidgetRenderTest {
     private val density = 3f
 
     /** Same PNGs the app ships in res/drawable-nodpi. */
-    private val art = object : WidgetArt {
+    private fun fileArt(prefix: String = "") = object : WidgetArt {
         private val dir = File("src/main/res/drawable-nodpi")
         private val cache = HashMap<String, Bitmap?>()
         override fun bitmap(name: String): Bitmap? = cache.getOrPut(name) {
-            File(dir, "widget_art_$name.png").takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) }
+            File(dir, "widget_art_$prefix$name.png").takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) }
         }
     }
+
+    private val art = fileArt()
 
     private fun save(name: String, bmp: Bitmap) {
         File(out, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -122,6 +124,16 @@ class WidgetRenderTest {
         save("exam_wide", WidgetRender.exam(s, 330f, 150f, density, at(10, 25), art))
         save("exam_tall", WidgetRender.exam(sample(listOf(9 to "CAT2", 12 to "FAT", 15 to "FAT")), 330f, 250f, density, at(10, 25), art))
         save("exam_min", WidgetRender.exam(s, 110f, 110f, density, at(10, 25), art))
+
+        // The other bundled characters.
+        for (pack in listOf("ds", "tr")) {
+            val a = fileArt("${pack}_")
+            save("${pack}_timeline", WidgetRender.timeline(s, 330f, 150f, density, at(10, 25), a))
+            save("${pack}_timeline_run", WidgetRender.timeline(s, 330f, 150f, density, at(10, 55), a))
+            save("${pack}_next", WidgetRender.nextClass(s, 155f, 150f, density, at(10, 55), a, previewTimer = "04:35").bitmap)
+            save("${pack}_exam", WidgetRender.exam(s, 155f, 150f, density, at(10, 25), a))
+            save("${pack}_attendance", WidgetRender.attendance(s, 330f, 150f, density, a))
+        }
 
         // A user-chosen picture (here a plain gradient standing in for any character).
         val pic = File(out, "_custom_src.png")

@@ -13,13 +13,37 @@ import 'widget_sync_service.dart';
 /// `custom` is a picture the user chose (from the gallery or a link). The
 /// custom picture is cropped square, shrunk and kept on the phone, where the
 /// native widgets read it directly.
+/// A bundled character: its id (stored in settings and read by the widgets), its name,
+/// and the picture shown in the picker. Every pack has the same four moods, in
+/// `assets/images/characters/{id}_{mood}.png` and as `widget_art_{id}_{mood}` on Android.
+class CharacterPack {
+  final String id;
+  final String label;
+  final String preview;
+  const CharacterPack(this.id, this.label, this.preview);
+}
+
 class WidgetCharacter {
   WidgetCharacter._();
+
+  static const packs = [
+    CharacterPack('naruto', 'Naruto', 'assets/images/naruto_cool.png'),
+    CharacterPack('ds', 'Demon Slayer', 'assets/images/characters/ds_peace.png'),
+    CharacterPack('tr', 'Tokyo Revengers', 'assets/images/characters/tr_peace.png'),
+  ];
+
+  static const activeKey = 'widget_character_active';
+  static String nameOf(File f) => f.path.split(RegExp(r'[\\/]')).last;
+
+  /// Which saved picture is the one in use (null when unknown).
+  static Future<String?> activeName() async => (await SharedPreferences.getInstance()).getString(activeKey);
 
   static const modeKey = 'widget_character_mode';
   static const versionKey = 'widget_character_v';
   static const naruto = 'naruto';
   static const none = 'none';
+  static const demonSlayer = 'ds';
+  static const tokyoRevengers = 'tr';
   static const custom = 'custom';
   static const tintKey = 'widget_tint';
   static const tintAuto = -1;
@@ -62,7 +86,9 @@ class WidgetCharacter {
     final png = img.encodePng(small);
     await (await customFile()).writeAsBytes(png);
     final dir = (await customFile()).parent;
-    await File('${dir.path}/lib_${DateTime.now().millisecondsSinceEpoch}.png').writeAsBytes(png);
+    final saved = File('${dir.path}/lib_${DateTime.now().millisecondsSinceEpoch}.png');
+    await saved.writeAsBytes(png);
+    await (await SharedPreferences.getInstance()).setString(activeKey, nameOf(saved));
     final all = await library();
     for (final old in all.skip(8)) {
       try {
@@ -76,19 +102,62 @@ class WidgetCharacter {
   /// Saved pictures, newest first.
   static Future<List<File>> library() async {
     final dir = (await customFile()).parent;
-    final files = dir.listSync().whereType<File>().where((f) => f.path.split(RegExp(r'[\/]')).last.startsWith('lib_')).toList()
+    final files = dir.listSync().whereType<File>().where((f) => nameOf(f).startsWith('lib_')).toList()
       ..sort((a, b) => b.path.compareTo(a.path));
     return files;
   }
 
   static Future<void> useFromLibrary(File f) async {
     await f.copy((await customFile()).path);
+    await (await SharedPreferences.getInstance()).setString(activeKey, nameOf(f));
     await setMode(custom);
   }
 
+  /// Deletes one saved picture. If it was the one in use, the next saved picture takes over,
+  /// and with none left the widgets go back to Naruto. Nothing is left behind on the phone.
   static Future<void> deleteFromLibrary(File f) async {
+    final prefs = await SharedPreferences.getInstance();
+    final active = prefs.getString(activeKey);
     try {
       await f.delete();
+    } catch (_) {}
+    final remaining = await library();
+    final wasInUse = active == null || active == nameOf(f);
+    if (!wasInUse) return;
+    if (remaining.isNotEmpty) {
+      await useFromLibrary(remaining.first);
+      return;
+    }
+    await _clearCustomFile();
+    await prefs.remove(activeKey);
+    if ((prefs.getString(modeKey) ?? naruto) == custom) {
+      await setMode(naruto);
+    } else {
+      await WidgetSyncService.update();
+    }
+  }
+
+  /// Deletes every saved picture and returns to Naruto if one of them was showing.
+  static Future<void> removeAllPictures() async {
+    for (final f in await library()) {
+      try {
+        await f.delete();
+      } catch (_) {}
+    }
+    await _clearCustomFile();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(activeKey);
+    if ((prefs.getString(modeKey) ?? naruto) == custom) {
+      await setMode(naruto);
+    } else {
+      await WidgetSyncService.update();
+    }
+  }
+
+  static Future<void> _clearCustomFile() async {
+    try {
+      final c = await customFile();
+      if (await c.exists()) await c.delete();
     } catch (_) {}
   }
 

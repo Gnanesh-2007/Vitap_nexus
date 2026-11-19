@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../services/widget_character.dart';
 import 'sheet_kit.dart';
@@ -22,6 +23,8 @@ class _CharacterPickerState extends State<_CharacterPicker> {
   String _mode = WidgetCharacter.naruto;
   File? _custom;
   List<File> _saved = [];
+  List<CharacterPack> _packs = [WidgetCharacter.packs.first];
+  String? _active;
   int? _tint;
   int _glass = 0;
   bool _busy = false;
@@ -43,6 +46,8 @@ class _CharacterPickerState extends State<_CharacterPicker> {
     final m = await WidgetCharacter.mode();
     final f = await WidgetCharacter.customFile();
     final lib = await WidgetCharacter.library();
+    final active = await WidgetCharacter.activeName();
+    final packs = await _availablePacks();
     final t = await WidgetCharacter.tint();
     final g = await WidgetCharacter.glass();
     if (!mounted) return;
@@ -50,6 +55,8 @@ class _CharacterPickerState extends State<_CharacterPicker> {
       _mode = m;
       _custom = f.existsSync() ? f : null;
       _saved = lib;
+      _active = active;
+      _packs = packs;
       _tint = t;
       _glass = g;
     });
@@ -70,6 +77,31 @@ class _CharacterPickerState extends State<_CharacterPicker> {
     nexusToast(context, ok ? 'Widgets updated' : "Couldn't use that image");
   }
 
+  /// Only characters whose pictures are actually in this build are offered, so a copy of the
+  /// project without the sticker packs simply shows Naruto, your own pictures and None.
+  Future<List<CharacterPack>> _availablePacks() async {
+    final out = <CharacterPack>[];
+    for (final p in WidgetCharacter.packs) {
+      try {
+        await rootBundle.load(p.preview);
+        out.add(p);
+      } catch (_) {}
+    }
+    return out.isEmpty ? [WidgetCharacter.packs.first] : out;
+  }
+
+  Future<void> _delete(File f) async {
+    await WidgetCharacter.deleteFromLibrary(f);
+    await _load();
+    if (mounted) nexusToast(context, 'Picture removed');
+  }
+
+  Future<void> _removeAll() async {
+    await WidgetCharacter.removeAllPictures();
+    await _load();
+    if (mounted) nexusToast(context, 'All pictures removed');
+  }
+
   Future<void> _pickFromGallery() async {
     final picked = await FilePicker.pickFile(type: FileType.image);
     if (picked == null) return;
@@ -79,24 +111,30 @@ class _CharacterPickerState extends State<_CharacterPicker> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tileW = (MediaQuery.sizeOf(context).width - 44 - 20) / 3;
     Widget tile(String id, String label, Widget preview) {
       final on = _mode == id;
-      return Expanded(
+      return SizedBox(
+        width: tileW,
         child: GestureDetector(
           onTap: () => _choose(id),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(22),
               color: on ? cs.primary.withValues(alpha: 0.14) : cs.surfaceContainerHigh,
               border: Border.all(color: on ? cs.primary : Colors.transparent, width: 1.6),
             ),
             child: Column(
               children: [
-                SizedBox(height: 64, width: 64, child: Center(child: preview)),
+                SizedBox(height: 62, width: 62, child: Center(child: preview)),
                 const SizedBox(height: 8),
-                Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onSurface)),
+                Text(label,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, height: 1.15, fontWeight: FontWeight.w700, color: cs.onSurface)),
               ],
             ),
           ),
@@ -110,30 +148,31 @@ class _CharacterPickerState extends State<_CharacterPicker> {
         Text('Widget character',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: cs.onSurface)),
         const SizedBox(height: 4),
-        Text('Pick who lives on your home-screen widgets.',
+        Text('Pick who shows on your home screen and widgets. Each one changes with your day: focused in class, panicking when you are late, relaxed when you are free.',
             style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
           children: [
-            tile(WidgetCharacter.naruto, 'Naruto', Image.asset('assets/images/naruto_cool.png', fit: BoxFit.contain)),
-            const SizedBox(width: 10),
+            for (final p in _packs)
+              tile(p.id, p.label, Image.asset(p.preview, fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox())),
             tile(
               WidgetCharacter.custom,
               'Yours',
               _custom == null
-                  ? Icon(Icons.add_photo_alternate_rounded, size: 34, color: cs.onSurfaceVariant)
-                  : ClipOval(child: Image.file(_custom!, fit: BoxFit.cover, key: ValueKey(_custom!.lastModifiedSync()))),
+                  ? Icon(Icons.add_photo_alternate_rounded, size: 32, color: cs.onSurfaceVariant)
+                  : ClipOval(child: Image.file(_custom!, fit: BoxFit.cover, key: ValueKey('${_custom!.path}$_active'))),
             ),
-            const SizedBox(width: 10),
-            tile(WidgetCharacter.none, 'None', Icon(Icons.block_rounded, size: 34, color: cs.onSurfaceVariant)),
+            tile(WidgetCharacter.none, 'None', Icon(Icons.block_rounded, size: 32, color: cs.onSurfaceVariant)),
           ],
         ),
         const SizedBox(height: 18),
-        Text('Any anime you like',
+        Text('Use your own picture',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: cs.onSurface)),
         const SizedBox(height: 4),
         Text(
-          'Choose a picture of any character from your gallery, or paste an image link. '
+          'Choose any picture from your gallery, or paste an image link. '
           'It is cropped to a round sticker and stays on your phone.',
           style: TextStyle(fontSize: 12.5, height: 1.35, color: cs.onSurfaceVariant),
         ),
@@ -170,31 +209,76 @@ class _CharacterPickerState extends State<_CharacterPicker> {
         ),
         if (_saved.isNotEmpty) ...[
           const SizedBox(height: 18),
-          Text('Your characters',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: cs.onSurface)),
-          const SizedBox(height: 2),
-          Text('Tap to switch, long-press to remove.',
+          Row(
+            children: [
+              Expanded(
+                child: Text('Your pictures',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: cs.onSurface)),
+              ),
+              TextButton(
+                onPressed: _busy ? null : _removeAll,
+                style: TextButton.styleFrom(foregroundColor: cs.error, visualDensity: VisualDensity.compact),
+                child: const Text('Remove all'),
+              ),
+            ],
+          ),
+          Text('Tap one to use it. Tap the cross to delete it.',
               style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
-            height: 62,
+            height: 74,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
               itemCount: _saved.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: () async {
-                  await WidgetCharacter.useFromLibrary(_saved[i]);
-                  await _load();
-                },
-                onLongPress: () async {
-                  await WidgetCharacter.deleteFromLibrary(_saved[i]);
-                  await _load();
-                },
-                child: ClipOval(
-                  child: Image.file(_saved[i], width: 62, height: 62, fit: BoxFit.cover),
-                ),
-              ),
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (_, i) {
+                final f = _saved[i];
+                final isActive = _mode == WidgetCharacter.custom && WidgetCharacter.nameOf(f) == _active;
+                return SizedBox(
+                  width: 70,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: () async {
+                          await WidgetCharacter.useFromLibrary(f);
+                          await _load();
+                        },
+                        child: Container(
+                          width: 66,
+                          height: 66,
+                          margin: const EdgeInsets.only(top: 4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: isActive ? cs.primary : Colors.transparent, width: 2.5),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: ClipOval(child: Image.file(f, fit: BoxFit.cover)),
+                        ),
+                      ),
+                      Positioned(
+                        right: -2,
+                        top: -4,
+                        child: GestureDetector(
+                          onTap: () => _delete(f),
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: cs.error,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: cs.surface, width: 2),
+                            ),
+                            child: Icon(Icons.close_rounded, size: 17, color: cs.onError),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],

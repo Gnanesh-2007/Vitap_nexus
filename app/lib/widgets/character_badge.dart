@@ -40,12 +40,24 @@ class _CharacterBadgeState extends State<CharacterBadge> {
     } catch (_) {}
   }
 
-  String get _asset => switch (widget.mood) {
-        DayMood.inClass => 'assets/images/naruto_fight.png',
-        DayMood.soon => 'assets/images/naruto_cool.png',
-        DayMood.done || DayMood.noClasses => 'assets/images/naruto_success.png',
-        DayMood.free => 'assets/images/naruto_cool.png',
+  /// Naruto has his own poses; the other packs use the same four moods
+  /// (fight, run, peace, eye) as round stickers.
+  String get _asset {
+    if (_mode == WidgetCharacter.demonSlayer || _mode == WidgetCharacter.tokyoRevengers) {
+      final mood = switch (widget.mood) {
+        DayMood.inClass => 'fight',
+        DayMood.soon => 'run',
+        _ => 'peace',
       };
+      return 'assets/images/characters/${_mode}_$mood.png';
+    }
+    return switch (widget.mood) {
+      DayMood.inClass => 'assets/images/naruto_fight.png',
+      DayMood.soon => 'assets/images/naruto_cool.png',
+      DayMood.done || DayMood.noClasses => 'assets/images/naruto_success.png',
+      DayMood.free => 'assets/images/naruto_cool.png',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +80,7 @@ class _CharacterBadgeState extends State<CharacterBadge> {
       height: s,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 350),
-        child: Image.asset(_asset, key: ValueKey(_asset), fit: BoxFit.contain),
+        child: Image.asset(_asset, key: ValueKey(_asset), fit: BoxFit.contain, errorBuilder: (_, _, _) => const SizedBox()),
       ),
     );
   }

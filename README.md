@@ -64,7 +64,7 @@ Nexus addresses this in four ways:
 | Screen | Description |
 | :--- | :--- |
 | Journey | CGPA across semesters, the largest improvement, the strongest subject area, and a "try different grades" mode that shows the effect of a change on CGPA. Exportable as PDF or image. |
-| Widget character | Use the bundled artwork, a picture from the gallery or an image link, or no character. The choice applies to the home screen and to every widget. |
+| Widget character | Choose the bundled character, your own picture from the gallery or an image link, or no character. Each character changes with the moment: focused in class, panicking when late, relaxed when free. More characters can be added as packs (see `app/assets/images/characters`). Pictures you add can be deleted individually or all at once. |
 | Widget colours | Choose a preset, take the colours from the character picture, or keep each widget's own colours. |
 
 ## Home-screen widgets
@@ -127,6 +127,7 @@ To add a widget: sign in once and let the app sync, then long-press the home scr
 - Today screen with a live current and next class, day strip, skip verdict and per-subject rings.
 - Journey view with semester-by-semester CGPA and a what-if mode for trying different grades, with PDF and image export.
 - Optional widget character and colour themes.
+- Optional class and exam reminders (local notifications, off until turned on in Profile).
 
 **Academics**
 - Attendance: per-course percentages with 75% and 85% thresholds, a calculator for classes that can be missed or must be attended, day-wise session logs, and capstone attendance.
@@ -239,6 +240,7 @@ cd app/android
 - **Direct connection to VTOP.** The app communicates with VTOP from the device. There is no Nexus server, no analytics, and no account operated by the project that holds user data.
 - **Local storage.** Credentials and cached data stay on the device. Credentials are sent only to VTOP when signing in.
 - **Password storage.** The saved password is held in the Android Keystore (`flutter_secure_storage`) and nowhere else. If the Keystore is unavailable, the password remains in memory for that session and the user signs in again at the next launch. Installations from earlier versions that kept a plain copy are migrated to the Keystore and the copy is deleted on first launch.
+- **Reminders.** Class and exam reminders are local notifications scheduled on the device. They are off by default and need the notification permission, which is requested only when you turn them on.
 - **Privacy mode and app lock.** CGPA and credits can be hidden on screen, and the app can require biometrics or a PIN to open.
 
 If you find a security problem, please contact the maintainer privately rather than opening a public issue.
@@ -247,7 +249,7 @@ If you find a security problem, please contact the maintainer privately rather t
 
 - [x] Store the password only in secure storage
 - [x] Application screenshots in this document
-- [ ] Class and exam reminders as local notifications
+- [x] Class and exam reminders as local notifications (optional, off by default)
 - [ ] Leave planner: projected attendance for a planned absence
 - [ ] End-of-semester summary
 - [ ] iOS home-screen widgets (SwiftUI)
@@ -256,7 +258,7 @@ If you find a security problem, please contact the maintainer privately rather t
 
 - **[`lib_vtop`](app/rust)**, the Rust engine for VTOP, originates from [Udhay-Adithya/vitap_student_app](https://github.com/Udhay-Adithya/vitap_student_app) by the VIT-AP student community and is licensed under **Apache-2.0** (see [`app/rust/LICENSE`](app/rust/LICENSE)). Nexus builds on that work.
 - The remainder of the application, including the interface, navigation and widgets, was written for this project.
-- The bundled character artwork is third-party material and is not covered by this project's MIT licence. Replace it with your own artwork, or choose "None" under Profile, Appearance, Widget character, before redistributing a modified build.
+- The bundled Naruto character artwork is third-party material and is not covered by this project's MIT licence. Other character packs are not included in this repository. Replace the artwork with your own, or choose "None" under Profile, Appearance, Widget character, before redistributing a modified build.
 
 ## License
 

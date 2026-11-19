@@ -26,12 +26,13 @@ class Themed(private val inner: WidgetArt, override val tint: Int?, override val
 }
 
 /** Production loader: PNGs shipped as Android drawables (res/drawable-nodpi). */
-class ResArt(private val ctx: Context) : WidgetArt {
+/** [prefix] picks a character pack: "" is the first one, "ds_" and "tr_" are the others. */
+class ResArt(private val ctx: Context, private val prefix: String = "") : WidgetArt {
     private val cache = HashMap<String, Bitmap?>()
 
     @Synchronized
     override fun bitmap(name: String): Bitmap? = cache.getOrPut(name) {
-        val id = ctx.resources.getIdentifier("widget_art_$name", "drawable", ctx.packageName)
+        val id = ctx.resources.getIdentifier("widget_art_$prefix$name", "drawable", ctx.packageName)
         if (id == 0) {
             null
         } else {

@@ -51,6 +51,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/characters/
     - assets/images/pfp/
     - assets/images/logo/
     - assets/lottie/

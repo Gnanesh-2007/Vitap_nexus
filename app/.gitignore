@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Third-party sticker packs are kept out of the repository
+/assets/images/characters/*.png
+/android/app/src/main/res/drawable-nodpi/widget_art_ds_*.png
+/android/app/src/main/res/drawable-nodpi/widget_art_tr_*.png

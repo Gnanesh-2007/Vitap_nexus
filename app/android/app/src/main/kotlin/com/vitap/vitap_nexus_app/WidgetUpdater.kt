@@ -140,11 +140,13 @@ object WidgetUpdater {
     @Volatile
     private var customArt: CustomArt? = null
 
+    private val packArt = HashMap<String, WidgetArt>()
+
     private fun artFor(ctx: Context, snap: Snapshot?): WidgetArt {
         val app = ctx.applicationContext
         val base = baseArt(app, snap)
         val t = snap?.tint
-        val colour = if (t == -1) (base as? CustomArt)?.dominant else t
+        val colour = if (t == -1) ((base as? CustomArt)?.dominant ?: base.bitmap("peace")?.let { dominantColor(it) }) else t
         val glass = snap?.glass ?: 0
         return if (colour == null && glass == 0) base else Themed(base, colour, glass)
     }
@@ -158,6 +160,7 @@ object WidgetUpdater {
                 if (cached != null && cached.stamp == f.lastModified()) cached
                 else CustomArt(f).also { customArt = it }
             }
+            "ds", "tr" -> packArt.getOrPut(snap.character) { ResArt(app, "${snap.character}_") }
             else -> bundledArt ?: ResArt(app).also { bundledArt = it }
         }
     }

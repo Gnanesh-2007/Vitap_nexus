@@ -11,6 +11,7 @@ import '../services/biometric_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/nexus_app_bar.dart';
+import '../widgets/reminders_sheet.dart';
 import '../widgets/widget_character_sheet.dart';
 import 'cgpa_calculator_screen.dart';
 import 'diagnostics_screen.dart';
@@ -548,6 +549,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             MenuSection(
               label: 'App & Security',
               children: [
+                MenuTile(
+                  icon: Icons.notifications_active_outlined,
+                  title: 'Reminders',
+                  subtitle: 'Class and exam notifications. Off until you turn them on.',
+                  onTap: () => showRemindersSheet(context),
+                ),
                 MenuTile(
                   icon: Icons.visibility_off_outlined,
                   title: 'Privacy Mode',

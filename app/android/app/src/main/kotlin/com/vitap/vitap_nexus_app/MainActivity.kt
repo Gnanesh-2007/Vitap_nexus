@@ -6,7 +6,10 @@ import android.content.DialogInterface
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.CancellationSignal
+import androidx.core.app.ActivityCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -21,11 +24,26 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WIDGET_CHANNEL)
             .setMethodCallHandler { call, result ->
-                if (call.method == "refresh") {
-                    WidgetUpdater.updateAll(applicationContext)
-                    result.success(null)
-                } else {
-                    result.notImplemented()
+                when (call.method) {
+                    "refresh" -> {
+                        WidgetUpdater.updateAll(applicationContext)
+                        Reminders.reschedule(applicationContext)
+                        result.success(null)
+                    }
+                    "notificationsAllowed" -> result.success(Reminders.canNotify(applicationContext))
+                    "requestNotificationPermission" -> requestNotifications(result)
+                    "rescheduleReminders" -> {
+                        Reminders.reschedule(applicationContext)
+                        result.success(null)
+                    }
+                    "testReminder" -> {
+                        Reminders.post(
+                            applicationContext, 7399, "Reminders are on",
+                            "This is what a class reminder looks like. You can turn reminders off in Profile.",
+                        )
+                        result.success(Reminders.canNotify(applicationContext))
+                    }
+                    else -> result.notImplemented()
                 }
             }
 
@@ -44,6 +62,34 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private var pendingNotificationResult: MethodChannel.Result? = null
+
+    /** Asks for the notification permission (Android 13+). Answers true once notifications can be shown. */
+    private fun requestNotifications(result: MethodChannel.Result) {
+        if (Reminders.canNotify(applicationContext)) {
+            result.success(true)
+            return
+        }
+        if (Build.VERSION.SDK_INT < 33) {
+            // Below Android 13 the only way to be off is the system setting.
+            result.success(false)
+            return
+        }
+        pendingNotificationResult?.success(false)
+        pendingNotificationResult = result
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 4711)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 4711) {
+            pendingNotificationResult?.success(
+                grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED && Reminders.canNotify(applicationContext),
+            )
+            pendingNotificationResult = null
+        }
     }
 
     private fun checkBiometricAvailable(): Boolean {
