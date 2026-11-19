@@ -16,8 +16,21 @@ VITAP Nexus is an offline-first Android client for VTOP, the VIT-AP University s
 
 > **Unofficial project.** VITAP Nexus is a student-built application. It is not affiliated with, or endorsed by, VIT-AP University or the VTOP team. You sign in with your own VTOP account and use the app at your own risk.
 
+## Download
+
+<p align="center">
+  <a href="https://github.com/Gnanesh-2007/Vitap_nexus/releases/latest"><img src="https://img.shields.io/badge/Download-Latest_APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download the latest APK"></a>
+</p>
+
+1. Open the [latest release](https://github.com/Gnanesh-2007/Vitap_nexus/releases/latest) on your phone and download **VITAP_Nexus.apk**.
+2. Open the downloaded file. If Android asks, allow your browser or file manager to **install unknown apps**.
+3. Open VITAP Nexus and sign in with your VTOP account.
+
+The APK is for 64-bit ARM phones, which covers almost every Android phone sold in recent years. It is signed with a development key, so a build you compile yourself cannot be installed over it: uninstall one before installing the other.
+
 ## Contents
 
+- [Download](#download)
 - [Overview](#overview)
 - [Screenshots](#screenshots)
 - [Home-screen widgets](#home-screen-widgets)
